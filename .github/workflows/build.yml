@@ -15,6 +15,12 @@ on:
 permissions:
   contents: read
 
+# Several slices released together each start this once, and only the newest run is worth having: the older
+# ones step aside rather than the three of them building the same commit in turn.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     # Not on a sync commit. What this tree pins reaches the feed minutes after the sync lands, and a version

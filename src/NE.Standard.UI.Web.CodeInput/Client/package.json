@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
-    "build": "npm run typecheck && npm test && vite build --clearScreen false --logLevel error"
+    "build": "npm run typecheck && vite build --clearScreen false --logLevel error"
   },
   "devDependencies": {
     "@types/node": "26.4.1",

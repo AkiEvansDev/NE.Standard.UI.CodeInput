@@ -43,6 +43,13 @@
       Command="npm install"
       Condition="!Exists('$(MSBuildProjectDirectory)\Client\node_modules')" />
 
+    <!-- Tests run here rather than from `npm run build`, as the framework's client does: a mirror builds, it
+         does not test. -->
+    <Exec
+      WorkingDirectory="$(MSBuildProjectDirectory)\Client"
+      Command="npm test"
+      Condition="'$(InMonorepo)' == 'true'" />
+
     <Exec
       WorkingDirectory="$(MSBuildProjectDirectory)\Client"
       Command="npm run build" />

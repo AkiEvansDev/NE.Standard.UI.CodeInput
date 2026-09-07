@@ -26,9 +26,9 @@
        Bump a slice's number in the commit that releases it: Release refuses a tag that disagrees, and a
        number bumped early would have a demo pointing at a version nobody published yet. -->
   <PropertyGroup>
-    <CoreVersion>1.0.0-preview.2</CoreVersion>
-    <IconsVersion>1.0.0-preview.2</IconsVersion>
-    <CodeInputVersion>1.0.0-preview.1</CodeInputVersion>
+    <CoreVersion>1.0.0-rc.1</CoreVersion>
+    <IconsVersion>1.0.0-rc.1</IconsVersion>
+    <CodeInputVersion>1.0.0-rc.1</CodeInputVersion>
   </PropertyGroup>
 
   <!-- Only the private monorepo has eng/. A mirror does not, so a demo there builds against the published
