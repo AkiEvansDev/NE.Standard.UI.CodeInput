@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- The component is this slice's own, so it is a project here and in the mirror alike. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NE.Standard.UI.CodeInput\NE.Standard.UI.CodeInput.csproj" />
+    <ProjectReference Include="..\..\src\NE.Standard.UI.Web.CodeInput\NE.Standard.UI.Web.CodeInput.csproj" />
+  </ItemGroup>
+
+  <!-- The framework is a sibling in the monorepo and a package in the mirror, where this demo is the whole
+       point: it shows that the published component works against the published framework. The generator is
+       what turns the controller's members into notifying, path-resolvable ones. -->
+  <ItemGroup Condition="'$(InMonorepo)' == 'true'">
+    <ProjectReference Include="..\..\..\..\src\Generators\NE.Standard.UI.Generators\NE.Standard.UI.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\..\src\Core\NE.Standard.UI\NE.Standard.UI.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Core\NE.Standard.UI.Components\NE.Standard.UI.Components.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Platforms\Web\NE.Standard.UI.Web\NE.Standard.UI.Web.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Platforms\Web\NE.Standard.UI.Web.Renderers\NE.Standard.UI.Web.Renderers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(InMonorepo)' != 'true'">
+    <PackageReference Include="NE.Standard.UI.Generators" Version="$(CoreVersion)" />
+    <PackageReference Include="NE.Standard.UI" Version="$(CoreVersion)" />
+    <PackageReference Include="NE.Standard.UI.Components" Version="$(CoreVersion)" />
+    <PackageReference Include="NE.Standard.UI.Web" Version="$(CoreVersion)" />
+    <PackageReference Include="NE.Standard.UI.Web.Renderers" Version="$(CoreVersion)" />
+  </ItemGroup>
+
+</Project>

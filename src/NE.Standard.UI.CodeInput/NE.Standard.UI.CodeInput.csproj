@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>NE.Standard.UI.CodeInput</PackageId>
+    <Description>A code editor component for the NE.Standard UI framework: a monospaced field with syntax highlighting for JSON, CSS and LESS, JavaScript and TypeScript, HTML, C#, Python and Bash, line numbers, and find and replace. Platform-independent; the web rendering is NE.Standard.UI.Web.CodeInput.</Description>
+    <PackageTags>NE.Standard,UI,CodeInput,Editor,Syntax</PackageTags>
+  </PropertyGroup>
+
+  <!-- The framework is a sibling in the monorepo and a package in this slice's mirror. Either way the
+       produced nupkg depends on the framework at $(CoreVersion). The generator is what turns a declared
+       property into its setter, binder and descriptor, exactly as it does for the built-in components. -->
+  <ItemGroup Condition="'$(InMonorepo)' == 'true'">
+    <ProjectReference Include="..\..\..\..\src\Generators\NE.Standard.UI.Generators\NE.Standard.UI.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\..\src\Core\NE.Standard.UI.Components.Foundation\NE.Standard.UI.Components.Foundation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(InMonorepo)' != 'true'">
+    <PackageReference Include="NE.Standard.UI.Generators" Version="$(CoreVersion)" PrivateAssets="all" />
+    <PackageReference Include="NE.Standard.UI.Components.Foundation" Version="$(CoreVersion)" />
+  </ItemGroup>
+
+</Project>

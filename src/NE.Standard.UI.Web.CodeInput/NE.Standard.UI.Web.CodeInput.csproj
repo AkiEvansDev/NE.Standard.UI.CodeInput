@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>NE.Standard.UI.Web.CodeInput</PackageId>
+    <Description>The web rendering of NE.Standard.UI.CodeInput: the renderer, and the highlighting, line numbers and find-and-replace engine the package embeds as its own script and stylesheet. Register it with services.AddCodeInput().</Description>
+    <PackageTags>NE.Standard,UI,Web,CodeInput,Editor,Syntax</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NE.Standard.UI.CodeInput\NE.Standard.UI.CodeInput.csproj" />
+  </ItemGroup>
+
+  <!-- The framework is a sibling in the monorepo and a package in this slice's mirror. Either way the
+       produced nupkg depends on the framework's renderer foundation at $(CoreVersion): the field's header,
+       validation message and native-input helpers are theirs, not copied. -->
+  <ItemGroup Condition="'$(InMonorepo)' == 'true'">
+    <ProjectReference Include="..\..\..\..\src\Platforms\Web\NE.Standard.UI.Web.Renderers.Foundation\NE.Standard.UI.Web.Renderers.Foundation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(InMonorepo)' != 'true'">
+    <PackageReference Include="NE.Standard.UI.Web.Renderers.Foundation" Version="$(CoreVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Client\dist\**" />
+    <Content Remove="Client\dist\**" />
+    <None Remove="Client\node_modules\**" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <CodeInputClientJs>$(MSBuildProjectDirectory)\Client\dist\ui-code-input.js</CodeInputClientJs>
+    <CodeInputClientCss>$(MSBuildProjectDirectory)\Client\dist\ui-code-input.css</CodeInputClientCss>
+  </PropertyGroup>
+
+  <!-- The client builds as part of dotnet build, as the framework's own does: a type error or a failing test fails the build. -->
+  <Target Name="BuildCodeInputClientAssets" BeforeTargets="PrepareResources" Condition="'$(SkipWebClientBuild)' != 'true'">
+    <Exec
+      WorkingDirectory="$(MSBuildProjectDirectory)\Client"
+      Command="npm install"
+      Condition="!Exists('$(MSBuildProjectDirectory)\Client\node_modules')" />
+
+    <Exec
+      WorkingDirectory="$(MSBuildProjectDirectory)\Client"
+      Command="npm run build" />
+
+    <Error Condition="!Exists('$(CodeInputClientJs)')" Text="Code input client script was not generated: $(CodeInputClientJs)" />
+    <Error Condition="!Exists('$(CodeInputClientCss)')" Text="Code input client stylesheet was not generated: $(CodeInputClientCss)" />
+  </Target>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(CodeInputClientJs)" LogicalName="NE.Standard.UI.Web.CodeInput.Client.dist.ui-code-input.js" />
+    <EmbeddedResource Include="$(CodeInputClientCss)" LogicalName="NE.Standard.UI.Web.CodeInput.Client.dist.ui-code-input.css" />
+  </ItemGroup>
+
+</Project>

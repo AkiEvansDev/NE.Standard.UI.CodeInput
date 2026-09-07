@@ -1,0 +1,394 @@
+// The code field. The ground it stands on and the states every input takes come from the framework's stylesheet through the one
+// class it offers a field it does not know, `.ui-field-box`, which the renderer puts on the field; what is written here is the
+// editor's own, against the theme's --ui-* tokens.
+
+@pad: 0.5rem;
+@control-height: 1.75rem;
+@motion: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+@mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+.ui-code-input {
+    // Same header/field/message shell as the text area.
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-width: var(--ui-max-width, 100%);
+    font: inherit;
+
+    --ui-code-font-size: 0.875rem;
+    --ui-code-line-height: 1.5;
+    // Room for the digits the engine counts, plus the air either side of them.
+    --ui-code-gutter: calc(var(--ui-code-gutter-digits, 2) * 1ch + 1.25rem);
+
+    // The colours an editor is read in — Visual Studio's, light here and dark below — rather than the theme's semantic inks, which
+    // name states, not syntax. An application may override any one on the component.
+    .ui-code-palette-light();
+}
+
+    [data-ui-theme="dark"] .ui-code-input {
+        .ui-code-palette-dark();
+    }
+
+    @media (prefers-color-scheme: dark) {
+        [data-ui-theme="auto"] .ui-code-input {
+            .ui-code-palette-dark();
+        }
+    }
+
+.ui-code-palette-light() {
+    --ui-code-keyword: #0000ff;
+    --ui-code-string: #a31515;
+    --ui-code-number: #098658;
+    --ui-code-comment: #008000;
+    --ui-code-property: #001080;
+    --ui-code-tag: #800000;
+    --ui-code-attribute: #e50000;
+    --ui-code-type: #267f99;
+    --ui-code-function: #795e26;
+    --ui-code-variable: #001080;
+    --ui-code-regex: #811f3f;
+    --ui-code-meta: #af00db;
+    --ui-code-escape: #ee0000;
+    --ui-code-invalid: #cd3131;
+    --ui-code-operator: #000000;
+    --ui-code-punctuation: #000000;
+}
+
+.ui-code-palette-dark() {
+    --ui-code-keyword: #569cd6;
+    --ui-code-string: #ce9178;
+    --ui-code-number: #b5cea8;
+    --ui-code-comment: #6a9955;
+    --ui-code-property: #9cdcfe;
+    --ui-code-tag: #569cd6;
+    --ui-code-attribute: #9cdcfe;
+    --ui-code-type: #4ec9b0;
+    --ui-code-function: #dcdcaa;
+    --ui-code-variable: #9cdcfe;
+    --ui-code-regex: #d16969;
+    --ui-code-meta: #c586c0;
+    --ui-code-escape: #d7ba7d;
+    --ui-code-invalid: #f44747;
+    --ui-code-operator: #d4d4d4;
+    --ui-code-punctuation: #d4d4d4;
+}
+
+    .ui-code-input:not([data-ui-code-line-numbers]) {
+        --ui-code-gutter: @pad;
+    }
+
+// The box, holding the scroller and the panel; its ground, appearance and states are the framework's, through .ui-field-box.
+.ui-code-input__field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: calc(var(--ui-code-rows, 12) * var(--ui-code-line-height) * var(--ui-code-font-size) + 2 * @pad);
+    overflow: hidden;
+    // What the sticky line numbers paint over text scrolled under them: whatever the field paints at the moment.
+    --ui-code-ground: var(--ui-field-fill);
+    // An editor is not a row of a list that lifts under the pointer: its hover is its rest, whatever the appearance.
+    --ui-field-hover: var(--ui-field-rest);
+    --ui-field-hover-accent: var(--ui-color-border);
+    --ui-field-hover-wash: transparent;
+}
+
+    // The half padding Ghost and Underline give a row's field is a row's; the box has its air inside the scroller.
+    .ui-input--ghost > .ui-code-input__field,
+    .ui-input--underline > .ui-code-input__field {
+        padding: 0;
+    }
+
+// The one thing that scrolls; the metrics every layer shares are set here and inherited.
+.ui-code-input__scroller {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    font-family: @mono;
+    font-size: var(--ui-code-font-size);
+    line-height: var(--ui-code-line-height);
+    tab-size: var(--ui-code-tab-size, 4);
+}
+
+// As wide as the longest line, so the textarea over it never has to scroll on its own; wrapping pins it to the scroller instead.
+.ui-code-input__content {
+    position: relative;
+    width: max-content;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+    [data-ui-code-wrap] .ui-code-input__content {
+        width: 100%;
+    }
+
+.ui-code-input__highlight {
+    margin: 0;
+    padding: @pad 0;
+    font: inherit;
+    color: var(--ui-color-on-surface);
+    counter-reset: line;
+}
+
+// A line is a number and its text side by side; the text cell is named so a hidden number does not shift it into the first column.
+.ui-code-input__line {
+    display: grid;
+    grid-template-columns: var(--ui-code-gutter) auto;
+}
+
+    [data-ui-code-wrap] .ui-code-input__line {
+        grid-template-columns: var(--ui-code-gutter) minmax(0, 1fr);
+    }
+
+    .ui-code-input__line::before {
+        counter-increment: line;
+        content: counter(line);
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        display: block;
+        padding: 0 0.625rem;
+        text-align: right;
+        color: var(--ui-text-muted);
+        background: var(--ui-code-ground);
+        user-select: none;
+    }
+
+    .ui-code-input:not([data-ui-code-line-numbers]) .ui-code-input__line::before {
+        display: none;
+    }
+
+.ui-code-input__code {
+    grid-column: 2;
+    display: block;
+    // A character past the longest line, so the caret at its end has room to stand.
+    padding-right: calc(@pad + 1ch);
+    white-space: pre;
+}
+
+    [data-ui-code-wrap] .ui-code-input__code {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+// The textarea is the editor: laid over the highlighted layer with its own text invisible, the same metrics and the same padding,
+// so its caret and selection land on the drawn text.
+.ui-code-input__text {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: @pad calc(@pad + 1ch) @pad var(--ui-code-gutter);
+    border: none;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--ui-color-on-surface);
+    font: inherit;
+    line-height: inherit;
+    tab-size: inherit;
+    white-space: pre;
+}
+
+    [data-ui-code-wrap] .ui-code-input__text {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .ui-code-input__text::placeholder {
+        color: var(--ui-text-muted);
+    }
+
+    // Translucent, or an opaque selection would hide the highlighted text under it.
+    .ui-code-input__text::selection {
+        background: color-mix(in srgb, var(--ui-color-primary) 30%, transparent);
+        color: transparent;
+    }
+
+    .ui-code-input__text:read-only {
+        cursor: default;
+    }
+
+// Tokens.
+.ui-tk-keyword { color: var(--ui-code-keyword); }
+.ui-tk-string { color: var(--ui-code-string); }
+.ui-tk-number { color: var(--ui-code-number); }
+.ui-tk-comment { color: var(--ui-code-comment); }
+.ui-tk-property { color: var(--ui-code-property); }
+.ui-tk-tag { color: var(--ui-code-tag); }
+.ui-tk-attribute { color: var(--ui-code-attribute); }
+.ui-tk-type { color: var(--ui-code-type); }
+.ui-tk-function { color: var(--ui-code-function); }
+.ui-tk-variable { color: var(--ui-code-variable); }
+.ui-tk-regex { color: var(--ui-code-regex); }
+.ui-tk-meta { color: var(--ui-code-meta); }
+.ui-tk-escape { color: var(--ui-code-escape); }
+.ui-tk-operator { color: var(--ui-code-operator); }
+.ui-tk-punctuation { color: var(--ui-code-punctuation); }
+.ui-tk-invalid { color: var(--ui-code-invalid); text-decoration: underline wavy; }
+
+// Find matches, drawn on the highlighted layer since the textarea shows only one selection.
+.ui-code-match {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--ui-color-warning-ink) 28%, transparent);
+}
+
+    .ui-code-match--current {
+        background: color-mix(in srgb, var(--ui-color-primary) 32%, transparent);
+        box-shadow: 0 0 0 1px var(--ui-color-primary);
+    }
+
+// The find and replace panel, over the field's top right corner.
+.ui-code-input__search {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-width: calc(100% - 0.75rem);
+    padding: 0.375rem;
+    border: var(--ui-border-width, 1.5px) solid var(--ui-color-border);
+    border-radius: var(--ui-radius-input);
+    background: var(--ui-color-surface);
+    box-shadow: 0 2px 6px var(--ui-color-shadow), 0 1px 2px var(--ui-color-shadow);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+}
+
+    .ui-code-input__search[hidden] {
+        display: none;
+    }
+
+    // A read-only field has nothing to replace.
+    .ui-code-input:has(.ui-code-input__text:read-only) .ui-code-input__search-row--replace {
+        display: none;
+    }
+
+.ui-code-input__search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ui-code-input__search-field {
+    flex: 1 1 10rem;
+    min-width: 6rem;
+    height: @control-height;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 @pad;
+    border: 1px solid var(--ui-color-border);
+    border-radius: 4px;
+    background: var(--ui-color-background);
+    color: var(--ui-color-on-surface);
+    font: inherit;
+}
+
+    .ui-code-input__search-field:focus {
+        outline: none;
+        border-color: var(--ui-color-primary);
+        box-shadow: inset 0 0 0 1px var(--ui-color-primary);
+    }
+
+    .ui-code-input--invalid-pattern .ui-code-input__search-field[data-ui-code-find] {
+        border-color: var(--ui-color-danger-ink);
+    }
+
+.ui-code-input__search-toggle,
+.ui-code-input__search-button,
+.ui-code-input__search-action {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    height: @control-height;
+    margin: 0;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ui-text-muted);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color @motion, color @motion, border-color @motion;
+}
+
+    .ui-code-input__search-toggle:hover,
+    .ui-code-input__search-button:hover,
+    .ui-code-input__search-action:hover {
+        background: var(--ui-wash-hover);
+        color: var(--ui-color-on-surface);
+    }
+
+    .ui-code-input__search-toggle:focus-visible,
+    .ui-code-input__search-button:focus-visible,
+    .ui-code-input__search-action:focus-visible {
+        outline: 2px solid var(--ui-color-primary);
+        outline-offset: 1px;
+    }
+
+.ui-code-input__search-toggle {
+    min-width: @control-height;
+    padding: 0 0.25rem;
+    border-radius: 4px;
+    font-family: @mono;
+    font-size: 0.75rem;
+}
+
+    .ui-code-input__search-toggle[aria-pressed="true"] {
+        border-color: color-mix(in srgb, var(--ui-color-primary) 40%, transparent);
+        background: var(--ui-wash-selected);
+        color: var(--ui-color-primary-ink);
+    }
+
+.ui-code-input__search-count {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    color: var(--ui-text-muted);
+    font-size: 0.75rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+// The three glyph buttons: a chevron up, a chevron down and a cross, drawn as masks in the button's own colour.
+.ui-code-input__search-button {
+    width: @control-height;
+    padding: 0;
+    border-radius: 999px;
+}
+
+    .ui-code-input__search-button::before {
+        content: "";
+        display: block;
+        width: 1rem;
+        height: 1rem;
+        margin: 0 auto;
+        background: currentColor;
+        mask: var(--ui-code-glyph) center / contain no-repeat;
+        -webkit-mask: var(--ui-code-glyph) center / contain no-repeat;
+    }
+
+    .ui-code-input__search-button--previous {
+        --ui-code-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E");
+    }
+
+    .ui-code-input__search-button--next {
+        --ui-code-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+
+    .ui-code-input__search-button--close {
+        --ui-code-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E");
+    }
+
+.ui-code-input__search-action {
+    padding: 0 0.625rem;
+    border-color: var(--ui-color-border);
+    border-radius: var(--ui-radius-button);
+    color: var(--ui-color-on-surface);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
