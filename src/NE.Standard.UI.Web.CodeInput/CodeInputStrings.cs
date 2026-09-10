@@ -6,7 +6,7 @@ using NE.Standard.UI.Shell.Localization;
 namespace NE.Standard.UI.Web.CodeInput;
 
 /// <summary>
-/// The words the code field's own chrome writes — the find and replace panel — with their English, translated by an
+/// The words the code field's own chrome writes — the find and replace panel, the status bar — with their English, translated by an
 /// application through its localization source exactly as the framework's <see cref="UIStrings"/> are.
 /// </summary>
 public sealed class CodeInputStrings : IUIStringsSource
@@ -24,6 +24,12 @@ public sealed class CodeInputStrings : IUIStringsSource
     public const string Matches = "ui.code.matches";
     public const string NoMatches = "ui.code.no-matches";
     public const string InvalidPattern = "ui.code.invalid-pattern";
+    public const string Position = "ui.code.position";
+    public const string Spaces = "ui.code.spaces";
+    public const string Indentation = "ui.code.indentation";
+    public const string Encoding = "ui.code.encoding";
+    public const string LineEnding = "ui.code.line-ending";
+    public const string Language = "ui.code.language";
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> English { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -40,6 +46,12 @@ public sealed class CodeInputStrings : IUIStringsSource
         [Regex] = "Regular expression",
         [Matches] = "{current} of {total}",
         [NoMatches] = "No matches",
-        [InvalidPattern] = "Invalid pattern"
+        [InvalidPattern] = "Invalid pattern",
+        [Position] = "Ln {line}, Col {column}",
+        [Spaces] = "Spaces: {size}",
+        [Indentation] = "Indentation",
+        [Encoding] = "Encoding",
+        [LineEnding] = "End of line",
+        [Language] = "Language"
     }.ToFrozenDictionary(StringComparer.Ordinal);
 }

@@ -3,6 +3,7 @@ using NE.Standard.UI.Authoring.BuiltIns;
 using NE.Standard.UI.Authoring.Components;
 using NE.Standard.UI.Components.Foundation.Inputs;
 using NE.Standard.UI.Primitives.Annotations;
+using NE.Standard.UI.Primitives.Binding;
 using NE.Standard.UI.Primitives.Styling;
 
 namespace NE.Standard.UI.CodeInput;
@@ -26,8 +27,12 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
 
     /// <summary>
     /// Gets or sets the language the text is highlighted as, by id — one of <see cref="UICodeLanguages"/>, or one a package registered.
+    /// Two-way: the status bar's language picker writes the choice back.
     /// </summary>
-    [UIComponentProperty(DefaultValue = UICodeLanguages.PlainText)]
+    [UIComponentProperty(
+        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
+        DefaultBindingMode = UIBindingMode.TwoWay,
+        DefaultValue = UICodeLanguages.PlainText)]
     public string? Language { get; set; }
 
     /// <summary>
@@ -49,10 +54,41 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     public bool? Search { get; set; }
 
     /// <summary>
-    /// Gets or sets how many spaces a tab stop is, and what the Tab key inserts.
+    /// Gets or sets how many spaces a tab stop is, and what the Tab key inserts. Two-way: the status bar's picker writes the choice back.
     /// </summary>
-    [UIComponentProperty(DefaultValue = 4, GenerateSetter = false)]
+    [UIComponentProperty(
+        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
+        DefaultBindingMode = UIBindingMode.TwoWay,
+        DefaultValue = 4,
+        GenerateSetter = false)]
     public int? TabSize { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the status bar under the text is drawn: the caret's line and column, the tab size, the encoding, the line
+    /// ending and the language, each a picker where there is a choice.
+    /// </summary>
+    [UIComponentProperty(DefaultValue = true)]
+    public bool? StatusBar { get; set; }
+
+    /// <summary>
+    /// Gets or sets the encoding the application writes the text out as — one of <see cref="UICodeEncodings"/>. The field holds text
+    /// and the browser reads none of this; the status bar offers the choice and the controller receives it.
+    /// </summary>
+    [UIComponentProperty(
+        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
+        DefaultBindingMode = UIBindingMode.TwoWay,
+        DefaultValue = UICodeEncodings.Utf8)]
+    public string? Encoding { get; set; }
+
+    /// <summary>
+    /// Gets or sets the line break the value is written with — <see cref="UICodeLineEndings"/>. Unset, the field keeps whatever the
+    /// value came with, which is what the status bar shows; a choice converts the text on the next commit.
+    /// </summary>
+    [UIComponentProperty(
+        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
+        DefaultBindingMode = UIBindingMode.TwoWay,
+        DefaultValue = null)]
+    public string? LineEnding { get; set; }
 
     /// <summary>
     /// Gets or sets the number of visible text rows the field starts at.

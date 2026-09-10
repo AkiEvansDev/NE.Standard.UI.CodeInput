@@ -34,31 +34,44 @@ internal sealed partial class CodeInputController : UIControllerBase
     public partial bool Search { get; set; } = true;
 
     [RecursiveMember]
+    public partial int TabSize { get; set; } = 4;
+
+    [RecursiveMember]
+    public partial bool StatusBar { get; set; } = true;
+
+    [RecursiveMember]
+    public partial string? Encoding { get; set; } = UICodeEncodings.Utf8;
+
+    /// <summary>Null until the status bar's picker chooses: the field keeps the line break the sample came with.</summary>
+    [RecursiveMember]
+    public partial string? LineEnding { get; set; }
+
+    [RecursiveMember]
     public partial UIInputAppearance Appearance { get; set; } = UIInputAppearance.Ghost;
 
     [RecursiveMember]
     public partial string AppearanceCaption { get; set; } = "Appearance: Ghost";
 
     [RecursiveMember]
-    public partial string Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp]);
+    public partial string Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp], UICodeEncodings.Utf8, null);
 
     /// <summary>The select changed the language: the sample of that language replaces the text.</summary>
     [UICommand]
     public void ChangeLanguage()
     {
         Code = Samples.TryGetValue(Language, out var sample) ? sample : string.Empty;
-        Status = Describe(Code);
+        Status = Describe(Code, Encoding, LineEnding);
     }
 
     /// <summary>The editor committed a value: what the server holds is what the status line says.</summary>
     [UICommand]
     public void CodeChanged()
-        => Status = Describe(Code);
+        => Status = Describe(Code, Encoding, LineEnding);
 
-    /// <summary>Ctrl+S in the editor: the value has already arrived, so this is where an application would write it out.</summary>
+    /// <summary>Ctrl+S in the editor: the value has already arrived, so this is where an application would write it out — in <c>Encoding</c>.</summary>
     [UICommand]
     public void Save()
-        => Status = string.Create(CultureInfo.InvariantCulture, $"Saved at {DateTime.Now:HH:mm:ss} — {Describe(Code)}");
+        => Status = string.Create(CultureInfo.InvariantCulture, $"Saved at {DateTime.Now:HH:mm:ss} — {Describe(Code, Encoding, LineEnding)}");
 
     [UICommand]
     public void CycleAppearance()
@@ -72,11 +85,12 @@ internal sealed partial class CodeInputController : UIControllerBase
     public void ResetSample()
         => ChangeLanguage();
 
-    private static string Describe(string code)
+    private static string Describe(string code, string? encoding, string? lineEnding)
     {
         var lines = code.Length == 0 ? 0 : code.Split('\n').Length;
+        var ending = lineEnding ?? (code.Contains("\r\n", StringComparison.Ordinal) ? UICodeLineEndings.CrLf : UICodeLineEndings.Lf);
 
-        return string.Create(CultureInfo.InvariantCulture, $"On the server: {lines} lines, {code.Length} characters.");
+        return string.Create(CultureInfo.InvariantCulture, $"On the server: {lines} lines, {code.Length} characters, {encoding ?? UICodeEncodings.Utf8}, {ending.ToUpperInvariant()}.");
     }
 
     // Each sample has more than keywords — strings, numbers, comments, nesting, operators and a construction of its own.

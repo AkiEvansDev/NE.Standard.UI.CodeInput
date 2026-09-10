@@ -84,7 +84,7 @@
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    height: calc(var(--ui-code-rows, 12) * var(--ui-code-line-height) * var(--ui-code-font-size) + 2 * @pad);
+    height: calc(var(--ui-code-rows, 12) * var(--ui-code-line-height) * var(--ui-code-font-size) + 2 * @pad + var(--ui-code-status-height, 0px));
     overflow: hidden;
     // What the sticky line numbers paint over text scrolled under them: whatever the field paints at the moment.
     --ui-code-ground: var(--ui-field-fill);
@@ -98,6 +98,19 @@
     .ui-input--ghost > .ui-code-input__field,
     .ui-input--underline > .ui-code-input__field {
         padding: 0;
+    }
+
+    // A ghost editor is read on the page itself, with nothing drawn around it — not the ring the family's ghost takes on focus,
+    // and no rule over its status bar (the owner's call, 2026-09-07).
+    .ui-code-input.ui-input--ghost:not(.ui-disabled) > .ui-code-input__field:focus-within {
+        // The ring is zeroed through the variable as well, since a box field draws it a second time over its own content.
+        --ui-input-focus-ring: 0;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .ui-code-input.ui-input--ghost .ui-code-input__status {
+        border-top-color: transparent;
     }
 
 // The one thing that scrolls; the metrics every layer shares are set here and inherited.
@@ -392,3 +405,118 @@
     font-size: 0.75rem;
     white-space: nowrap;
 }
+
+// The status bar under the text: the caret's place at the left, the four pickers at the right; the field's height grows by the bar's
+// when it is shown. No ground of its own, so the field's edge and focus ring — an inset shadow, drawn under the children — show through
+// beside and under it as they do beside the text.
+.ui-code-input[data-ui-code-status] {
+    --ui-code-status-height: 1.5rem;
+}
+
+.ui-code-input__status {
+    display: none;
+    flex: 0 0 auto;
+    align-items: stretch;
+    gap: 0.25rem;
+    height: var(--ui-code-status-height, 1.5rem);
+    padding: 0 0 0 @pad;
+    border-top: 1px solid var(--ui-color-border);
+    color: var(--ui-text-muted);
+    font-family: inherit;
+    font-size: 0.75rem;
+    line-height: 1;
+    user-select: none;
+}
+
+    .ui-code-input[data-ui-code-status] .ui-code-input__status {
+        display: flex;
+    }
+
+.ui-code-input__status-position {
+    flex: 1 1 auto;
+    align-self: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.ui-code-input__status-picker {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-self: stretch;
+}
+
+// The word that opens the list: square, the bar's full height, washed under the pointer and while the list is open, as a menu's entry.
+.ui-code-input__status-button {
+    max-width: 10rem;
+    margin: 0;
+    padding: 0 0.625rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+    .ui-code-input__status-button:hover,
+    .ui-code-input__status-button:focus-visible,
+    .ui-code-input__status-button[aria-expanded="true"] {
+        outline: none;
+        background: var(--ui-wash-hover);
+        color: var(--ui-color-on-surface);
+    }
+
+    .ui-code-input:has(.ui-code-input__text:read-only) .ui-code-input__status-button {
+        pointer-events: none;
+    }
+
+// The list over a picker, the package's own: the surface, edge and shadow a context menu has, an entry washed under the pointer and
+// the current one in the brand colour.
+.ui-code-input__status-menu {
+    position: fixed;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 8rem;
+    max-height: 50vh;
+    padding: 0.25rem;
+    border: var(--ui-border-width, 1.5px) solid var(--ui-color-border);
+    border-radius: var(--ui-radius-input);
+    background: var(--ui-color-surface);
+    box-shadow: 0 2px 6px var(--ui-color-shadow), 0 1px 2px var(--ui-color-shadow);
+    overflow: auto;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+}
+
+.ui-code-input__status-option {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ui-color-on-surface);
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+    .ui-code-input__status-option:hover,
+    .ui-code-input__status-option:focus-visible {
+        outline: none;
+        background: var(--ui-wash-hover);
+    }
+
+    .ui-code-input__status-option[aria-selected="true"] {
+        color: var(--ui-color-primary);
+        font-weight: 600;
+    }

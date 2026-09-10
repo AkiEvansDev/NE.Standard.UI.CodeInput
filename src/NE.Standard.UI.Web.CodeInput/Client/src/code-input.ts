@@ -1,5 +1,5 @@
 import "./styles/ui-code-input.less";
-import { startCodeInputEngine } from "./code-input-engine.ts";
+import { readCodeValue, startCodeInputEngine } from "./code-input-engine.ts";
 import { frameworkApi } from "./framework-api.ts";
 import { languages } from "./languages/index.ts";
 import { installPackageApi } from "./package-api.ts";
@@ -11,4 +11,6 @@ const api = frameworkApi();
 
 // Ctrl+S, raised by the engine on the textarea after a `change`; the command waits for that value, so OnSave sees what was typed.
 api.registerEvent("save", { settlesValue: true });
+// The textarea holds every line break as LF; the value goes out with the ending the status bar shows — chosen, or the one it came with.
+api.registerValueReader({ kind: "code", read: element => readCodeValue(element) });
 api.registerEngine(startCodeInputEngine);

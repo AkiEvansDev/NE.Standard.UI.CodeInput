@@ -7,7 +7,6 @@ using NE.Standard.UI.Components.BuiltIns.Contents;
 using NE.Standard.UI.Components.BuiltIns.Inputs;
 using NE.Standard.UI.Components.BuiltIns.Layouts;
 using NE.Standard.UI.Components.BuiltIns.Models;
-using NE.Standard.UI.Components.Foundation.Inputs;
 using NE.Standard.UI.Primitives.Styling;
 
 namespace DemoApp.CodeInput;
@@ -91,6 +90,11 @@ internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
                 .BindValue(nameof(CodeInputController.Search))
                 .SetVerticalAlignment(UIAlignment.Center)
             )
+            .AddChild(new SwitchComponent()
+                .SetTitle("Status bar")
+                .BindValue(nameof(CodeInputController.StatusBar))
+                .SetVerticalAlignment(UIAlignment.Center)
+            )
             .AddChild(new ButtonComponent()
                 .BindTitle(nameof(CodeInputController.AppearanceCaption))
                 .SetType(UIButtonType.Outline)
@@ -113,6 +117,10 @@ internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
             .BindWrapLines(nameof(CodeInputController.WrapLines))
             .BindIsReadOnly(nameof(CodeInputController.ReadOnly))
             .BindSearch(nameof(CodeInputController.Search))
+            .BindTabSize(nameof(CodeInputController.TabSize))
+            .BindStatusBar(nameof(CodeInputController.StatusBar))
+            .BindEncoding(nameof(CodeInputController.Encoding))
+            .BindLineEnding(nameof(CodeInputController.LineEnding))
             .BindAppearance(nameof(CodeInputController.Appearance))
             .SetDebounceMilliseconds(400)
             .OnChange(nameof(CodeInputController.CodeChanged))

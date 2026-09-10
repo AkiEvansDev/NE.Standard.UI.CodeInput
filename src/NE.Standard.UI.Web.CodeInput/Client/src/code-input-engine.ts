@@ -1,8 +1,10 @@
-// Runs every code field on the page: the highlighted layer under the textarea, the keys an editor answers, and the find panel.
+// Runs every code field on the page: the highlighted layer under the textarea, the keys an editor answers, the find panel, and the
+// status bar under the text — the caret's place and the four pickers whose values travel the ordinary two-way path.
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import type { LineChange } from "./highlighter.ts";
 import { Highlighter } from "./highlighter.ts";
+import { applyTab } from "./indent.ts";
 import { LanguageRegistry, languages } from "./languages/index.ts";
 import type { SearchMatch, SearchOptions, SearchQuery } from "./search.ts";
 import { compileQuery, expandReplacement, findMatches, nextMatchFrom, previousMatchFrom, replaceAll } from "./search.ts";
@@ -10,12 +12,33 @@ import { compileQuery, expandReplacement, findMatches, nextMatchFrom, previousMa
 const RootSelector = ".ui-code-input";
 const LanguageAttribute = "data-ui-code-language";
 const SearchAttribute = "data-ui-code-search";
+const DetectedLineEndingAttribute = "data-ui-code-eol";
+const CrLf = "crlf";
 const TabSizeVariable = "--ui-code-tab-size";
 const GutterDigitsVariable = "--ui-code-gutter-digits";
 const InvalidPatternClass = "ui-code-input--invalid-pattern";
 const LineClass = "ui-code-input__line";
 
 type Strings = PluginEngineContext["strings"];
+
+/** The textarea's text with the line ending the status bar shows put back: the browser holds every break as LF. */
+export function readCodeValue(element: Element): unknown {
+    if (!(element instanceof HTMLTextAreaElement))
+        return null;
+
+    const value = element.value;
+    const root = element.closest<HTMLElement>(RootSelector);
+
+    return root !== null && effectiveLineEnding(root) === CrLf ? value.replace(/\r?\n/g, "\r\n") : value;
+}
+
+/** The chosen line ending when there is one, else the one the value came with (the root's attribute), else LF. */
+function effectiveLineEnding(root: HTMLElement): string {
+    const picker = root.querySelector<HTMLSelectElement>("select[data-ui-code-line-ending]");
+    const chosen = picker?.value ?? "";
+
+    return chosen.length > 0 ? chosen : root.getAttribute(DetectedLineEndingAttribute) ?? "lf";
+}
 
 export function startCodeInputEngine(context: PluginEngineContext): void {
     const editors = new WeakMap<HTMLElement, CodeEditor>();
@@ -45,20 +68,41 @@ export function startCodeInputEngine(context: PluginEngineContext): void {
 
     languages.onRegistered(id => {
         for (const editor of live) {
-            if (!editor.connected)
+            if (!editor.connected) {
                 live.delete(editor);
-            else if (editor.languageId === id)
+                continue;
+            }
+
+            editor.listLanguages();
+
+            if (editor.languageId === id)
                 editor.reload();
         }
     });
 
-    // A value the server pushed lands on the textarea with no event; the reader's own typing already came through `input`.
+    // A value the server pushed lands on the textarea with no event; the reader's own typing already came through `input`. The
+    // pushed text also says which line break it came with, which the textarea forgets.
     context.propertyPatchEngine.addValueChangeHandler(change => {
-        if (change.local || change.propertyName !== "Value")
+        if (change.local)
             return;
 
-        for (const component of change.components)
-            editors.get(component as HTMLElement)?.refresh();
+        for (const component of change.components) {
+            const editor = editors.get(component as HTMLElement);
+
+            if (change.propertyName === "Value")
+                editor?.refresh(change.value);
+            else if (PickerPropertyNames.has(change.propertyName))
+                editor?.syncPickers();
+        }
+    });
+
+    // The caret's place: the selection is the document's, so one listener serves every editor.
+    document.addEventListener("selectionchange", () => {
+        const active = document.activeElement;
+        const root = active instanceof HTMLTextAreaElement ? active.closest<HTMLElement>(RootSelector) : null;
+
+        if (root !== null)
+            editors.get(root)?.writePosition();
     });
 }
 
@@ -70,7 +114,24 @@ type EditorParts = {
     readonly findField: HTMLInputElement;
     readonly replaceField: HTMLInputElement;
     readonly count: HTMLElement;
+    readonly position: HTMLElement | null;
+    readonly tabSizePicker: HTMLSelectElement | null;
+    readonly lineEndingPicker: HTMLSelectElement | null;
+    readonly languagePicker: HTMLSelectElement | null;
 };
+
+/** A status bar picker: the hidden select that carries the value and the button that shows it and opens the list. */
+type Picker = {
+    readonly select: HTMLSelectElement;
+    readonly button: HTMLButtonElement;
+};
+
+const PickerClass = "ui-code-input__status-picker";
+const PickerButtonClass = "ui-code-input__status-button";
+const MenuClass = "ui-code-input__status-menu";
+const OptionClass = "ui-code-input__status-option";
+// The settings a push from the server redraws a picker's word for.
+const PickerPropertyNames = new Set(["TabSize", "Encoding", "LineEnding", "Language"]);
 
 class CodeEditor {
     private readonly root: HTMLElement;
@@ -82,6 +143,12 @@ class CodeEditor {
     private readonly findField: HTMLInputElement;
     private readonly replaceField: HTMLInputElement;
     private readonly count: HTMLElement;
+    private readonly position: HTMLElement | null;
+    private readonly tabSizePicker: HTMLSelectElement | null;
+    private readonly lineEndingPicker: HTMLSelectElement | null;
+    private readonly languagePicker: HTMLSelectElement | null;
+    private readonly pickers: Picker[] = [];
+    private openMenu: { readonly picker: Picker; readonly menu: HTMLElement; readonly close: () => void } | null = null;
     private highlighter: Highlighter;
     private language: string;
     private matches: SearchMatch[] = [];
@@ -98,6 +165,10 @@ class CodeEditor {
         this.findField = parts.findField;
         this.replaceField = parts.replaceField;
         this.count = parts.count;
+        this.position = parts.position;
+        this.tabSizePicker = parts.tabSizePicker;
+        this.lineEndingPicker = parts.lineEndingPicker;
+        this.languagePicker = parts.languagePicker;
 
         const { textarea, panel, findField, replaceField } = parts;
 
@@ -105,9 +176,12 @@ class CodeEditor {
         this.highlighter = new Highlighter(languages.get(this.language));
 
         this.renderAll();
+        this.wireStatusBar();
 
         textarea.addEventListener("input", () => this.textChanged(false));
         textarea.addEventListener("keydown", domEvent => this.textareaKey(domEvent));
+        textarea.addEventListener("keyup", () => this.writePosition());
+        textarea.addEventListener("click", () => this.writePosition());
         root.addEventListener("keydown", domEvent => this.rootKey(domEvent));
 
         findField.addEventListener("input", () => this.search(false, true));
@@ -137,7 +211,238 @@ class CodeEditor {
         if (textarea === null || scroller === null || highlight === null || panel === null || findField === null || replaceField === null || count === null)
             return null;
 
-        return new CodeEditor(root, strings, { textarea, scroller, highlight, panel, findField, replaceField, count });
+        return new CodeEditor(root, strings, {
+            textarea,
+            scroller,
+            highlight,
+            panel,
+            findField,
+            replaceField,
+            count,
+            position: root.querySelector<HTMLElement>("[data-ui-code-position]"),
+            tabSizePicker: root.querySelector<HTMLSelectElement>("select[data-ui-code-tab-size]"),
+            lineEndingPicker: root.querySelector<HTMLSelectElement>("select[data-ui-code-line-ending]"),
+            languagePicker: root.querySelector<HTMLSelectElement>("select[data-ui-code-language]")
+        });
+    }
+
+    // --- status bar ---------------------------------------------------------------------------------------------------------
+
+    /**
+     * The pickers' values travel the framework's two-way path on `change`; what the editor does here is answer at once, before the
+     * server echoes — the tab stop, the highlighting, the line ending — and fill in what the server could not know.
+     */
+    private wireStatusBar(): void {
+        this.writePosition();
+
+        this.tabSizePicker?.addEventListener("change", () => {
+            this.root.style.setProperty(TabSizeVariable, this.tabSizePicker?.value ?? "4");
+        });
+
+        // A new ending goes with the text now, not with the next keystroke: the reader puts it in, so the value is sent again.
+        this.lineEndingPicker?.addEventListener("change", () => {
+            this.textarea.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+
+        this.languagePicker?.addEventListener("change", () => {
+            this.root.setAttribute(LanguageAttribute, this.languagePicker?.value ?? "");
+            this.settingsChanged();
+        });
+
+        // Only the list as it stands now: a language registered later reaches every live editor through the engine's own listener,
+        // which is the one that prunes the editors a page swap took away.
+        this.listLanguages();
+
+        for (const element of this.root.querySelectorAll<HTMLElement>(`.${PickerClass}`)) {
+            const select = element.querySelector<HTMLSelectElement>("select");
+            const button = element.querySelector<HTMLButtonElement>(`button.${PickerButtonClass}`);
+
+            if (select === null || button === null)
+                continue;
+
+            const picker: Picker = { select, button };
+
+            this.pickers.push(picker);
+
+            // A picker's word follows its select whenever the select changes, whoever changed it — the encoding's too, which no field holds.
+            select.addEventListener("change", () => this.syncPickers());
+            button.addEventListener("click", () => this.togglePickerMenu(picker));
+            button.addEventListener("keydown", domEvent => this.pickerButtonKey(picker, domEvent));
+        }
+
+        // The words as the selects stand right now: a field that arrived in a row the client built was patched with its values
+        // before this engine ever saw it, and the captions the server drew are the template's, not this row's.
+        this.syncPickers();
+    }
+
+    /** Every picker's word is its select's current choice — after a push from the server, a choice in the list, or a new detection. */
+    public syncPickers(): void {
+        for (const picker of this.pickers) {
+            const option = picker.select.options[picker.select.selectedIndex];
+
+            // A value pushed that the list has no option for — another tab size, an id in another casing — selects nothing at all.
+            // The button then keeps the word it had: a stale name says more about the field than an empty box does.
+            if (option === undefined)
+                continue;
+
+            if (picker.button.textContent !== option.textContent)
+                picker.button.textContent = option.textContent;
+        }
+    }
+
+    private pickerButtonKey(picker: Picker, domEvent: KeyboardEvent): void {
+        if (domEvent.key === "ArrowDown" || domEvent.key === "ArrowUp" || domEvent.key === "Enter" || domEvent.key === " ") {
+            domEvent.preventDefault();
+
+            if (this.openMenu?.picker !== picker)
+                this.openPickerMenu(picker);
+        }
+    }
+
+    private togglePickerMenu(picker: Picker): void {
+        if (this.openMenu?.picker === picker)
+            this.openMenu.close();
+        else
+            this.openPickerMenu(picker);
+    }
+
+    /**
+     * The list, the package's own: the select's real options as buttons in a popup over the picker, the current one marked, closed by
+     * a choice, Escape, a press outside, or the window moving under it. The select stays the value's carrier: a choice is written to
+     * it and raised as its `change`, so the framework's value path and the editor's own listeners see one thing.
+     */
+    private openPickerMenu(picker: Picker): void {
+        this.openMenu?.close();
+
+        if (this.textarea.readOnly)
+            return;
+
+        const menu = document.createElement("div");
+
+        menu.className = MenuClass;
+        menu.setAttribute("role", "listbox");
+
+        const options = [...picker.select.options].filter(option => !option.hidden);
+        let focused = 0;
+
+        options.forEach((option, index) => {
+            const entry = document.createElement("button");
+
+            entry.type = "button";
+            entry.className = OptionClass;
+            entry.setAttribute("role", "option");
+            entry.setAttribute("aria-selected", option.selected ? "true" : "false");
+            entry.textContent = option.textContent;
+            entry.addEventListener("click", () => {
+                picker.select.value = option.value;
+                picker.select.dispatchEvent(new Event("change", { bubbles: true }));
+                this.syncPickers();
+                close();
+                picker.button.focus({ preventScroll: true });
+            });
+            menu.append(entry);
+
+            if (option.selected)
+                focused = index;
+        });
+
+        const entries = [...menu.querySelectorAll<HTMLButtonElement>(`.${OptionClass}`)];
+
+        const onKey = (domEvent: KeyboardEvent): void => {
+            if (domEvent.key === "Escape") {
+                domEvent.preventDefault();
+                close();
+                picker.button.focus({ preventScroll: true });
+            }
+            else if (domEvent.key === "ArrowDown" || domEvent.key === "ArrowUp") {
+                domEvent.preventDefault();
+                focused = (focused + (domEvent.key === "ArrowDown" ? 1 : entries.length - 1)) % entries.length;
+                entries[focused]?.focus({ preventScroll: true });
+            }
+            else if (domEvent.key === "Tab") {
+                close();
+            }
+        };
+
+        const onPointerDown = (domEvent: Event): void => {
+            if (!(domEvent.composedPath().includes(menu) || domEvent.composedPath().includes(picker.button)))
+                close();
+        };
+
+        // The page moving under the menu closes it, but the menu is a scroller of its own once the list is long, and a capture
+        // listener on the window sees that scroll on the way down.
+        const onScroll = (domEvent: Event): void => {
+            if (!domEvent.composedPath().includes(menu))
+                close();
+        };
+
+        const close = (): void => {
+            menu.remove();
+            picker.button.setAttribute("aria-expanded", "false");
+            document.removeEventListener("pointerdown", onPointerDown, true);
+            window.removeEventListener("resize", close);
+            window.removeEventListener("scroll", onScroll, true);
+            this.openMenu = null;
+        };
+
+        menu.addEventListener("keydown", onKey);
+        document.addEventListener("pointerdown", onPointerDown, true);
+        window.addEventListener("resize", close);
+        window.addEventListener("scroll", onScroll, true);
+
+        this.root.append(menu);
+        picker.button.setAttribute("aria-expanded", "true");
+        this.openMenu = { picker, menu, close };
+
+        // Over the bar, its right edge on the button's: the bar is the field's last line, so up is usually where the room is. A field
+        // near the top of the window has none, and there the list goes under the button instead of off the screen.
+        const anchor = picker.button.getBoundingClientRect();
+        const box = menu.getBoundingClientRect();
+
+        menu.style.left = `${Math.max(4, anchor.right - box.width)}px`;
+
+        if (anchor.top >= box.height + 8)
+            menu.style.bottom = `${window.innerHeight - anchor.top + 4}px`;
+        else
+            menu.style.top = `${anchor.bottom + 4}px`;
+
+        entries[focused]?.focus({ preventScroll: true });
+    }
+
+    /** A language a package registered joins the picker under its id; the server listed only the ones it ships. */
+    public listLanguages(): void {
+        const picker = this.languagePicker;
+
+        if (picker === null)
+            return;
+
+        const listed = new Set([...picker.options].map(option => LanguageRegistry.normalize(option.value)));
+
+        for (const id of languages.ids()) {
+            if (listed.has(id))
+                continue;
+
+            const option = document.createElement("option");
+
+            option.value = id;
+            option.textContent = id;
+            picker.append(option);
+        }
+    }
+
+    /** The caret's line and column, one-based; a selection reads at its end. */
+    public writePosition(): void {
+        if (this.position === null)
+            return;
+
+        const value = this.textarea.value;
+        const caret = this.textarea.selectionEnd;
+        const lineStart = value.lastIndexOf("\n", caret - 1) + 1;
+        const line = this.highlighter.lineAt(lineStart) + 1;
+        const text = this.strings.format("ui.code.position", { line, column: caret - lineStart + 1 });
+
+        if (this.position.textContent !== text)
+            this.position.textContent = text;
     }
 
     private button(attribute: string): HTMLButtonElement | null {
@@ -156,6 +461,9 @@ class CodeEditor {
     public settingsChanged(): void {
         const language = LanguageRegistry.normalize(this.root.getAttribute(LanguageAttribute));
 
+        // The bar reads its selects again whatever the language did: the same attach carries a new tab size, encoding or ending.
+        this.syncPickers();
+
         if (language === this.language)
             return;
 
@@ -170,9 +478,28 @@ class CodeEditor {
         this.search(true, false);
     }
 
-    /** The server pushed a value. */
-    public refresh(): void {
+    /**
+     * The server pushed a value; the text it sent says which line break it carries, which the textarea has already forgotten. A value
+     * of one line says nothing, so the field keeps the ending it had rather than guessing one for text that has none.
+     */
+    public refresh(pushed: unknown): void {
+        if (typeof pushed === "string" && /\n/.test(pushed)) {
+            const ending = pushed.includes("\r\n") ? CrLf : "lf";
+
+            this.root.setAttribute(DetectedLineEndingAttribute, ending);
+
+            // Nothing chosen shows the text's own ending through the picker's hidden option; a choice stands, and the reader converts
+            // on the next commit.
+            const detected = this.lineEndingPicker?.querySelector("option[data-ui-code-eol-detected]");
+
+            if (detected !== null && detected !== undefined)
+                detected.textContent = ending === CrLf ? "CRLF" : "LF";
+
+            this.syncPickers();
+        }
+
         this.textChanged(true);
+        this.writePosition();
     }
 
     private renderAll(): void {
@@ -184,6 +511,7 @@ class CodeEditor {
     private textChanged(fromServer: boolean): void {
         this.applyChange(this.highlighter.update(this.textarea.value));
         this.updateGutter();
+        this.writePosition();
 
         if (!this.panel.hidden)
             this.search(true, fromServer);
@@ -329,37 +657,14 @@ class CodeEditor {
     }
 
     private tab(outdent: boolean): void {
-        const value = this.textarea.value;
-        const start = this.textarea.selectionStart;
-        const end = this.textarea.selectionEnd;
-        const size = this.tabSize;
-        const firstLineStart = value.lastIndexOf("\n", start - 1) + 1;
-        const selectionSpansLines = value.slice(start, end).includes("\n");
+        const edit = applyTab(this.textarea.value, this.textarea.selectionStart, this.textarea.selectionEnd, this.tabSize, outdent);
 
-        if (!outdent && !selectionSpansLines) {
-            const column = start - firstLineStart;
-
-            this.insertText(" ".repeat(size - (column % size)));
-
-            return;
-        }
-
-        // Shift+Tab, or a selection over several lines: every line moves one stop, and the selection covers what moved.
-        let lastLineEnd = value.indexOf("\n", end > start ? end - 1 : end);
-
-        if (lastLineEnd < 0)
-            lastLineEnd = value.length;
-
-        const block = value.slice(firstLineStart, lastLineEnd);
-        const lines = block.split("\n");
-        const moved = lines.map(line => outdent ? line.replace(new RegExp(`^ {1,${size}}`), "") : line.length === 0 ? line : " ".repeat(size) + line).join("\n");
-
-        if (moved === block)
+        if (edit === null)
             return;
 
-        this.textarea.setSelectionRange(firstLineStart, lastLineEnd);
-        this.insertText(moved);
-        this.textarea.setSelectionRange(firstLineStart, firstLineStart + moved.length);
+        this.textarea.setSelectionRange(edit.from, edit.to);
+        this.insertText(edit.text);
+        this.textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd);
     }
 
     private newLine(): void {

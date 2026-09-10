@@ -46,6 +46,11 @@ export class LanguageRegistry {
         return this.tokenizers.has(LanguageRegistry.normalize(id));
     }
 
+    /** Every id the registry knows, the built-in ones first in their order, then what packages added. */
+    public ids(): string[] {
+        return [...this.tokenizers.keys()];
+    }
+
     /** Adds a language, or replaces one, and tells every listener. */
     public register(id: string, tokenizer: Tokenizer): void {
         const key = LanguageRegistry.normalize(id);
