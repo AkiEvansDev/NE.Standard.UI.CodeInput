@@ -1,4 +1,4 @@
-import type { Mode, TokenKind } from "../tokenizer.ts";
+import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, readQuoted, words } from "../tokenizer.ts";
 import { isTypeName } from "./javascript.ts";
 
@@ -280,4 +280,5 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
     return null;
 }
 
-export const csharpTokenizer = modeTokenizer(csharpMode);
+// Completions offer the language's own words beside a file's and a script's.
+export const csharpTokenizer: Tokenizer = { ...modeTokenizer(csharpMode), keywords: [...Keywords] };

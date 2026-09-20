@@ -1,8 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
+using NE.Standard.UI.Abstractions.Binding.Properties;
+using NE.Standard.UI.Authoring.BuiltIns;
 using NE.Standard.UI.Authoring.Components;
 using NE.Standard.UI.CodeInput;
+using NE.Standard.UI.Components.BuiltIns.Actions;
 using NE.Standard.UI.Web.Abstractions.Html;
 using NE.Standard.UI.Web.Abstractions.Rendering;
 using NE.Standard.UI.Web.Renderers.Foundation;
@@ -10,9 +12,8 @@ using NE.Standard.UI.Web.Renderers.Foundation;
 namespace NE.Standard.UI.Web.CodeInput;
 
 /// <summary>
-/// The code field under the same header/field/message shell as the text area: a highlighted layer with a transparent
-/// <c>&lt;textarea&gt;</c> laid over it, so the browser's own editing, undo and selection do the work, a find and
-/// replace panel the client wires up, and a status bar under the text whose pickers carry the two-way settings.
+/// Renders the code field: a highlighted layer with a transparent <c>&lt;textarea&gt;</c> laid over it so the browser's own
+/// typing and selection do the work, a find/replace panel, and a status bar of two-way pickers.
 /// </summary>
 public sealed class CodeInputComponentRenderer : TextContentRendererBase
 {
@@ -20,14 +21,15 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     public const string LineNumbersAttribute = "data-ui-code-line-numbers";
     public const string WrapLinesAttribute = "data-ui-code-wrap";
     public const string SearchAttribute = "data-ui-code-search";
+    public const string MultiCaretAttribute = "data-ui-code-multi-caret";
+    public const string CompletionsAttribute = "data-ui-code-completions";
+    public const string CompletionsSourceAttribute = "data-ui-code-completions-source";
     public const string StatusBarAttribute = "data-ui-code-status";
     public const string DetectedLineEndingAttribute = "data-ui-code-eol";
     public const string TabSizeVariable = "--ui-code-tab-size";
     public const string RowsVariable = "--ui-code-rows";
     /// <summary>The value kind the textarea is read by: the chosen line ending put back into the text the browser normalized.</summary>
     public const string ValueKind = "code";
-
-    private static readonly int[] TabSizes = [2, 4, 8];
 
     public override string ComponentTypeKey => CodeInputComponent.ComponentTypeKey;
 
@@ -48,18 +50,28 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     }
 
     /// <summary>
-    /// What the engine and the stylesheet read off the root: the flags and the row count as a variable. The language and the tab
-    /// size are the status bar's pickers' — two-way values live on the element that writes them — and reach the root from there.
+    /// The flags and the row count the engine and stylesheet read off the root; the status bar's two-way settings live on their
+    /// own elements and reach the root from there.
     /// </summary>
     private static void RenderEditorSettings(WebRenderContext context, IHtmlElementBuilder root)
     {
         RenderFlagAttribute(context, root, CodeInputComponent.LineNumbersProperty, LineNumbersAttribute);
         RenderFlagAttribute(context, root, CodeInputComponent.WrapLinesProperty, WrapLinesAttribute);
         RenderFlagAttribute(context, root, CodeInputComponent.SearchProperty, SearchAttribute);
+        RenderFlagAttribute(context, root, CodeInputComponent.MultiCaretProperty, MultiCaretAttribute);
+        RenderFlagAttribute(context, root, CodeInputComponent.CompletionsProperty, CompletionsAttribute);
         RenderFlagAttribute(context, root, CodeInputComponent.StatusBarProperty, StatusBarAttribute);
 
-        // Which line break the value came with, for the status bar to show while nothing was chosen: the browser's field holds every
-        // break as LF, so the client cannot tell afterwards.
+        // The URL a completion list loads its words from, lazily and only once it is needed; unset, the list still offers the
+        // language's keywords and the document's own words.
+        _ = RenderProperty<string?>(context, root, CodeInputComponent.CompletionsSourceProperty, static (target, value) =>
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                _ = target.Attribute(CompletionsSourceAttribute, value.Trim());
+        }, [WebDomOperation.Attribute(CompletionsSourceAttribute)]);
+
+        // Which line break the value came with, for the status bar to show when nothing was chosen — the browser normalizes every
+        // break to LF, so the client can't tell otherwise.
         _ = root.Attribute(DetectedLineEndingAttribute, DetectLineEnding(context));
 
         _ = RenderProperty<int?>(context, root, CodeInputComponent.RowsProperty, static (target, value) =>
@@ -89,6 +101,8 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
             _ = field.Element("div", scroller =>
             {
                 _ = scroller.Class($"{ClassName}__scroller");
+                // What a scroll group scrolls, and the lines it keeps a Markdown display level with.
+                _ = scroller.Attribute(WebAttributes.ScrollViewport);
 
                 _ = scroller.Element("div", content =>
                 {
@@ -99,6 +113,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                     {
                         _ = highlight.Class($"{ClassName}__highlight");
                         _ = highlight.Attribute("aria-hidden", "true");
+                        _ = highlight.Attribute(WebAttributes.ScrollLines);
                     });
 
                     _ = content.Element("textarea", textarea => RenderTextarea(context, textarea));
@@ -111,8 +126,8 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     }
 
     /// <summary>
-    /// The line under the text: the caret's place, which the engine writes, and four pickers — the tab size, the encoding, the line
-    /// ending, the language — each the element its two-way value lives on, so a choice travels the ordinary value path.
+    /// The line under the text: the caret's place the engine writes, and four pickers (tab size, encoding, line ending, language),
+    /// each a select paired with a hidden input carrying the two-way setting.
     /// </summary>
     private void RenderStatusBar(WebRenderContext context, IHtmlElementBuilder root, IHtmlElementBuilder field)
     {
@@ -127,153 +142,54 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 _ = position.Text(context.Translate(CodeInputStrings.Position).Replace("{line}", "1", StringComparison.Ordinal).Replace("{column}", "1", StringComparison.Ordinal));
             });
 
-            _ = ResolveRenderValue(context, CodeInputComponent.TabSizeProperty, out int? tabSize, out _);
-
-            var currentTabSize = tabSize is int size and > 0 ? size : 4;
-
-            RenderStatusPicker(context, status, "data-ui-code-tab-size", CodeInputStrings.Indentation, SpacesCaption(context, currentTabSize), select =>
-            {
-                var current = currentTabSize;
-                List<int> sizes = [.. TabSizes];
-
-                if (!sizes.Contains(current))
-                    sizes.Add(current);
-
-                sizes.Sort();
-
-                foreach (var stop in sizes)
-                    RenderOption(select, stop.ToString(CultureInfo.InvariantCulture), SpacesCaption(context, stop), stop == current);
-
-                // The picker carries the value (its option is marked above); the root's variable is what the stylesheet and the Tab key read.
-                _ = RenderProperty<int?>(context, select, CodeInputComponent.TabSizeProperty, (_, value) =>
+            RenderStatusPicker(context, status, "data-ui-code-tab-size", UICodeInputRegions.TabSize, carrier =>
+                // The root's variable is what the stylesheet and the Tab key read.
+                _ = RenderProperty<int?>(context, carrier, CodeInputComponent.TabSizeProperty, (target, value) =>
                 {
-                    if (value is int chosen and > 0)
-                        _ = root.Style(TabSizeVariable, chosen.ToString(CultureInfo.InvariantCulture));
-                }, [WebDomOperation.Property("value"), WebDomOperation.Style(TabSizeVariable, target: "root")]);
-            });
+                    var size = (value is int chosen and > 0 ? chosen : 4).ToString(CultureInfo.InvariantCulture);
 
-            _ = ResolveRenderValue(context, CodeInputComponent.EncodingProperty, out string? chosenEncoding, out _);
+                    _ = target.Attribute("value", size);
+                    _ = root.Style(TabSizeVariable, size);
+                }, [WebDomOperation.Property("value"), WebDomOperation.Style(TabSizeVariable, target: "root")]));
 
-            var encodingId = string.IsNullOrWhiteSpace(chosenEncoding) ? UICodeEncodings.Utf8 : chosenEncoding;
-            var encodingName = encodingId;
+            RenderStatusPicker(context, status, "data-ui-code-encoding", UICodeInputRegions.Encoding, carrier =>
+                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.EncodingProperty, static (target, value) =>
+                    _ = target.Attribute("value", string.IsNullOrWhiteSpace(value) ? UICodeEncodings.Utf8 : value)
+                , [WebDomOperation.Property("value")]));
 
-            foreach (KeyValuePair<string, string> encoding in UICodeEncodings.All)
-            {
-                if (string.Equals(encoding.Key, encodingId, StringComparison.OrdinalIgnoreCase))
-                    encodingName = encoding.Value;
-            }
+            // Unset is the empty value, which a null push also lands on: the engine then shows the ending the text came with.
+            RenderStatusPicker(context, status, "data-ui-code-line-ending", UICodeInputRegions.LineEnding, carrier =>
+                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LineEndingProperty, static (target, value) =>
+                    _ = target.Attribute("value", value ?? string.Empty)
+                , [WebDomOperation.Property("value")]));
 
-            RenderStatusPicker(context, status, "data-ui-code-encoding", CodeInputStrings.Encoding, encodingName, select =>
-            {
-                foreach (KeyValuePair<string, string> encoding in UICodeEncodings.All)
-                    RenderOption(select, encoding.Key, encoding.Value, string.Equals(encoding.Key, encodingId, StringComparison.OrdinalIgnoreCase));
-
-                _ = RenderProperty<string?>(context, select, CodeInputComponent.EncodingProperty, static (_, _) => { }, [WebDomOperation.Property("value")]);
-            });
-
-            _ = ResolveRenderValue(context, CodeInputComponent.LineEndingProperty, out string? chosenLineEnding, out _);
-
-            var detected = DetectLineEnding(context);
-            var lineEndingCaption = string.Equals(string.IsNullOrWhiteSpace(chosenLineEnding) ? detected : chosenLineEnding, UICodeLineEndings.CrLf, StringComparison.OrdinalIgnoreCase) ? "CRLF" : "LF";
-
-            RenderStatusPicker(context, status, "data-ui-code-line-ending", CodeInputStrings.LineEnding, lineEndingCaption, select =>
-            {
-                // Unset (the empty value, which a null push also lands on) is a hidden option whose word is the ending the text came
-                // with — the engine keeps that word current — so the picker is never blank; a choice is one of the two real ones.
-                _ = select.Element("option", option =>
+            // The id as the author wrote it; the client looks it up case-insensitively and falls back to plain text for one it does not know.
+            RenderStatusPicker(context, status, "data-ui-code-language", UICodeInputRegions.Language, carrier =>
+                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LanguageProperty, (target, value) =>
                 {
-                    _ = option.Attribute("value", string.Empty);
-                    _ = option.Attribute("hidden");
-                    _ = option.Attribute("data-ui-code-eol-detected");
+                    var language = string.IsNullOrWhiteSpace(value) ? UICodeLanguages.PlainText : value.Trim();
 
-                    if (string.IsNullOrWhiteSpace(chosenLineEnding))
-                        _ = option.Attribute("selected");
-
-                    _ = option.Text(detected == UICodeLineEndings.CrLf ? "CRLF" : "LF");
-                });
-
-                RenderOption(select, UICodeLineEndings.Lf, "LF", string.Equals(chosenLineEnding, UICodeLineEndings.Lf, StringComparison.OrdinalIgnoreCase));
-                RenderOption(select, UICodeLineEndings.CrLf, "CRLF", string.Equals(chosenLineEnding, UICodeLineEndings.CrLf, StringComparison.OrdinalIgnoreCase));
-
-                _ = RenderProperty<string?>(context, select, CodeInputComponent.LineEndingProperty, static (_, _) => { }, [WebDomOperation.Property("value")]);
-            });
-
-            _ = ResolveRenderValue(context, CodeInputComponent.LanguageProperty, out string? language, out _);
-
-            var currentLanguage = string.IsNullOrWhiteSpace(language) ? UICodeLanguages.PlainText : language.Trim();
-
-            RenderStatusPicker(context, status, "data-ui-code-language", CodeInputStrings.Language, UICodeLanguages.DisplayName(currentLanguage), select =>
-            {
-                var current = currentLanguage;
-                var listed = false;
-
-                foreach (KeyValuePair<string, string> known in UICodeLanguages.All)
-                {
-                    var own = string.Equals(known.Key, current, StringComparison.OrdinalIgnoreCase);
-
-                    listed |= own;
-                    RenderOption(select, known.Key, known.Value, own);
-                }
-
-                // A package's language the page names: listed by its id until the client asks the registry for the rest.
-                if (!listed)
-                    RenderOption(select, current, current, true);
-
-                // The id as the author wrote it; the client looks it up case-insensitively and falls back to plain text for one it does not know.
-                _ = RenderProperty<string?>(context, select, CodeInputComponent.LanguageProperty, (_, value) =>
-                    _ = root.Attribute(LanguageAttribute, string.IsNullOrWhiteSpace(value) ? UICodeLanguages.PlainText : value.Trim())
-                , [WebDomOperation.Property("value"), WebDomOperation.Attribute(LanguageAttribute, target: "root")]);
-            });
+                    _ = target.Attribute("value", language);
+                    _ = root.Attribute(LanguageAttribute, language);
+                }, [WebDomOperation.Property("value"), WebDomOperation.Attribute(LanguageAttribute, target: "root")]));
         });
     }
 
-    private static string SpacesCaption(WebRenderContext context, int size)
-        => context.Translate(CodeInputStrings.Spaces).Replace("{size}", size.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-
-    /// <summary>
-    /// A picker: the hidden select that carries the two-way value and lists the choices, and the button that shows the current one and
-    /// opens the engine's own list over it — a native list takes no theme, and read as a stranger in the bar.
-    /// </summary>
-    private void RenderStatusPicker(WebRenderContext context, IHtmlElementBuilder status, string attribute, string wordKey, string caption, Action<IHtmlElementBuilder> renderOptions)
-    {
-        _ = status.Element("span", picker =>
+    /// <summary>One picker: the hidden input carrying the setting, and the framework's select that shows and offers it.</summary>
+    private void RenderStatusPicker(WebRenderContext context, IHtmlElementBuilder status, string attribute, string region, Action<IHtmlElementBuilder> renderCarrier)
+        => _ = status.Element("span", picker =>
         {
-            var word = context.Translate(wordKey);
-
             _ = picker.Class($"{ClassName}__status-picker");
 
-            _ = picker.Element("select", select =>
+            _ = picker.Element("input", carrier =>
             {
-                _ = select.Attribute(attribute);
-                _ = select.Attribute("hidden");
-                _ = select.Attribute("aria-hidden", "true");
-                _ = select.Attribute("tabindex", "-1");
-
-                renderOptions(select);
+                _ = carrier.Attribute("type", "hidden");
+                _ = carrier.Attribute(attribute);
+                renderCarrier(carrier);
             });
 
-            _ = picker.Element("button", button =>
-            {
-                _ = button.Class($"{ClassName}__status-button");
-                _ = button.Attribute("type", "button");
-                _ = button.Attribute("title", word);
-                _ = button.Attribute("aria-label", word);
-                _ = button.Attribute("aria-haspopup", "listbox");
-                _ = button.Attribute("aria-expanded", "false");
-                _ = button.Text(caption);
-            });
-        });
-    }
-
-    private static void RenderOption(IHtmlElementBuilder select, string value, string caption, bool selected)
-        => _ = select.Element("option", option =>
-        {
-            _ = option.Attribute("value", value);
-
-            if (selected)
-                _ = option.Attribute("selected");
-
-            _ = option.Text(caption);
+            // The engine writes the select's value from the carrier, and its placeholder with the line ending the text came with.
+            RenderRegion(context, picker, region, IInputComponent.ValueProperty, IPlaceholderInputComponent.PlaceholderProperty);
         });
 
     private void RenderTextarea(WebRenderContext context, IHtmlElementBuilder textarea)
@@ -305,7 +221,10 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         }, [WebDomOperation.Property("value")]);
     }
 
-    /// <summary>The find and replace panel, rendered with its words translated and hidden until the client opens it.</summary>
+    /// <summary>
+    /// The find and replace panel, hidden until the client opens it: a find row, a replace row its chevron folds out, and a row of
+    /// switches and the match count. Every part is a framework component in a region the engine finds by attribute.
+    /// </summary>
     private void RenderSearchPanel(WebRenderContext context, IHtmlElementBuilder field)
     {
         _ = field.Element("div", panel =>
@@ -317,90 +236,53 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
             {
                 _ = row.Class($"{ClassName}__search-row");
 
-                RenderSearchField(context, row, "data-ui-code-find", CodeInputStrings.Find);
-                RenderSearchToggle(context, row, "data-ui-code-match-case", CodeInputStrings.MatchCase, "Aa");
-                RenderSearchToggle(context, row, "data-ui-code-whole-word", CodeInputStrings.WholeWord, "ab");
-                RenderSearchToggle(context, row, "data-ui-code-regex", CodeInputStrings.Regex, ".*");
+                // The chevron before the find field folds the replace row out, as Visual Studio's does.
+                RenderSearchPart(context, row, "data-ui-code-toggle-replace", UICodeInputRegions.ToggleReplace);
+                RenderSearchPart(context, row, "data-ui-code-find", UICodeInputRegions.Find);
 
-                _ = row.Element("span", count =>
-                {
-                    _ = count.Class($"{ClassName}__search-count");
-                    _ = count.Attribute("data-ui-code-count");
-                    _ = count.Attribute("aria-live", "polite");
-                });
-
-                RenderSearchGlyphButton(context, row, "previous", CodeInputStrings.Previous);
-                RenderSearchGlyphButton(context, row, "next", CodeInputStrings.Next);
-                RenderSearchGlyphButton(context, row, "close", CodeInputStrings.Close);
+                // Left and right, not up and down: the reader steps through the matches the way the text runs.
+                RenderSearchPart(context, row, "data-ui-code-previous", UICodeInputRegions.Previous);
+                RenderSearchPart(context, row, "data-ui-code-next", UICodeInputRegions.Next);
+                RenderSearchPart(context, row, "data-ui-code-close", UICodeInputRegions.Close);
             });
 
             _ = panel.Element("div", row =>
             {
                 _ = row.Class($"{ClassName}__search-row");
                 _ = row.Class($"{ClassName}__search-row--replace");
+                _ = row.Attribute("hidden");
 
-                RenderSearchField(context, row, "data-ui-code-replace", CodeInputStrings.Replace);
-                RenderSearchAction(context, row, "data-ui-code-replace-one", CodeInputStrings.ReplaceOne);
-                RenderSearchAction(context, row, "data-ui-code-replace-all", CodeInputStrings.ReplaceAll);
+                RenderSearchPart(context, row, "data-ui-code-replace", UICodeInputRegions.Replace);
+                RenderSearchPart(context, row, "data-ui-code-replace-one", UICodeInputRegions.ReplaceOne);
+                RenderSearchPart(context, row, "data-ui-code-replace-all", UICodeInputRegions.ReplaceAll);
+            });
+
+            _ = panel.Element("div", row =>
+            {
+                _ = row.Class($"{ClassName}__search-row");
+                _ = row.Class($"{ClassName}__search-row--options");
+
+                RenderSearchPart(context, row, "data-ui-code-match-case", UICodeInputRegions.MatchCase, ButtonComponent.PressedProperty);
+                RenderSearchPart(context, row, "data-ui-code-whole-word", UICodeInputRegions.WholeWord, ButtonComponent.PressedProperty);
+                RenderSearchPart(context, row, "data-ui-code-regex", UICodeInputRegions.Regex, ButtonComponent.PressedProperty);
+
+                // Under the field, not beside it — the match count is the panel's widest text, and putting it in the find row would
+                // widen every row.
+                _ = row.Element("span", count =>
+                {
+                    _ = count.Class($"{ClassName}__search-count");
+                    _ = count.Attribute("data-ui-code-count");
+                    _ = count.Attribute("aria-live", "polite");
+                });
             });
         });
     }
 
-    private void RenderSearchField(WebRenderContext context, IHtmlElementBuilder row, string attribute, string wordKey)
-    {
-        _ = row.Element("input", input =>
+    private void RenderSearchPart(WebRenderContext context, IHtmlElementBuilder row, string attribute, string region, params UIProperty[] exposed)
+        => _ = row.Element("span", part =>
         {
-            var word = context.Translate(wordKey);
-
-            _ = input.Class($"{ClassName}__search-field");
-            _ = input.Attribute("type", "text");
-            _ = input.Attribute("placeholder", word);
-            _ = input.Attribute("aria-label", word);
-            _ = input.Attribute("autocomplete", "off");
-            _ = input.Attribute("spellcheck", "false");
-            _ = input.Attribute(attribute);
+            _ = part.Class($"{ClassName}__search-part");
+            _ = part.Attribute(attribute);
+            RenderRegion(context, part, region, exposed);
         });
-    }
-
-    private void RenderSearchToggle(WebRenderContext context, IHtmlElementBuilder row, string attribute, string wordKey, string caption)
-    {
-        _ = row.Element("button", button =>
-        {
-            var word = context.Translate(wordKey);
-
-            _ = button.Class($"{ClassName}__search-toggle");
-            _ = button.Attribute("type", "button");
-            _ = button.Attribute("aria-pressed", "false");
-            _ = button.Attribute("title", word);
-            _ = button.Attribute("aria-label", word);
-            _ = button.Attribute(attribute);
-            _ = button.Text(caption);
-        });
-    }
-
-    private void RenderSearchGlyphButton(WebRenderContext context, IHtmlElementBuilder row, string name, string wordKey)
-    {
-        _ = row.Element("button", button =>
-        {
-            var word = context.Translate(wordKey);
-
-            _ = button.Class($"{ClassName}__search-button");
-            _ = button.Class($"{ClassName}__search-button--{name}");
-            _ = button.Attribute("type", "button");
-            _ = button.Attribute("title", word);
-            _ = button.Attribute("aria-label", word);
-            _ = button.Attribute($"data-ui-code-{name}");
-        });
-    }
-
-    private void RenderSearchAction(WebRenderContext context, IHtmlElementBuilder row, string attribute, string wordKey)
-    {
-        _ = row.Element("button", button =>
-        {
-            _ = button.Class($"{ClassName}__search-action");
-            _ = button.Attribute("type", "button");
-            _ = button.Attribute(attribute);
-            _ = button.Text(context.Translate(wordKey));
-        });
-    }
 }

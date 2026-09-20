@@ -4,12 +4,13 @@ using NE.Standard.UI.Startup;
 
 namespace DemoApp.CodeInput;
 
-internal sealed class CodeInputAppStartup : UIStartupBase
+public sealed class CodeInputAppStartup : UIStartupBase
 {
     protected override void ConfigureApplication(UIApplicationBuilder application)
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        _ = application.Route<CodeInputView, CodeInputController>("/");
+        _ = application.Route<EditorView, CodeInputController>(CodeInputDemoView.EditorRoute);
+        _ = application.Route<MarkdownView, MarkdownController>(CodeInputDemoView.MarkdownRoute);
     }
 }

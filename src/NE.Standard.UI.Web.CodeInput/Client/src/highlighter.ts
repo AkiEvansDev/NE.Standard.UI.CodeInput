@@ -28,8 +28,8 @@ const NoTokens: readonly Token[] = [];
 const NoMarks: readonly Mark[] = [];
 
 /**
- * The text as tokenized lines, re-read only where an edit landed: from the first changed line until the tokenizer's state settles
- * back onto what the unchanged lines after it already had.
+ * The text as tokenized lines, re-read only where an edit landed: from each changed line until the tokenizer's state settles back
+ * onto what the unchanged lines after it already had.
  */
 export class Highlighter {
     private readonly tokenizer: Tokenizer | null;
@@ -71,53 +71,76 @@ export class Highlighter {
         return low;
     }
 
-    /** Reads a new text and returns the lines whose rendering changed. */
-    public update(text: string): LineChange {
+    /**
+     * Reads a new text and returns the runs of lines whose rendering changed, in order. A line is kept when its text and start
+     * state match; old and new lines are walked side by side, looking ahead where they diverge, so an edit at many carets re-reads
+     * only those places.
+     */
+    public update(text: string): LineChange[] {
         const texts = text.split("\n");
         const old = this.lines;
-        const oldCount = old.length;
-        const newCount = texts.length;
-        const limit = Math.min(oldCount, newCount);
+        const lines: CachedLine[] = [];
+        const changes: LineChange[] = [];
+        let state = this.tokenizer?.initialState ?? EmptyState;
+        let from = -1;
+        let removed = 0;
+        let added = 0;
+        let i = 0;
+        let j = 0;
 
-        let prefix = 0;
+        while (i < texts.length) {
+            if (j < old.length && old[j].text === texts[i] && statesEqual(old[j].startState, state)) {
+                if (from >= 0) {
+                    changes.push({ from, removed, added });
+                    from = -1;
+                }
 
-        while (prefix < limit && old[prefix].text === texts[prefix])
-            prefix++;
-
-        let suffix = 0;
-
-        while (suffix < limit - prefix && old[oldCount - 1 - suffix].text === texts[newCount - 1 - suffix])
-            suffix++;
-
-        const lines: CachedLine[] = old.slice(0, prefix);
-        let state = prefix === 0 ? this.tokenizer?.initialState ?? EmptyState : old[prefix - 1].endState;
-        let index = prefix;
-
-        // The suffix is reused only from the line whose start state comes out the same as before; until then it is re-read.
-        while (index < newCount) {
-            const oldIndex = index - (newCount - oldCount);
-            const reusable = index >= newCount - suffix && oldIndex >= 0 && oldIndex < oldCount && statesEqual(old[oldIndex].startState, state);
-
-            if (reusable) {
-                for (let i = index; i < newCount; i++)
-                    lines.push(old[i - (newCount - oldCount)]);
-
-                break;
+                lines.push(old[j]);
+                state = old[j].endState;
+                i++;
+                j++;
+                continue;
             }
 
-            const line = this.tokenize(texts[index], state);
+            if (from < 0) {
+                from = i;
+                removed = 0;
+                added = 0;
+            }
 
-            lines.push(line);
-            state = line.endState;
-            index++;
+            // The same text in another state is re-read in place; otherwise the lines added and removed before the two walks meet.
+            const [newLines, oldLines] = j < old.length && old[j].text === texts[i] ? [1, 1] : resync(texts, i, old, j);
+
+            for (let k = 0; k < newLines; k++) {
+                const line = this.tokenize(texts[i + k], state);
+
+                lines.push(line);
+                state = line.endState;
+            }
+
+            added += newLines;
+            removed += oldLines;
+            i += newLines;
+            j += oldLines;
         }
+
+        if (j < old.length) {
+            if (from < 0) {
+                from = i;
+                removed = 0;
+                added = 0;
+            }
+
+            removed += old.length - j;
+        }
+
+        if (from >= 0)
+            changes.push({ from, removed, added });
 
         this.lines = lines;
         this.rebuildStarts();
 
-        const added = index - prefix;
-
-        return { from: prefix, removed: added - (newCount - oldCount), added };
+        return changes;
     }
 
     private tokenize(text: string, startState: LineState): CachedLine {
@@ -181,6 +204,20 @@ export class Highlighter {
         return changed;
     }
 
+    /** The token just before an offset — a comment or a string keeps a completion list from opening inside it. */
+    public tokenKindAt(offset: number): TokenKind | null {
+        const line = this.lineAt(offset);
+        const data = this.lines[line];
+
+        if (data === undefined || data.tokens.length === 0)
+            return null;
+
+        const local = Math.max(0, offset - this.starts[line] - 1);
+        const token = data.tokens.find(candidate => local >= candidate.from && local < candidate.to);
+
+        return token?.kind ?? null;
+    }
+
     /** The inner HTML of one line's element. */
     public renderLine(index: number): string {
         const line = this.lines[index];
@@ -190,6 +227,23 @@ export class Highlighter {
 
         return line.text.length === 0 ? "<span class=\"ui-code-input__code\"><br></span>" : `<span class="ui-code-input__code">${renderSegments(line.text, line.tokens, line.marks)}</span>`;
     }
+}
+
+// How far apart two walks may part and still be found meeting again; past it, the lines are replaced one for one until they meet.
+const ResyncWindow = 8;
+
+/** How many new and old lines to take before the walks meet again, fewest first; one of each when they do not meet within the window. */
+function resync(texts: readonly string[], i: number, old: readonly CachedLine[], j: number): [number, number] {
+    for (let distance = 1; distance <= 2 * ResyncWindow; distance++) {
+        for (let newLines = Math.min(distance, ResyncWindow); newLines >= 0 && distance - newLines <= ResyncWindow; newLines--) {
+            const oldLines = distance - newLines;
+
+            if (i + newLines < texts.length && j + oldLines < old.length && texts[i + newLines] === old[j + oldLines].text)
+                return [newLines, oldLines];
+        }
+    }
+
+    return [i < texts.length ? 1 : 0, j < old.length ? 1 : 0];
 }
 
 function marksEqual(a: readonly Mark[], b: readonly Mark[]): boolean {

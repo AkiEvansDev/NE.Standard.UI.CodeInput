@@ -1,4 +1,4 @@
-import type { Mode } from "../tokenizer.ts";
+import type { Mode, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, readQuoted } from "../tokenizer.ts";
 
 type JsonState = Record<string, never>;
@@ -44,4 +44,5 @@ export const jsonMode: Mode<JsonState> = {
     }
 };
 
-export const jsonTokenizer = modeTokenizer(jsonMode);
+// The three literal words are all JSON ever completes from; there is nothing else to keep a keyword set for.
+export const jsonTokenizer: Tokenizer = { ...modeTokenizer(jsonMode), keywords: ["true", "false", "null"] };

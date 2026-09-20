@@ -5,6 +5,7 @@ import { cssTokenizer, lessTokenizer } from "./css.ts";
 import { htmlTokenizer } from "./html.ts";
 import { javascriptTokenizer } from "./javascript.ts";
 import { jsonTokenizer } from "./json.ts";
+import { markdownTokenizer } from "./markdown.ts";
 import { pythonTokenizer } from "./python.ts";
 
 /** The languages the package ships, by the ids the server's `UICodeLanguages` names. */
@@ -23,12 +24,17 @@ const BuiltIn: readonly [string, Tokenizer][] = [
 export const PlainText = "plain-text";
 
 /**
- * The languages the editor knows, by id — the built-in ones and any a package registered. A registration reaches every field that
- * already names the id, so a language package may load before or after the fields it serves.
+ * The languages the editor knows, by id — built-in ones plus any a package registered. A registration reaches every field that
+ * already names the id, so a package may load before or after the fields it serves.
  */
 export class LanguageRegistry {
     private readonly tokenizers = new Map<string, Tokenizer>(BuiltIn);
     private readonly listeners = new Set<(id: string) => void>();
+
+    public constructor() {
+        // Markdown reads a fenced block by the language its info string names, so it asks this registry — a package's language too.
+        this.tokenizers.set("markdown", markdownTokenizer(id => this.get(id)));
+    }
 
     /** The id as the registry keys it: trimmed and lower-cased, so an attribute written either way finds its language. */
     public static normalize(id: string | null | undefined): string {

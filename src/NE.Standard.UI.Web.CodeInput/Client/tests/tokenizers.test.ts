@@ -10,6 +10,7 @@ import { cssTokenizer, lessTokenizer } from "../src/languages/css.ts";
 import { htmlTokenizer } from "../src/languages/html.ts";
 import { javascriptTokenizer } from "../src/languages/javascript.ts";
 import { jsonTokenizer } from "../src/languages/json.ts";
+import { languages } from "../src/languages/index.ts";
 import { pythonTokenizer } from "../src/languages/python.ts";
 
 type Tagged = { readonly text: string; readonly kind: TokenKind };
@@ -44,15 +45,33 @@ test("json rejects what is not json", () => {
 });
 
 test("css selectors, properties and values", () => {
-    const tokens = tokensOf(cssTokenizer, ".card > a:hover {\n    color: #fff;\n    width: calc(100% - 2rem);\n}");
+    const tokens = tokensOf(cssTokenizer, ".card > a:hover, [type=text] {\n    color: #fff !important;\n    display: flex;\n    width: calc(100% - var(--gap));\n    --gap: 2rem;\n}");
 
-    assert.equal(kindOf(tokens, ".card"), "attribute");
-    assert.equal(kindOf(tokens, "a"), "tag");
-    assert.equal(kindOf(tokens, ":hover"), "keyword");
-    assert.equal(kindOf(tokens, "color"), "property");
-    assert.equal(kindOf(tokens, "#fff"), "number");
+    assert.equal(kindOf(tokens, ".card"), "selector");
+    assert.equal(kindOf(tokens, "a"), "selector");
+    assert.equal(kindOf(tokens, ":hover"), "selector");
+    assert.equal(kindOf(tokens, "type"), "attribute");
+    assert.equal(kindOf(tokens, "text"), "value");
+    assert.equal(kindOf(tokens, "color"), "attribute");
+    assert.equal(kindOf(tokens, "#fff"), "value");
+    assert.equal(kindOf(tokens, "!important"), "keyword");
+    assert.equal(kindOf(tokens, "flex"), "value");
     assert.equal(kindOf(tokens, "calc"), "function");
     assert.equal(kindOf(tokens, "100%"), "number");
+    assert.equal(tokens.filter(token => token.text === "--gap").map(token => token.kind).join(), "variable,variable");
+});
+
+test("css at-rules read their prelude, not a selector", () => {
+    const tokens = tokensOf(cssTokenizer, "@media screen and (max-width: 600px) {\n    a { background: url(img/a.png) no-repeat; }\n}");
+
+    assert.equal(kindOf(tokens, "@media"), "meta");
+    assert.equal(kindOf(tokens, "screen"), "value");
+    assert.equal(kindOf(tokens, "and"), "keyword");
+    assert.equal(kindOf(tokens, "max-width"), "attribute");
+    assert.equal(kindOf(tokens, "600px"), "number");
+    assert.equal(kindOf(tokens, "url"), "function");
+    assert.equal(kindOf(tokens, "img/a.png"), "string");
+    assert.equal(kindOf(tokens, "no-repeat"), "value");
 });
 
 test("css block comment carries across lines", () => {
@@ -60,18 +79,24 @@ test("css block comment carries across lines", () => {
 
     assert.equal(tokens[0].kind, "comment");
     assert.equal(kindOf(tokens, "two */"), "comment");
-    assert.equal(kindOf(tokens, "a"), "tag");
+    assert.equal(kindOf(tokens, "a"), "selector");
 });
 
-test("less variables, nesting and line comments", () => {
-    const tokens = tokensOf(lessTokenizer, "@gap: 4px; // air\n.a {\n    &:hover { margin: @gap; }\n    .b { color: red; }\n}");
+test("less variables, mixins, nesting and line comments", () => {
+    const source = "@import (reference) \"base.less\";\n@mono: ui-monospace, Consolas; // air\n.rounded(@radius: 6px) { border-radius: @radius; }\n" +
+        ".a {\n    .rounded();\n    &-active:hover { margin: @gap; }\n    .b { color: red; }\n}";
+    const tokens = tokensOf(lessTokenizer, source);
 
-    assert.equal(kindOf(tokens, "@gap"), "variable");
+    assert.equal(kindOf(tokens, "@import"), "meta");
+    assert.equal(kindOf(tokens, "@mono"), "variable");
+    assert.equal(kindOf(tokens, "ui-monospace"), "value");
     assert.equal(kindOf(tokens, "// air"), "comment");
-    assert.equal(kindOf(tokens, "&"), "keyword");
-    assert.equal(kindOf(tokens, "margin"), "property");
-    assert.equal(kindOf(tokens, ".b"), "attribute");
-    assert.equal(kindOf(tokens, "color"), "property");
+    assert.equal(kindOf(tokens, "@radius"), "variable");
+    assert.equal(kindOf(tokens, "6px"), "number");
+    assert.equal(kindOf(tokens, "&-active"), "selector");
+    assert.equal(kindOf(tokens, "margin"), "attribute");
+    assert.equal(kindOf(tokens, ".b"), "selector");
+    assert.equal(kindOf(tokens, "red"), "value");
 });
 
 test("javascript keywords, strings, regex and template holes", () => {
@@ -117,7 +142,7 @@ test("html tags, attributes, entities and embedded script and style", () => {
     assert.equal(kindOf(tokens, "&amp;"), "escape");
     assert.equal(kindOf(tokens, "<!-- c -->"), "comment");
     assert.equal(kindOf(tokens, "</div"), "tag");
-    assert.equal(kindOf(tokens, "color"), "property");
+    assert.equal(kindOf(tokens, "color"), "attribute");
     assert.equal(kindOf(tokens, "</style"), "tag");
     assert.equal(kindOf(tokens, "let"), "keyword");
     assert.equal(kindOf(tokens, "\"s\""), "string");
@@ -198,7 +223,8 @@ test("every tokenizer covers a line without gaps in position order", () => {
         [htmlTokenizer, "<a b=c>&x;</a>"],
         [csharpTokenizer, "x($\"{y}\");"],
         [pythonTokenizer, "f'{a}'+b"],
-        [bashTokenizer, "a \"$(b)\" | c"]
+        [bashTokenizer, "a \"$(b)\" | c"],
+        [languages.get("markdown")!, "> - **a** `b` [c](d) <e> ~~f~~ | g"]
     ];
 
     for (const [tokenizer, source] of sources) {
@@ -212,4 +238,46 @@ test("every tokenizer covers a line without gaps in position order", () => {
 
         assert.ok(last <= source.length);
     }
+});
+
+test("markdown blocks: headings, quotes, lists, rules and references", () => {
+    const tokens = tokensOf(languages.get("markdown")!, "# Title\n> quoted *word*\n- [x] done\n1. first\n---\n[docs]: https://example.com \"Docs\"\nSetext\n===");
+
+    assert.equal(kindOf(tokens, "# Title"), "heading");
+    assert.equal(kindOf(tokens, ">"), "quote");
+    assert.equal(kindOf(tokens, "quoted "), "quote");
+    assert.equal(kindOf(tokens, "*word*"), "emphasis");
+    assert.equal(kindOf(tokens, "-"), "keyword");
+    assert.equal(kindOf(tokens, "[x]"), "keyword");
+    assert.equal(kindOf(tokens, "1."), "keyword");
+    assert.equal(kindOf(tokens, "---"), "punctuation");
+    assert.equal(kindOf(tokens, "[docs]"), "link");
+    assert.equal(kindOf(tokens, "https://example.com"), "string");
+    assert.equal(kindOf(tokens, "==="), "heading");
+});
+
+test("markdown inline spans", () => {
+    const tokens = tokensOf(languages.get("markdown")!, "a **bold** _it_ snake_case ~~gone~~ `co*de*` [link](http://x.y) <b>tag</b> \\* https://ne.dev.");
+
+    assert.equal(kindOf(tokens, "**bold**"), "strong");
+    assert.equal(kindOf(tokens, "_it_"), "emphasis");
+    assert.equal(tokens.some(token => token.text.includes("case")), false);
+    assert.equal(kindOf(tokens, "~~gone~~"), "strikethrough");
+    assert.equal(kindOf(tokens, "`co*de*`"), "code");
+    assert.equal(kindOf(tokens, "[link]"), "link");
+    assert.equal(kindOf(tokens, "(http://x.y)"), "string");
+    assert.equal(kindOf(tokens, "<b>"), "tag");
+    assert.equal(kindOf(tokens, "\\*"), "escape");
+    assert.equal(kindOf(tokens, "https://ne.dev"), "link");
+});
+
+test("markdown fenced blocks are read by the language they name", () => {
+    const tokens = tokensOf(languages.get("markdown")!, "```cs\nvar x = \"s\";\n```\n~~~unknown\n**not bold**\n~~~\n**bold**");
+
+    assert.equal(kindOf(tokens, "```"), "code");
+    assert.equal(kindOf(tokens, "cs"), "keyword");
+    assert.equal(kindOf(tokens, "var"), "keyword");
+    assert.equal(kindOf(tokens, "\"s\""), "string");
+    assert.equal(kindOf(tokens, "**not bold**"), "code");
+    assert.equal(kindOf(tokens, "**bold**"), "strong");
 });

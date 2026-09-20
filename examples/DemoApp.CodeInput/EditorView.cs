@@ -7,6 +7,8 @@ using NE.Standard.UI.Components.BuiltIns.Contents;
 using NE.Standard.UI.Components.BuiltIns.Inputs;
 using NE.Standard.UI.Components.BuiltIns.Layouts;
 using NE.Standard.UI.Components.BuiltIns.Models;
+using NE.Standard.UI.Components.Foundation.Inputs;
+using NE.Standard.UI.Primitives.Binding;
 using NE.Standard.UI.Primitives.Styling;
 
 namespace DemoApp.CodeInput;
@@ -14,25 +16,20 @@ namespace DemoApp.CodeInput;
 /// <summary>
 /// A snippet editor: the language and the field's settings above, the editor filling the page, what the server holds below.
 /// </summary>
-internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
+internal sealed class EditorView : CodeInputDemoView, IUIViewDefinition
 {
-    public static string ViewKey => "codeinput.demo";
+    public static string ViewKey => "codeinput.editor";
 
-    public override UIViewOptions Options { get; } = new() { ScrollContentOnly = true };
+    protected override string Route => EditorRoute;
 
-    protected override IVisualComponent? CreateHeader()
+    public override string Title => "Editor";
+
+    protected override string Description
+        => "A field from NE.Standard.UI.CodeInput. Tab indents, Enter keeps the indentation, Ctrl+F finds and Ctrl+H replaces, " +
+           "Ctrl+U/Ctrl+Shift+U change case, and Ctrl+Space opens completions (C# offers a few of its own, from a JSON file).";
+
+    protected override IVisualComponent CreatePage()
         => new ContainerComponent()
-            .SetPadding(UIThickness.All(24, 20, 24, 4))
-            .SetRow(1, UIGridUnit.Auto())
-            .AddChild(new TextComponent()
-                .SetTitle("Code input")
-                .SetDescription("A field from NE.Standard.UI.CodeInput. Tab indents, Enter keeps the indentation, Ctrl+F finds and Ctrl+H replaces.")
-                .SetPlacement(1, 1, 24, 1)
-            );
-
-    protected override IVisualComponent CreateContent()
-        => new ContainerComponent()
-            .SetPadding(UIThickness.All(24, 4, 24, 24))
             .SetHeight(UILayoutLength.Fill())
             .SetRow(1, UIGridUnit.Auto())
             .AddRow(UIGridUnit.Star())
@@ -64,6 +61,7 @@ internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
                     new OptionItem { Id = UICodeLanguages.Html, Title = "HTML" },
                     new OptionItem { Id = UICodeLanguages.Bash, Title = "Bash" },
                     new OptionItem { Id = UICodeLanguages.Python, Title = "Python" },
+                    new OptionItem { Id = UICodeLanguages.Markdown, Title = "Markdown" },
                     new OptionItem { Id = UICodeLanguages.PlainText, Title = "Plain text" }
                 ])
                 .BindValue(nameof(CodeInputController.Language))
@@ -91,8 +89,18 @@ internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
                 .SetVerticalAlignment(UIAlignment.Center)
             )
             .AddChild(new SwitchComponent()
+                .SetTitle("Multi-caret")
+                .BindValue(nameof(CodeInputController.MultiCaret))
+                .SetVerticalAlignment(UIAlignment.Center)
+            )
+            .AddChild(new SwitchComponent()
                 .SetTitle("Status bar")
                 .BindValue(nameof(CodeInputController.StatusBar))
+                .SetVerticalAlignment(UIAlignment.Center)
+            )
+            .AddChild(new SwitchComponent()
+                .SetTitle("Completions")
+                .BindValue(nameof(CodeInputController.Completions))
                 .SetVerticalAlignment(UIAlignment.Center)
             )
             .AddChild(new ButtonComponent()
@@ -111,19 +119,23 @@ internal sealed class CodeInputView : UIViewBase, IUIViewDefinition
     private static CodeInputComponent CreateEditor()
         => new CodeInputComponent()
             .SetTitle("Snippet")
-            .BindValue(nameof(CodeInputController.Code))
+            // Held in the browser until Ctrl+S sends it (docs/VALUES.md §4): nothing travels while the reader types.
+            .SetFormId(CodeInputController.EditorForm)
+            .BindValue(nameof(CodeInputController.Code), mode: UIBindingMode.OnSubmit)
             .BindLanguage(nameof(CodeInputController.Language))
             .BindLineNumbers(nameof(CodeInputController.LineNumbers))
             .BindWrapLines(nameof(CodeInputController.WrapLines))
             .BindIsReadOnly(nameof(CodeInputController.ReadOnly))
             .BindSearch(nameof(CodeInputController.Search))
+            .BindMultiCaret(nameof(CodeInputController.MultiCaret))
             .BindTabSize(nameof(CodeInputController.TabSize))
             .BindStatusBar(nameof(CodeInputController.StatusBar))
+            .BindCompletions(nameof(CodeInputController.Completions))
+            // A small sample file under wwwroot; see "Completions" in the package's README for the JSON shape.
+            .SetCompletionsSource("/completions/csharp.json")
             .BindEncoding(nameof(CodeInputController.Encoding))
             .BindLineEnding(nameof(CodeInputController.LineEnding))
             .BindAppearance(nameof(CodeInputController.Appearance))
-            .SetDebounceMilliseconds(400)
-            .OnChange(nameof(CodeInputController.CodeChanged))
             .OnSave(nameof(CodeInputController.Save))
             .SetPlaceholder("Type some code…")
             .SetHeight(UILayoutLength.Fill())

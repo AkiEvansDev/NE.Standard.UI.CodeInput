@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "label": "Console", "detail": "class", "kind": "type" },
+    { "label": "WriteLine", "insert": "WriteLine()", "detail": "Console.WriteLine(string)", "kind": "function" },
+    { "label": "Dictionary", "detail": "class", "kind": "type" },
+    { "label": "TryGetValue", "insert": "TryGetValue()", "detail": "bool", "kind": "function" },
+    { "label": "UserService", "detail": "class", "kind": "type" },
+    { "label": "GetName", "insert": "GetName()", "detail": "string?", "kind": "function" },
+    { "label": "_users", "detail": "field", "kind": "variable" }
+  ],
+  "triggers": ["."]
+}

@@ -31,7 +31,7 @@ new CodeInputComponent()
 
 | Property | What it does |
 |---|---|
-| `Language` | What the text is highlighted as: JSON, CSS, LESS, JavaScript, TypeScript, HTML, C#, Python, Bash, or plain text; two-way, the status bar's picker writes it back. |
+| `Language` | What the text is highlighted as: JSON, CSS, LESS, JavaScript, TypeScript, HTML, C#, Python, Bash, Markdown, plain text, or a language an application declared with `UICodeLanguages.Register`; two-way, the status bar's picker writes it back. |
 | `LineNumbers` | A number beside every line (on by default). |
 | `WrapLines` | Long lines wrap at the field's edge instead of scrolling sideways. |
 | `TabSize` | How many spaces a tab stop is, and what the Tab key inserts; two-way, the status bar's picker writes it back. |
@@ -40,6 +40,9 @@ new CodeInputComponent()
 | `LineEnding` | The line break the value is sent with (`UICodeLineEndings`): unset keeps whatever the value came with, which is what the bar shows; a choice converts on the next commit. |
 | `Rows` | The number of visible text rows the field starts at; `Height` or `Fill` overrides it. |
 | `Search` | Whether Ctrl+F and Ctrl+H open find and replace (on by default). |
+| `MultiCaret` | Whether the field takes more than one caret — see *Several carets* (on by default). |
+| `Completions` | Whether Ctrl+Space and typing open a completion list — see *Completions* (on by default). |
+| `CompletionsSource` | The URL of a JSON file of completion items and trigger characters the client loads once — see *Completions*. |
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
 
 `Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon and badge, validation and
@@ -47,10 +50,15 @@ borders come from the framework's field, exactly as a text area's do — except 
 `Ghost` — nothing drawn around it, on focus as at rest — and never lifts under the pointer: it is read, not
 filled in.
 
-Editing is the browser's own `<textarea>` — undo, selection, input methods and the clipboard all behave as
-they do everywhere else — with the highlighted text drawn underneath it. Tab inserts spaces at the caret, or indents every selected
-line, and Shift+Tab takes the indent back; Enter keeps the line's indentation, Escape closes the panel. **Ctrl+S** commits the value at once, ahead of any debounce, and
-raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out.
+Editing is the browser's own `<textarea>` — typing, selection, input methods and the clipboard behave as they
+do everywhere else — with the highlighted text drawn underneath it. Undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are the
+field's own, since the browser's cannot hold an edit made at several carets: typing is taken back a word at a time, and the
+carets come back with the text. A value the server pushes that differs from the text starts the history afresh. Tab inserts
+spaces at the caret, or indents every selected line, and Shift+Tab takes the indent back; Enter keeps the line's indentation,
+Escape closes the panel. **Ctrl+S** commits the value at once, ahead of any debounce, and
+raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out. **Ctrl+U** turns the
+selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
+selection stays selected and a caret keeps its place in the word.
 
 Under the text runs a status bar, as an editor's: the caret's line and column, and pickers for the tab size, the
 encoding, the line ending and the language. A picker's choice is the property's value — bind `TabSize`, `Encoding`,
@@ -58,17 +66,152 @@ encoding, the line ending and the language. A picker's choice is the property's 
 (a text field holds every break as LF), so the field notes the ending the value came with, shows it, and sends the
 value back with it; a choice converts the text on the next commit. `SetStatusBar(false)` hides the bar.
 
+The pickers list what the server knows. A language a package adds — a script that registers its tokenizer with the editor
+under an id of its own — is declared on the server too, once at startup, so the picker lists it under its name:
+`UICodeLanguages.Register("sql", "SQL")`.
+
 The encoding is a word, not bytes: the field holds text, and what `Encoding` means is decided where the file is
 written. `Encoding.GetEncoding` knows `utf-8` and the two UTF-16 ids; `windows-1251`, `windows-1252` and
 `iso-8859-1` need `CodePagesEncodingProvider.Instance` registered first, and `utf-8-bom` is UTF-8 written with a
 preamble.
 
+## Saving
+
+Bound `TwoWay`, the field commits on blur, or as the reader types with `DebounceMilliseconds`. For an editor that should
+send nothing until it is saved, bind it `OnSubmit` with a `FormId`: the text stays in the browser, a value the server
+pushes meanwhile does not overwrite it, and Ctrl+S sends it and runs `OnSave`.
+
+```csharp
+new CodeInputComponent()
+    .SetFormId("editor")
+    .BindValue(nameof(EditorController.Text), mode: UIBindingMode.OnSubmit)
+    .OnSave(nameof(EditorController.Save))
+```
+
+A command that replaces the text on purpose — another file opened, a sample reset — returns
+`DiscardFormEffect("editor")`, and the unsaved edit gives way to the server's value. A large text needs nothing of its
+own: the framework sends a value over 8 KB beside the connection.
+
+## Several carets
+
+As in Visual Studio, the field can hold more than one caret, and typing, deleting, Tab, Enter and the clipboard act at
+every one of them:
+
+| Keys | What they do |
+|---|---|
+| Ctrl+Alt+click | Adds a caret where the click lands; a click on a caret that is already there takes it away. |
+| Shift+Alt+. | Selects the word at the caret, then adds the next place the selection's text occurs. |
+| Shift+Alt+; | Selects every place the selection's text — or the word at the caret — occurs. |
+| Shift+Alt+arrows | A column selection: a range on every line between two columns, from where the caret stood. A line too short to reach the column keeps its caret at it all the same, and typing writes out the spaces that carry it there. |
+| Arrows, Home, End, PageUp, PageDown | Move every caret; with Shift, extend every selection; with Ctrl, by word. |
+| Escape | Leaves only the primary caret. |
+
+A plain click, Ctrl+A or a step of the find panel leaves one caret again. A copy from several selections puts a line
+each on the clipboard, and a paste of as many lines — or of what such a copy took — deals one to each caret. Up and
+Down move by the text's lines, not the rows a wrapped line is drawn in, and an input method composes at the primary
+caret alone. `SetMultiCaret(false)` turns all of it off; a read-only field never has more than one caret.
+
 ## Find and replace
 
-Ctrl+F opens the panel over the field, Ctrl+H opens it on the replace row. Enter and Shift+Enter step through
-the matches; the three toggles are match case, whole word and regular expression. A read-only field hides the
-replace row. The panel's words translate through the application's localization source under the `ui.code.*`
-keys, exactly as the framework's own do.
+The panel stands over the field in three rows, as Visual Studio's does: the find field with the two arrows among the
+matches and the cross; the replace field with its two buttons, folded out by the chevron before the find field, each
+standing under one of the arrows; and, under both, the three switches — match case, whole word and regular expression —
+with the match count at the far end of that row, where what it says never sets the panel's width.
+
+Ctrl+F opens the panel, Ctrl+H opens it with the replace row out, and the row stays as the reader left it between
+openings. Enter and Shift+Enter step through the matches; in the replace field Enter replaces the match the reader is
+on and Ctrl+Enter replaces every one. A read-only field shows neither the replace row nor the chevron that folds it
+out. The panel's words translate through the application's localization source under the `ui.code.*` keys, exactly as
+the framework's own do.
+
+## Completions
+
+Ctrl+Space opens a completion list at the caret; typing an identifier opens it too, once it has somewhere to complete from beyond
+the document's own words. The arrows move among the suggestions, Enter and Tab accept the one that is active, and Escape closes
+the list, as they do in Visual Studio; a click accepts the one the pointer is over. The list never opens inside a comment or a
+string, and closes on a blur, a scroll, or the caret leaving the word.
+
+The field offers the mechanism; the words are the application's own, or a package's. `Completions` turns the mechanism on and off
+(on by default). `CompletionsSource` names the URL of a JSON file the client loads once, the first time the list is needed, and
+keeps for the page:
+
+```json
+{
+    "items": [
+        { "label": "Console", "insert": "Console", "detail": "class", "kind": "type" }
+    ],
+    "triggers": ["."]
+}
+```
+
+`insert` is optional and defaults to `label`; `detail` is optional and shown muted after it; `kind` is optional, one of `keyword`,
+`type`, `function`, `variable`, `property` or `text`, and colours the row with the same ink the text itself is highlighted in.
+`triggers` is optional: characters that open the list themselves, right after they are typed. Serve the file as a plain static
+asset — a file under the host's own `wwwroot` with `app.UseStaticFiles()`, as the demo does — there is nothing of the framework's
+to build for it: `WebAssetDescriptor` is the framework's own way of shipping a package's script and stylesheet, not a host's file.
+
+A script may add words of its own instead, or beside the file:
+
+```js
+window.NEStandardUICodeInput.registerCompletions("csharp", [
+    { label: "Console", kind: "type" }
+]);
+// or a provider, asked afresh each time the list opens or re-filters
+window.NEStandardUICodeInput.registerCompletions("csharp", context => lookup(context.prefix));
+```
+
+`"*"` registers for every language. Besides a file or a script, the list already offers the language's own keywords and every
+identifier the document itself holds — so a plain-text field, with neither of the first two, only ever completes from the text,
+and does not open itself as the reader types; Ctrl+Space still opens it there.
+
+## Markdown display
+
+`MarkdownDisplayComponent` shows a Markdown document as formatted text. It knows nothing of the code field — put the two
+side by side and bind them to one property, and the display follows the editor:
+
+```csharp
+new MarkdownDisplayComponent()
+    .BindText(nameof(DocsController.Readme))
+```
+
+The document is CommonMark — headings, paragraphs, emphasis, code spans and blocks, quotes, lists, links and images
+inline and by reference, rules — with GitHub's tables, task lists, strikethrough and bare links. A fenced block is
+highlighted in the code field's colours as the language its info string names (the ids of `UICodeLanguages`, a
+language a package registered, and the common short names: `cs`, `js`, `ts`, `sh`, `py`, `md`). The rendering happens in
+the browser; a value the server pushes renders again.
+
+Raw HTML in a document is shown as text, not markup, and a link or an image keeps its address only when it is relative
+or `http`, `https`, `mailto` or `tel` (an image also takes a `data:image/…` address); anything else — `javascript:` among
+them — leaves its words alone. A link off the page opens in a new tab. A task item's box is the framework's checkbox,
+shown and never toggled.
+
+The body is styled by element under `.ui-markdown__body`, in the page's type and the theme's inks; an application
+restyles it there.
+
+An editor and a display scroll together when both are in one of the framework's scroll groups — the display through the
+container it scrolls in. The field marks its lines and the display the line each block starts on, so the two are kept
+line against line rather than by the share scrolled:
+
+```csharp
+new CodeInputComponent()
+    .SetLanguage(UICodeLanguages.Markdown)
+    .BindValue(nameof(DocsController.Readme))
+    .SetScrollGroup("readme")
+
+new ScrollContainerComponent()
+    .SetScrollGroup("readme")
+    .AddChild(new MarkdownDisplayComponent().BindText(nameof(DocsController.Readme)))
+```
+
+## Inside the package
+
+Every control the field shows is the framework's own component, carried as a region under the names `UICodeInputRegions`
+gives them: the find and replace fields are text inputs, the arrows, the cross, the chevron and the two replacements are
+ghost buttons with the framework's `ne-` glyphs, the three switches are toggle buttons (`Pressed`), and the status bar's
+pickers are ghost selects. The field keeps each setting on a hidden input of its own and holds the select beside it in
+step through the plugin surface (`properties.set`), so a choice travels the ordinary value path. The stylesheet imports the
+framework's Less contract (`Client/plugin/ne-standard-ui.less` — the tokens and the mixins, copied like the TypeScript
+contract beside it) and lays the parts out; it draws none of them.
 
 ## Licence
 

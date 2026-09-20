@@ -1,5 +1,5 @@
-// The contract every language is written against: a line at a time, carrying a small state from one line to the next, so the
-// highlighter can re-read only the lines an edit touched and stop where the state settles back to what it was.
+// The contract every language is written against: a line at a time, carrying small state to the next line, so the highlighter can
+// re-read only the lines an edit touched and stop where state settles back.
 
 export type TokenKind =
     | "keyword"
@@ -17,7 +17,16 @@ export type TokenKind =
     | "regex"
     | "meta"
     | "escape"
-    | "invalid";
+    | "invalid"
+    | "selector"
+    | "value"
+    | "heading"
+    | "strong"
+    | "emphasis"
+    | "strikethrough"
+    | "code"
+    | "link"
+    | "quote";
 
 export type Token = {
     readonly from: number;
@@ -34,6 +43,8 @@ export type Tokenizer = {
     readonly initialState: LineState;
     /** Emits one line's tokens in order and returns the state the next line starts in; never mutates the state it was given. */
     tokenizeLine(line: string, state: LineState, emit: EmitToken): LineState;
+    /** The language's own reserved words, for completions to offer beside a file's and a script's; omitted where none are worth offering. */
+    readonly keywords?: readonly string[];
 };
 
 /** A language mode in the stream shape: one token per call, advancing the stream and mutating its own copy of the state. */

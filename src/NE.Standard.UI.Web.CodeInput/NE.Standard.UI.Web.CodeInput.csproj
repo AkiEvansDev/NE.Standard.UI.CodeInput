@@ -6,8 +6,8 @@
 
   <PropertyGroup>
     <PackageId>NE.Standard.UI.Web.CodeInput</PackageId>
-    <Description>The web rendering of NE.Standard.UI.CodeInput: the renderer, and the highlighting, line numbers and find-and-replace engine the package embeds as its own script and stylesheet. Register it with services.AddCodeInput().</Description>
-    <PackageTags>NE.Standard,UI,Web,CodeInput,Editor,Syntax</PackageTags>
+    <Description>The web rendering of NE.Standard.UI.CodeInput: the renderers, the highlighting, line numbers and find-and-replace engine, and the Markdown renderer the package embeds as its own script and stylesheet. Register it with services.AddCodeInput().</Description>
+    <PackageTags>NE.Standard,UI,Web,CodeInput,Editor,Syntax,Markdown</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

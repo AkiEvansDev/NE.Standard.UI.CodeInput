@@ -1,0 +1,211 @@
+// The Markdown display: a document in the page's own type and inks, its code in the code field's face and colours. Everything
+// under the body is markup the client wrote, styled by element rather than by class.
+
+@import (reference) "../../plugin/ne-standard-ui.less";
+@import (reference) "./ui-code-input.less";
+
+// The ground inline code and code blocks stand on: a wash of the ink, so it reads on any surface the display is placed on.
+@ui-markdown-code-ground: color-mix(in srgb, var(--ui-color-on-surface) 7%, transparent);
+
+.ui-markdown {
+    display: block;
+    min-width: 0;
+    max-width: var(--ui-max-width, 100%);
+    color: var(--ui-color-on-surface);
+    font-size: var(--ui-text-body-font-size);
+    line-height: var(--ui-text-body-line-height);
+    // A long address has no place to break of its own.
+    overflow-wrap: anywhere;
+    .ui-code-palette-light();
+}
+
+    [data-ui-theme="dark"] .ui-markdown {
+        .ui-code-palette-dark();
+    }
+
+    @media (prefers-color-scheme: dark) {
+        [data-ui-theme="auto"] .ui-markdown {
+            .ui-code-palette-dark();
+        }
+    }
+
+.ui-markdown__body {
+    > :first-child {
+        margin-top: 0;
+    }
+
+    > :last-child {
+        margin-bottom: 0;
+    }
+
+    :is(p, ul, ol, blockquote, pre, hr, .ui-markdown__table) {
+        margin: 0 0 @ui-space-3;
+    }
+
+    :is(h1, h2, h3, h4, h5, h6) {
+        margin: @ui-space-5 0 @ui-space-2;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    // The two top levels carry a rule under them, as a document's sections do.
+    :is(h1, h2) {
+        padding-bottom: 0.3em;
+        border-bottom: var(--ui-border-width, 1px) solid var(--ui-color-border);
+    }
+
+    h1 {
+        font-size: 1.75em;
+    }
+
+    h2 {
+        font-size: 1.4em;
+    }
+
+    h3 {
+        font-size: 1.2em;
+    }
+
+    h4 {
+        font-size: 1em;
+    }
+
+    h5 {
+        font-size: 0.875em;
+    }
+
+    h6 {
+        font-size: 0.875em;
+        color: var(--ui-text-muted);
+    }
+
+    a {
+        color: var(--ui-color-primary-ink);
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    code {
+        padding: 0.1em 0.35em;
+        border-radius: var(--ui-radius-input);
+        background: @ui-markdown-code-ground;
+        font-family: @mono;
+        font-size: 0.875em;
+    }
+
+    pre {
+        overflow: auto;
+        padding: @ui-space-3;
+        border-radius: var(--ui-radius-input);
+        background: @ui-markdown-code-ground;
+        font-family: @mono;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        tab-size: 4;
+        overflow-wrap: normal;
+
+        // The block is the ground; the code in it is just its text.
+        > code {
+            padding: 0;
+            border-radius: 0;
+            background: none;
+            font-size: inherit;
+            white-space: pre;
+        }
+    }
+
+    blockquote {
+        padding: 0 @ui-space-3;
+        border-left: 0.25rem solid var(--ui-color-border);
+        color: var(--ui-text-muted);
+    }
+
+    :is(ul, ol) {
+        padding-left: 1.75em;
+
+        // A nested list belongs to its item's line spacing, not to a paragraph's.
+        :is(ul, ol) {
+            margin-bottom: 0;
+        }
+    }
+
+    li + li,
+    li > :is(ul, ol) {
+        margin-top: @ui-space-1;
+    }
+
+    // A loose item's paragraphs keep their air between them, but not after the last.
+    li > p:last-child {
+        margin-bottom: 0;
+    }
+
+    hr {
+        height: 0;
+        margin: @ui-space-4 0;
+        border: 0;
+        border-top: var(--ui-border-width, 1px) solid var(--ui-color-border);
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    del {
+        color: var(--ui-text-muted);
+    }
+}
+
+// A task list takes no bullets: the box is the item's mark, standing in the bullet's place and centred on the item's first line.
+.ui-markdown__tasks {
+    list-style: none;
+    padding-left: 0.25em;
+}
+
+.ui-markdown__task {
+    position: relative;
+    padding-left: 1.5em;
+}
+
+.ui-markdown__check.ui-checkbox {
+    position: absolute;
+    top: calc((1lh - 0.875rem) / 2);
+    left: 0;
+    display: inline-flex;
+    height: auto;
+    min-height: 0;
+    // Shown, never toggled: a press on it reaches nothing.
+    pointer-events: none;
+}
+
+.ui-markdown__table {
+    overflow-x: auto;
+
+    table {
+        border-collapse: collapse;
+        font-size: inherit;
+    }
+
+    :is(th, td) {
+        padding: 0.375rem 0.75rem;
+        border: var(--ui-border-width, 1px) solid var(--ui-color-border);
+        text-align: left;
+        vertical-align: top;
+    }
+
+    th {
+        font-weight: 600;
+        background: @ui-markdown-code-ground;
+    }
+
+    .ui-markdown__cell--center {
+        text-align: center;
+    }
+
+    .ui-markdown__cell--right {
+        text-align: right;
+    }
+}

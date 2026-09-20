@@ -8,6 +8,7 @@
 
   <Folder Name="/examples/">
     <Project Path="examples/DemoApp.CodeInput/DemoApp.CodeInput.csproj" />
+    <Project Path="examples/DemoApp.CodeInput.Web/DemoApp.CodeInput.Web.csproj" />
   </Folder>
 
   <Folder Name="/solution/">

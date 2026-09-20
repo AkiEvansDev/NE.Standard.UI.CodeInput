@@ -1,4 +1,4 @@
-import type { Mode, TokenKind } from "../tokenizer.ts";
+import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, words } from "../tokenizer.ts";
 
 // What the reader is inside of, innermost last: double quotes, a `$(…)` substitution, a `${…}` expansion or backticks.
@@ -338,4 +338,5 @@ function codeToken(stream: Stream, state: BashState): TokenKind | null {
     return null;
 }
 
-export const bashTokenizer = modeTokenizer(bashMode);
+// Completions offer the language's own words beside a file's and a script's.
+export const bashTokenizer: Tokenizer = { ...modeTokenizer(bashMode), keywords: [...Keywords] };

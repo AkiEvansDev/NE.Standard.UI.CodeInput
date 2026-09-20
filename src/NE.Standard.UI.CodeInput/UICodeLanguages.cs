@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace NE.Standard.UI.CodeInput;
 
 /// <summary>
-/// The languages the code field highlights out of the box, by id. A language is a string so that a package can add one: it ships
-/// a script that registers its tokenizer with the editor under an id of its own, and an application names that id here.
+/// The languages the code field highlights, by id. A package adds one by shipping a tokenizer script and declaring the id here
+/// with <see cref="Register"/>.
 /// </summary>
 public static class UICodeLanguages
 {
@@ -20,9 +21,12 @@ public static class UICodeLanguages
     public const string Bash = "bash";
     public const string CSharp = "csharp";
     public const string Python = "python";
+    public const string Markdown = "markdown";
 
-    /// <summary>Every language the package ships, with the name the status bar lists it under; a package's own is listed by its id.</summary>
-    public static IReadOnlyList<KeyValuePair<string, string>> All { get; } =
+    private static readonly Lock Gate = new();
+
+    // Replaced whole on a registration, so a reader always holds one consistent list without taking the lock.
+    private static KeyValuePair<string, string>[] _all =
     [
         new(PlainText, "Plain text"),
         new(Json, "JSON"),
@@ -33,10 +37,41 @@ public static class UICodeLanguages
         new(Html, "HTML"),
         new(Bash, "Bash"),
         new(CSharp, "C#"),
-        new(Python, "Python")
+        new(Python, "Python"),
+        new(Markdown, "Markdown")
     ];
 
-    /// <summary>The name a language is listed under; an id the package does not ship is its own name.</summary>
+    /// <summary>Every language the status bar lists — the ones the package ships, then the ones an application registered — with its name.</summary>
+    public static IReadOnlyList<KeyValuePair<string, string>> All => _all;
+
+    /// <summary>
+    /// Registers a language's display name for the status bar; call once at startup, beside the script that registers its tokenizer.
+    /// A second call for the same id renames it.
+    /// </summary>
+    public static void Register(string id, string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        lock (Gate)
+        {
+            KeyValuePair<string, string>[] next = [.. _all];
+
+            for (var i = 0; i < next.Length; i++)
+            {
+                if (!string.Equals(next[i].Key, id, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                next[i] = new(next[i].Key, name);
+                _all = next;
+                return;
+            }
+
+            _all = [.. next, new(id.Trim(), name)];
+        }
+    }
+
+    /// <summary>The name a language is listed under; an id nobody declared is its own name.</summary>
     public static string DisplayName(string id)
     {
         foreach (KeyValuePair<string, string> language in All)

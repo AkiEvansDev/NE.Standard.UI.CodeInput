@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using NE.Standard.UI.Abstractions.Effects;
 using NE.Standard.UI.CodeInput;
 using NE.Standard.UI.Controllers;
 using NE.Standard.UI.Primitives.Annotations;
 using NE.Standard.UI.Primitives.Styling;
+using NE.Standard.UI.Shell.Commands;
 
 namespace DemoApp.CodeInput;
 
@@ -34,10 +36,16 @@ internal sealed partial class CodeInputController : UIControllerBase
     public partial bool Search { get; set; } = true;
 
     [RecursiveMember]
+    public partial bool MultiCaret { get; set; } = true;
+
+    [RecursiveMember]
     public partial int TabSize { get; set; } = 4;
 
     [RecursiveMember]
     public partial bool StatusBar { get; set; } = true;
+
+    [RecursiveMember]
+    public partial bool Completions { get; set; } = true;
 
     [RecursiveMember]
     public partial string? Encoding { get; set; } = UICodeEncodings.Utf8;
@@ -55,18 +63,21 @@ internal sealed partial class CodeInputController : UIControllerBase
     [RecursiveMember]
     public partial string Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp], UICodeEncodings.Utf8, null);
 
-    /// <summary>The select changed the language: the sample of that language replaces the text.</summary>
+    /// <summary>The form the editor's text is held in until it is saved.</summary>
+    public const string EditorForm = "editor";
+
+    /// <summary>
+    /// The select changed the language: the sample of that language replaces the text, and an edit not saved yet is let go of —
+    /// the replacement is the point.
+    /// </summary>
     [UICommand]
-    public void ChangeLanguage()
+    public UICommandResult ChangeLanguage()
     {
         Code = Samples.TryGetValue(Language, out var sample) ? sample : string.Empty;
         Status = Describe(Code, Encoding, LineEnding);
-    }
 
-    /// <summary>The editor committed a value: what the server holds is what the status line says.</summary>
-    [UICommand]
-    public void CodeChanged()
-        => Status = Describe(Code, Encoding, LineEnding);
+        return UICommandResult.Ok([new DiscardFormEffect(EditorForm)]);
+    }
 
     /// <summary>Ctrl+S in the editor: the value has already arrived, so this is where an application would write it out — in <c>Encoding</c>.</summary>
     [UICommand]
@@ -82,7 +93,7 @@ internal sealed partial class CodeInputController : UIControllerBase
 
     /// <summary>Puts the language's sample back, from the server: what a value pushed onto a live editor looks like.</summary>
     [UICommand]
-    public void ResetSample()
+    public UICommandResult ResetSample()
         => ChangeLanguage();
 
     private static string Describe(string code, string? encoding, string? lineEnding)
@@ -247,6 +258,7 @@ internal sealed partial class CodeInputController : UIControllerBase
 
             user = User(42, "Alice")
             print(describe(user))
-            """
+            """,
+        [UICodeLanguages.Markdown] = MarkdownController.Sample
     };
 }

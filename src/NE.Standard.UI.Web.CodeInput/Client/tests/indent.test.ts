@@ -1,18 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyTab } from "../src/indent.ts";
+import { applyTab, lineBreakText } from "../src/indent.ts";
+import { applyEdits, singleSelection } from "../src/selections.ts";
+import { marked, parse } from "./marked.ts";
 
 /** Applies the edit and returns the text with the selection marked as `[` … `]`. */
 function press(value: string, start: number, end: number, outdent: boolean, tabSize = 4): string | null {
-    const edit = applyTab(value, start, end, tabSize, outdent);
+    const edit = applyTab(value, singleSelection(start, end), tabSize, outdent);
 
-    if (edit === null)
-        return null;
+    return edit === null ? null : marked(applyEdits(value, edit.edits), edit.after);
+}
 
-    const text = value.slice(0, edit.from) + edit.text + value.slice(edit.to);
+/** The same over every range a marked text holds. */
+function pressAll(notation: string, outdent: boolean, tabSize = 4): string | null {
+    const { text, set } = parse(notation);
+    const edit = applyTab(text, set, tabSize, outdent);
 
-    return text.slice(0, edit.selectionStart) + "[" + text.slice(edit.selectionStart, edit.selectionEnd) + "]" + text.slice(edit.selectionEnd);
+    return edit === null ? null : marked(applyEdits(text, edit.edits), edit.after);
 }
 
 test("a caret indents at the caret to the next stop", () => {
@@ -67,3 +72,22 @@ test("a tab-indented line outdents by its tab, whatever the tab size", () => {
 test("a line indented with spaces before a tab loses the spaces first", () => {
     assert.equal(press("    \tab", 7, 7, true), "\tab[]");
 });
+
+test("several carets indent each at its own caret", () => {
+    assert.equal(pressAll("a[]b\nabc[]", false), "a   []b\nabc []");
+    assert.equal(pressAll("[]a[]b", false, 2), "  []a []b");
+});
+
+test("several selections move each line once, however many ranges stand on it", () => {
+    assert.equal(pressAll("[a]b[c]\nd", false), "[    a]b[c]\nd");
+    assert.equal(pressAll("    a[]b\n    c[]d", true), "a[]b\nc[]d");
+    assert.equal(pressAll("[a\nb]\n[c]", false), "[    a\n    b]\n[    c]");
+});
+
+test("Enter keeps the indent, and opens a stop after a bracket or Python's colon", () => {
+    assert.equal(lineBreakText("  ab", 4, 4, false), "\n  ");
+    assert.equal(lineBreakText("  if {", 6, 4, false), "\n      ");
+    assert.equal(lineBreakText("def f():", 8, 4, true), "\n    ");
+    assert.equal(lineBreakText("def f():", 8, 4, false), "\n");
+});
+

@@ -1,86 +1,96 @@
-// Tab and Shift+Tab over the text alone: which span is rewritten, what it becomes, and where the selection lands afterwards.
+// Tab, Shift+Tab and Enter's indent over the text alone: the edits they make at every caret, and where the carets land afterwards.
 
-export type TabEdit = {
-    /** The span of the value to replace. */
-    readonly from: number;
-    readonly to: number;
-    /** What replaces it. */
-    readonly text: string;
-    /** The selection once the text is in place. */
-    readonly selectionStart: number;
-    readonly selectionEnd: number;
-};
+import type { Edit, SelectionSet } from "./selections.ts";
+import { editRanges, isCaret, mapPosition, normalizeSelections, rangeEnd, rangeStart } from "./selections.ts";
+import { linesOf, visualColumn } from "./motion.ts";
 
-type MovedLine = {
-    readonly start: number;
-    readonly length: number;
-    readonly removed: number;
-    readonly inserted: number;
-};
+/** The edits a Tab (or Shift+Tab, `outdent`) makes, or null when nothing would change. */
+export function applyTab(text: string, set: SelectionSet, tabSize: number, outdent: boolean): { readonly edits: Edit[]; readonly after: SelectionSet } | null {
+    // Carets alone indent at each caret, to its next stop; anything else moves whole lines.
+    if (!outdent && set.ranges.every(isCaret)) {
+        const lines = linesOf(text);
 
-/** The edit a Tab (or Shift+Tab, `outdent`) makes with the selection `start`..`end`, or null when nothing would change. */
-export function applyTab(value: string, start: number, end: number, tabSize: number, outdent: boolean): TabEdit | null {
-    const firstLineStart = value.lastIndexOf("\n", start - 1) + 1;
+        return editRanges(set, range => {
+            const spaces = " ".repeat(tabSize - (visualColumn(text, lines, range.head, tabSize) % tabSize));
 
-    // A caret with no selection indents at the caret, to the next stop; everything else moves whole lines.
-    if (!outdent && start === end) {
-        const spaces = " ".repeat(tabSize - ((start - firstLineStart) % tabSize));
-
-        return { from: start, to: end, text: spaces, selectionStart: start + spaces.length, selectionEnd: start + spaces.length };
+            return { from: range.head, to: range.head, text: spaces, caret: spaces.length };
+        });
     }
 
-    let lastLineEnd = value.indexOf("\n", end > start ? end - 1 : end);
+    const edits: Edit[] = [];
+    let lastLine = -1;
 
-    if (lastLineEnd < 0)
-        lastLineEnd = value.length;
+    for (const range of set.ranges) {
+        const start = rangeStart(range);
+        const end = rangeEnd(range);
+        let lineStart = text.lastIndexOf("\n", start - 1) + 1;
+        // A selection that ends right after a line break does not take the next line.
+        let lastLineEnd = text.indexOf("\n", end > start ? end - 1 : end);
 
-    const moved: MovedLine[] = [];
-    const text: string[] = [];
-    let lineStart = firstLineStart;
+        if (lastLineEnd < 0)
+            lastLineEnd = text.length;
 
-    for (const line of value.slice(firstLineStart, lastLineEnd).split("\n")) {
-        const removed = outdent ? outdentWidth(line, tabSize) : 0;
-        const inserted = outdent || line.length === 0 ? 0 : tabSize;
+        while (lineStart <= lastLineEnd) {
+            let lineEnd = text.indexOf("\n", lineStart);
 
-        moved.push({ start: lineStart, length: line.length, removed, inserted });
-        text.push(outdent ? line.slice(removed) : " ".repeat(inserted) + line);
-        lineStart += line.length + 1;
+            if (lineEnd < 0)
+                lineEnd = text.length;
+
+            // Two carets on one line move it once.
+            if (lineStart > lastLine) {
+                const edit = lineEdit(text, lineStart, lineEnd, tabSize, outdent);
+
+                if (edit !== null)
+                    edits.push(edit);
+
+                lastLine = lineStart;
+            }
+
+            lineStart = lineEnd + 1;
+        }
     }
 
-    if (moved.every(line => line.removed === 0 && line.inserted === 0))
+    if (edits.length === 0)
         return null;
 
-    return {
-        from: firstLineStart,
-        to: lastLineEnd,
-        text: text.join("\n"),
-        selectionStart: shiftPosition(start, moved),
-        selectionEnd: shiftPosition(end, moved)
-    };
+    // A position at a line start stays there, so a selection keeps the indent it moved.
+    const ranges = set.ranges.map(range => ({ anchor: mapPosition(range.anchor, edits), head: mapPosition(range.head, edits) }));
+
+    return { edits, after: normalizeSelections(ranges, set.primary) };
+}
+
+function lineEdit(text: string, lineStart: number, lineEnd: number, tabSize: number, outdent: boolean): Edit | null {
+    if (!outdent)
+        return lineEnd === lineStart ? null : { from: lineStart, to: lineStart, text: " ".repeat(tabSize) };
+
+    const removed = outdentWidth(text, lineStart, lineEnd, tabSize);
+
+    return removed === 0 ? null : { from: lineStart, to: lineStart + removed, text: "" };
 }
 
 /** What one Shift+Tab takes off a line: a leading tab whole, since text pasted from elsewhere is indented with tabs as often as spaces. */
-function outdentWidth(line: string, tabSize: number): number {
-    if (line.startsWith("\t"))
+function outdentWidth(text: string, lineStart: number, lineEnd: number, tabSize: number): number {
+    if (text[lineStart] === "\t")
         return 1;
 
-    return Math.min(tabSize, /^ */.exec(line)![0].length);
+    let spaces = 0;
+
+    while (spaces < tabSize && lineStart + spaces < lineEnd && text[lineStart + spaces] === " ")
+        spaces++;
+
+    return spaces;
 }
 
-/** A position moved by what the lines before its own did and by its own line's edit; one at the line start stays there, so a selection keeps the indent it moved. */
-function shiftPosition(position: number, lines: readonly MovedLine[]): number {
-    let shift = 0;
+/** What Enter inserts at a position: the break and the line's indent, one stop deeper after an opening bracket or Python's colon. */
+export function lineBreakText(text: string, position: number, tabSize: number, python: boolean): string {
+    const lineStart = text.lastIndexOf("\n", position - 1) + 1;
+    const line = text.slice(lineStart, position);
+    let indent = /^[ \t]*/.exec(line)?.[0] ?? "";
+    const before = line.trimEnd();
+    const last = before.charAt(before.length - 1);
 
-    for (const line of lines) {
-        if (position === line.start)
-            return line.start + shift;
+    if (last === "{" || last === "[" || last === "(" || (last === ":" && python))
+        indent += " ".repeat(tabSize);
 
-        if (position <= line.start + line.length)
-            return line.start + shift + Math.max(0, position - line.start - line.removed) + line.inserted;
-
-        shift += line.inserted - line.removed;
-    }
-
-    // Past the last moved line: a selection that ends right after a line break.
-    return position + shift;
+    return "\n" + indent;
 }

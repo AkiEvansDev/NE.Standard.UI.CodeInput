@@ -1,4 +1,4 @@
-import type { Mode, TokenKind } from "../tokenizer.ts";
+import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, readQuoted, words } from "../tokenizer.ts";
 
 export type JsState = {
@@ -258,4 +258,5 @@ export function isTypeName(word: string): boolean {
     return first >= "A" && first <= "Z";
 }
 
-export const javascriptTokenizer = modeTokenizer(jsMode);
+// JavaScript and TypeScript share this tokenizer, so both languages complete from the same keyword list.
+export const javascriptTokenizer: Tokenizer = { ...modeTokenizer(jsMode), keywords: [...Keywords] };

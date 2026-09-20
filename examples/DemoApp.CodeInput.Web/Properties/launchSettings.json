@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "DemoApp.CodeInput": {
+    "DemoApp.CodeInput.Web": {
       "commandName": "Project",
       "launchBrowser": true,
       "launchUrl": "",

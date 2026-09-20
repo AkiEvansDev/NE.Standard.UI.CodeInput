@@ -1,4 +1,4 @@
-import type { Mode, TokenKind } from "../tokenizer.ts";
+import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, words } from "../tokenizer.ts";
 import { isTypeName } from "./javascript.ts";
 
@@ -196,4 +196,5 @@ function codeToken(stream: Stream, state: PythonState): TokenKind | null {
     return null;
 }
 
-export const pythonTokenizer = modeTokenizer(pythonMode);
+// Completions offer the language's own words and its built-ins beside a file's and a script's.
+export const pythonTokenizer: Tokenizer = { ...modeTokenizer(pythonMode), keywords: [...Keywords, ...Builtins] };
