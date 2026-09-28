@@ -90,4 +90,3 @@ test("Enter keeps the indent, and opens a stop after a bracket or Python's colon
     assert.equal(lineBreakText("def f():", 8, 4, true), "\n    ");
     assert.equal(lineBreakText("def f():", 8, 4, false), "\n");
 });
-

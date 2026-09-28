@@ -12,15 +12,35 @@ public static class UICodeLanguages
 {
     /// <summary>No highlighting: a monospaced field with line numbers.</summary>
     public const string PlainText = "plain-text";
+
+    /// <summary>JSON: keys, strings, numbers and literals.</summary>
     public const string Json = "json";
+
+    /// <summary>CSS: selectors, properties, values and at-rules.</summary>
     public const string Css = "css";
+
+    /// <summary>LESS: CSS with variables, mixins, nesting and line comments.</summary>
     public const string Less = "less";
+
+    /// <summary>JavaScript, template literals and regular expressions included.</summary>
     public const string JavaScript = "javascript";
+
+    /// <summary>TypeScript, read as JavaScript with its own words as keywords.</summary>
     public const string TypeScript = "typescript";
+
+    /// <summary>HTML, with its embedded script and style read as JavaScript and CSS.</summary>
     public const string Html = "html";
+
+    /// <summary>Bash: commands, options, variables, substitutions and here-documents.</summary>
     public const string Bash = "bash";
+
+    /// <summary>C#: keywords, types, calls, interpolated, verbatim and raw strings.</summary>
     public const string CSharp = "csharp";
+
+    /// <summary>Python: definitions, decorators, strings and f-string holes.</summary>
     public const string Python = "python";
+
+    /// <summary>Markdown, with each fenced block read in the language its info string names.</summary>
     public const string Markdown = "markdown";
 
     private static readonly Lock Gate = new();
@@ -53,13 +73,15 @@ public static class UICodeLanguages
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
+        var key = id.Trim();
+
         lock (Gate)
         {
             KeyValuePair<string, string>[] next = [.. _all];
 
             for (var i = 0; i < next.Length; i++)
             {
-                if (!string.Equals(next[i].Key, id, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(next[i].Key, key, StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 next[i] = new(next[i].Key, name);
@@ -67,7 +89,7 @@ public static class UICodeLanguages
                 return;
             }
 
-            _all = [.. next, new(id.Trim(), name)];
+            _all = [.. next, new(key, name)];
         }
     }
 

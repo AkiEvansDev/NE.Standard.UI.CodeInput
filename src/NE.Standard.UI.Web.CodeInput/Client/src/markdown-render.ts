@@ -1,6 +1,7 @@
 // A Markdown document as HTML. Every character is escaped on its way out and an address is kept only for a scheme a reader can
 // safely follow, so the markup is whatever the document says and nothing it could smuggle in.
 
+import { escapeHtml } from "./highlighter.ts";
 import type { Block, ListItem, TableAlignment } from "./markdown-blocks.ts";
 import { parseMarkdown } from "./markdown-blocks.ts";
 import type { Inline, LinkTarget } from "./markdown-inlines.ts";
@@ -96,7 +97,9 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
 
     let html = `<div class="${ClassName}__table"${sourceLine(line)}><table><thead><tr>`;
 
-    head.forEach((text, column) => html += cell("th", text, column));
+    for (const [column, text] of head.entries())
+        html += cell("th", text, column);
+
     html += "</tr></thead>";
 
     if (rows.length > 0) {
@@ -104,7 +107,10 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
 
         for (const row of rows) {
             html += "<tr>";
-            row.forEach((text, column) => html += cell("td", text, column));
+
+            for (const [column, text] of row.entries())
+                html += cell("td", text, column);
+
             html += "</tr>";
         }
 
@@ -167,8 +173,10 @@ function renderLink(node: Inline): string {
         return content;
 
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";
-    // An address off the page opens beside it rather than in place of the application.
-    const external = /^(?:https?:)?\/\//i.test(href) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
+    // An address off the page opens beside it rather than in place of the application. Any http(s) address counts, since a browser
+    // reads `http:host` without its slashes as another host too; it also reads a backslash as a slash and drops tabs and breaks
+    // inside an address, so `\\host` and `/\host` are other hosts.
+    const external = /^(?:https?:|[\\/]{2})/i.test(href.replace(/[\t\n\r]/g, "")) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
 
     return `<a href="${escapeHtml(href)}"${title}${external}>${content}</a>`;
 }
@@ -208,6 +216,7 @@ const SafeSchemes = new Set(["http", "https", "mailto", "tel"]);
  * control characters — plus a picture's data address for an image.
  */
 export function safeAddress(address: string, image: boolean): string | null {
+    // oxlint-disable-next-line no-control-regex -- the control characters are what it strips
     const compact = address.replace(/[\s\x00-\x1f\x7f]/g, "");
     const scheme = /^([A-Za-z][A-Za-z\d+.-]*):/.exec(compact);
 
@@ -221,9 +230,3 @@ export function safeAddress(address: string, image: boolean): string | null {
 
     return image && name === "data" && /^data:image\/(?:png|gif|jpe?g|webp|avif|bmp);/i.test(compact) ? compact : null;
 }
-
-export function escapeHtml(text: string): string {
-    return text.replace(/[&<>"']/g, character => EscapedCharacters[character]);
-}
-
-const EscapedCharacters: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };

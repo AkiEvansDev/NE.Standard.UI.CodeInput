@@ -12,6 +12,8 @@ type CSharpState = {
     verbatims: boolean[];
     /** The word before was `new`, `class` or another that a type name follows, so the name is a type even with a call after it. */
     afterNew: boolean;
+    /** The token before was a member access's dot, so a capitalised name is a member — an enum's value, a property — not a type. */
+    afterDot: boolean;
 };
 
 const Keywords = words(`
@@ -25,16 +27,17 @@ const Keywords = words(`
 
 const Identifier = /@?[A-Za-z_][\w]*/y;
 const NumberLiteral = /0[xX][\da-fA-F_]+[uUlL]*|0[bB][01_]+[uUlL]*|(?:\d[\d_]*\.?[\d_]*|\.\d[\d_]*)(?:[eE][+-]?\d+)?[fFdDmMuUlL]*/y;
-const CharLiteral = /'(?:\\.|[^'\\])'/y;
+const CharLiteral = /'(?:\\(?:u[\da-fA-F]{4}|U[\da-fA-F]{8}|x[\da-fA-F]{1,4}|.)|[^'\\])'/y;
 const Operator = /[+\-*/%=<>!&|^~?:]+/y;
 const CallAhead = /\s*[(<]/y;
+const DotAhead = /\s*\.(?!\.)/y;
 const Preprocessor = /#[a-z]+/y;
 
 /** After these the next name is a type, whatever follows it — a primary constructor's list included. */
 const TypeAfter = words("new class struct interface enum record is as");
 
-export const csharpMode: Mode<CSharpState> = {
-    initialState: () => ({ mode: "code", rawQuotes: 0, frames: [], verbatims: [], afterNew: false }),
+const csharpMode: Mode<CSharpState> = {
+    initialState: () => ({ mode: "code", rawQuotes: 0, frames: [], verbatims: [], afterNew: false, afterDot: false }),
     token(stream, state) {
         switch (state.mode) {
             case "comment":
@@ -145,6 +148,10 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
     if (stream.eatWhile(/\s/))
         return null;
 
+    // Only the token right after a dot reads it: whatever comes next is past the member access.
+    const afterDot = state.afterDot;
+    state.afterDot = false;
+
     const character = stream.peek();
 
     if (stream.match("//")) {
@@ -172,9 +179,9 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
         return "string";
     }
 
-    if (stream.match(/\$+"""/y)) {
+    if (stream.match(/\$+"""+/y)) {
         // Raw and interpolated: read as raw, since a hole in it needs as many braces as dollars — beyond what this reader follows.
-        state.rawQuotes = 3;
+        state.rawQuotes = stream.current().replace(/^\$+/, "").length;
         state.mode = "raw";
 
         return "string";
@@ -233,7 +240,15 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
         if (isTypeName(name)) {
             CallAhead.lastIndex = stream.pos;
 
-            return !afterNew && CallAhead.test(stream.text) && stream.text.charAt(CallAhead.lastIndex - 1) === "(" ? "function" : "type";
+            const ahead = CallAhead.test(stream.text) ? stream.text.charAt(CallAhead.lastIndex - 1) : "";
+
+            if (!afterNew && ahead === "(")
+                return "function";
+
+            DotAhead.lastIndex = stream.pos;
+
+            // `UIButtonType.Ghost`: a member of a type rather than one more type; a name with a dot after it still qualifies the next.
+            return afterDot && ahead !== "<" && !DotAhead.test(stream.text) ? "property" : "type";
         }
 
         CallAhead.lastIndex = stream.pos;
@@ -269,7 +284,13 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
         return "punctuation";
     }
 
-    if (stream.match(/[()[\],;.]/y))
+    if (stream.match(".")) {
+        state.afterDot = true;
+
+        return "punctuation";
+    }
+
+    if (stream.match(/[()[\],;]/y))
         return "punctuation";
 
     if (stream.match(Operator))

@@ -73,14 +73,18 @@ export class Highlighter {
 
     /**
      * Reads a new text and returns the runs of lines whose rendering changed, in order. A line is kept when its text and start
-     * state match; old and new lines are walked side by side, looking ahead where they diverge, so an edit at many carets re-reads
-     * only those places.
+     * state match. The lines both texts end with stand opposite each other, so an edit of any size at one place meets the old
+     * lines after it however far it shifted them; before them, old and new lines are walked side by side, looking ahead where
+     * they diverge, so an edit at many carets re-reads only those places.
      */
     public update(text: string): LineChange[] {
         const texts = text.split("\n");
         const old = this.lines;
         const lines: CachedLine[] = [];
         const changes: LineChange[] = [];
+        const tail = commonTail(texts, old);
+        const newHead = texts.length - tail;
+        const oldHead = old.length - tail;
         let state = this.tokenizer?.initialState ?? EmptyState;
         let from = -1;
         let removed = 0;
@@ -89,7 +93,21 @@ export class Highlighter {
         let j = 0;
 
         while (i < texts.length) {
-            if (j < old.length && old[j].text === texts[i] && statesEqual(old[j].startState, state)) {
+            // Into the common tail: whatever the old head still held is replaced, and the walks go on line for line.
+            if (i === newHead && j < oldHead) {
+                if (from < 0) {
+                    from = i;
+                    removed = 0;
+                    added = 0;
+                }
+
+                removed += oldHead - j;
+                j = oldHead;
+            }
+
+            const limit = i < newHead ? oldHead : old.length;
+
+            if (j < limit && old[j].text === texts[i] && statesEqual(old[j].startState, state)) {
                 if (from >= 0) {
                     changes.push({ from, removed, added });
                     from = -1;
@@ -109,7 +127,7 @@ export class Highlighter {
             }
 
             // The same text in another state is re-read in place; otherwise the lines added and removed before the two walks meet.
-            const [newLines, oldLines] = j < old.length && old[j].text === texts[i] ? [1, 1] : resync(texts, i, old, j);
+            const [newLines, oldLines] = j < limit && old[j].text === texts[i] ? [1, 1] : resync(texts, i, newHead, old, j, oldHead);
 
             for (let k = 0; k < newLines; k++) {
                 const line = this.tokenize(texts[i + k], state);
@@ -148,9 +166,17 @@ export class Highlighter {
             return { text, startState: EmptyState, endState: EmptyState, tokens: NoTokens, marks: NoMarks };
 
         const tokens: Token[] = [];
-        const endState = this.tokenizer.tokenizeLine(text, startState, (from, to, kind) => tokens.push({ from, to, kind }));
 
-        return { text, startState, endState, tokens, marks: NoMarks };
+        // A package's tokenizer that throws leaves its line plain: the text is drawn only by this layer, under a transparent
+        // textarea, so a line not drawn is a line the reader types blind.
+        try {
+            const endState = this.tokenizer.tokenizeLine(text, startState, (from, to, kind) => tokens.push({ from, to, kind }));
+
+            return { text, startState, endState, tokens, marks: NoMarks };
+        }
+        catch {
+            return { text, startState, endState: startState, tokens: NoTokens, marks: NoMarks };
+        }
     }
 
     private rebuildStarts(): void {
@@ -232,18 +258,32 @@ export class Highlighter {
 // How far apart two walks may part and still be found meeting again; past it, the lines are replaced one for one until they meet.
 const ResyncWindow = 8;
 
-/** How many new and old lines to take before the walks meet again, fewest first; one of each when they do not meet within the window. */
-function resync(texts: readonly string[], i: number, old: readonly CachedLine[], j: number): [number, number] {
+/**
+ * How many new and old lines to take before the walks meet again, fewest first, looking no further than each head's end; one of
+ * each when they do not meet within the window.
+ */
+function resync(texts: readonly string[], i: number, newEnd: number, old: readonly CachedLine[], j: number, oldEnd: number): [number, number] {
     for (let distance = 1; distance <= 2 * ResyncWindow; distance++) {
         for (let newLines = Math.min(distance, ResyncWindow); newLines >= 0 && distance - newLines <= ResyncWindow; newLines--) {
             const oldLines = distance - newLines;
 
-            if (i + newLines < texts.length && j + oldLines < old.length && texts[i + newLines] === old[j + oldLines].text)
+            if (i + newLines < newEnd && j + oldLines < oldEnd && texts[i + newLines] === old[j + oldLines].text)
                 return [newLines, oldLines];
         }
     }
 
-    return [i < texts.length ? 1 : 0, j < old.length ? 1 : 0];
+    return [i < newEnd ? 1 : 0, j < oldEnd ? 1 : 0];
+}
+
+/** How many lines the new text ends with that the old one ends with too. */
+function commonTail(texts: readonly string[], old: readonly CachedLine[]): number {
+    const most = Math.min(texts.length, old.length);
+    let count = 0;
+
+    while (count < most && texts[texts.length - 1 - count] === old[old.length - 1 - count].text)
+        count++;
+
+    return count;
 }
 
 function marksEqual(a: readonly Mark[], b: readonly Mark[]): boolean {
@@ -314,6 +354,9 @@ function classesFor(kind: TokenKind | null, mark: Mark | null): string {
     return classes;
 }
 
+/** Text as HTML that is safe inside an element and inside a quoted attribute alike. */
 export function escapeHtml(text: string): string {
-    return text.replace(/[&<>]/g, character => character === "&" ? "&amp;" : character === "<" ? "&lt;" : "&gt;");
+    return text.replace(/[&<>"']/g, character => EscapedCharacters[character]);
 }
+
+const EscapedCharacters: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };

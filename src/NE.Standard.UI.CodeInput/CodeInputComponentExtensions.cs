@@ -14,6 +14,9 @@ public static class CodeInputEvents
     public const string Save = "save";
 }
 
+/// <summary>
+/// The code field's own events, bound fluently.
+/// </summary>
 public static class CodeInputComponentExtensions
 {
     /// <summary>

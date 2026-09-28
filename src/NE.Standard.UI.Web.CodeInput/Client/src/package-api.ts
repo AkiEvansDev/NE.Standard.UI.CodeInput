@@ -30,6 +30,7 @@ export type CodeInputGlobalApi = {
 };
 
 declare global {
+    // oxlint-disable-next-line typescript/consistent-type-definitions -- only an interface merges into lib.dom's Window
     interface Window {
         NEStandardUICodeInput?: Partial<CodeInputGlobalApi>;
     }

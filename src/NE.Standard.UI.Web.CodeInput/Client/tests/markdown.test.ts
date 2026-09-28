@@ -55,6 +55,22 @@ test("quotes carry lazy lines and nest", () => {
     assert.equal(html("> one\ntwo\n> > inner\n\nafter"), "<blockquote><p>one\ntwo</p><blockquote><p>inner</p></blockquote></blockquote><p>after</p>");
 });
 
+test("a lazy line carries on only an open paragraph, in a quote or a list item", () => {
+    assert.equal(html("> a\nb"), "<blockquote><p>a\nb</p></blockquote>");
+    assert.equal(html("> > a\nb"), "<blockquote><blockquote><p>a\nb</p></blockquote></blockquote>");
+    assert.equal(html("> - a\nb"), "<blockquote><ul><li>a\nb</li></ul></blockquote>");
+    assert.equal(html("> # h\nb"), "<blockquote><h1>h</h1></blockquote><p>b</p>");
+    assert.equal(html("> ***\nb"), "<blockquote><hr></blockquote><p>b</p>");
+    assert.equal(html("> a\n> ===\nb"), "<blockquote><h1>a</h1></blockquote><p>b</p>");
+    assert.equal(html("- a\n  ```\n  x\n  ```\nb"), "<ul><li>a<pre class=\"ui-markdown__code\"><code>x</code></pre></li></ul><p>b</p>");
+});
+
+test("a fence inside a quote ends with its close or with the quote, never lazily", () => {
+    assert.equal(html("> ```js\n> x\n> ```\ny"), "<blockquote><pre class=\"ui-markdown__code\" data-language=\"js\"><code>x</code></pre></blockquote><p>y</p>");
+    assert.equal(html("> ```\n> *a*\n*b*"), "<blockquote><pre class=\"ui-markdown__code\"><code>*a*</code></pre></blockquote><p><em>b</em></p>");
+    assert.equal(html("> > ```\n> > *a*\n> *b*"), "<blockquote><blockquote><pre class=\"ui-markdown__code\"><code>*a*</code></pre></blockquote><p><em>b</em></p></blockquote>");
+});
+
 test("lists: tight, loose, nested, ordered and tasks", () => {
     assert.equal(html("- a\n- b\n  - c\n\nx"), "<ul><li>a</li><li>b<ul><li>c</li></ul></li></ul><p>x</p>");
     assert.equal(html("- a\n\n- b"), "<ul><li><p>a</p></li><li><p>b</p></li></ul>");
@@ -86,4 +102,35 @@ test("every block and item says the source line it starts on", () => {
         .matchAll(/<(\w+)[^>]* data-ui-source-line="(\d+)"/g)].map(match => `${match[1]}:${match[2]}`);
 
     assert.deepEqual(lines, ["h1:1", "p:3", "blockquote:6", "p:6", "p:8", "li:10", "p:10", "p:12", "li:13", "p:13", "div:15", "pre:18", "hr:21"]);
+});
+
+test("an address with a backslash for a slash is another host and opens beside the page", () => {
+    const external = "target=\"_blank\" rel=\"noopener noreferrer\"";
+
+    // Two escaped backslashes in the source, two in the address.
+    assert.ok(html("[a](\\\\\\\\evil.dev/x)").includes(external));
+    assert.ok(html("[a](/\\evil.dev)").includes(external));
+    assert.ok(!html("[a](/local/page)").includes(external));
+});
+
+test("a single-column table and a fence line holding a backtick", () => {
+    assert.ok(html("| a |\n|---|\n| b |").startsWith("<div class=\"ui-markdown__table\">"));
+    // A backtick fence's info string cannot hold a backtick, so the line is inline code and does not cut the paragraph short.
+    assert.equal(html("text\n``` a`b\nmore"), "<p>text\n``` a`b\nmore</p>");
+});
+
+test("an http address written without its slashes is another host and opens beside the page", () => {
+    const external = "target=\"_blank\" rel=\"noopener noreferrer\"";
+
+    assert.ok(html("[a](http:evil.dev)").includes(external));
+    assert.ok(html("[a](HTTPS:evil.dev)").includes(external));
+    assert.ok(!html("[a](local:page)").includes(external));
+});
+
+test("quotes and lists nested past the deepest a document can mean read as text rather than running the stack out", () => {
+    const quotes = html(">".repeat(20000) + " deep");
+    const items = html("- ".repeat(20000) + "deep");
+
+    assert.equal((quotes.match(/<blockquote>/g) ?? []).length, 64);
+    assert.equal((items.match(/<ul>/g) ?? []).length, 64);
 });

@@ -4,6 +4,79 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.0.1
+
+- **The first stable release.** No `--prerelease` is needed any more. Until 2.0.0 the public surface may still move
+  between versions; every such change is marked **Breaking:** in this file.
+- **A screen reader names what the field shows.** The find panel's three switches, drawn as marks (`Aa`, `.*`), are named by the
+  words their tooltips say, and the field's caption names the textarea the reader edits rather than the box around it.
+- **Whole word finds a word in any script.** It wrapped the query in `\b`, which knows only ASCII, so a Cyrillic or accented
+  word had no edge and the search found nothing; a match now counts where no letter, digit or underscore stands on either side
+  — the editor's own word.
+- **Replace fills a regular expression's `$` patterns as Replace all does.** The single Replace ran the pattern over the
+  match's text alone, so a lookaround, `` $` `` and `$'` saw nothing around it; both now read the match in the whole text, and
+  Replace all replaces exactly the matches the panel counts, a whole-word query's included.
+- **A Markdown document that cannot be rendered shows its source**, and the displays beside it render as ever; a package's
+  tokenizer that throws leaves its fenced block plain in a display, and its line plain in the field, rather than the whole
+  document unrendered or a line the reader types blind.
+- **Quotes and lists nest at most 64 deep**; a deeper marker reads as text. Each level was a recursion, and a line of thousands
+  of `>` ran the stack out.
+- **`\\host` and `/\host` are links off the page**, as `//host` was: a browser reads a backslash as a slash and drops tabs and
+  breaks inside an address, so both opened another host in place of the application rather than in a new tab.
+- **A text that opens with a line break keeps it.** The HTML parser drops one line break straight after `<textarea>`, so the
+  field's first render lost it and the first edit sent the text back without it; a leading break is written twice.
+- **A completion answer that arrives late is dropped** — after Escape, a blur, an accepted word or a caret moved elsewhere it
+  opened the list again. The field says it offers a list with `aria-autocomplete="list"`; a textarea takes no
+  `aria-expanded`.
+- **A Markdown field redraws when a language registers after it was drawn**, since its fenced blocks read in whatever language
+  their info string names.
+- **Typing on a long text stays quick.** The document's words for completion are read once per word rather than once per
+  keystroke, and an edit that shifts every line after it re-reads only the lines it touched: the lines both texts end with
+  are matched against each other before the walk.
+- **The package's stylesheet and script are served under `/_ne/css/` and `/_ne/js/`** with the framework's own paths (see the
+  core's changelog).
+- **C#: a capitalised name after a dot is a member, not a type.** `UIButtonType.Ghost` coloured both halves as a type;
+  the member is a property now, while a name followed by another dot (`System.Text.Encoding`) still qualifies as a type.
+- **A part switched off for good is left out of the page.** `SetStatusBar(false)` and `SetSearch(false)`, written as a
+  value rather than bound, no longer render the status bar's four pickers and the find panel's eleven controls hidden:
+  they were about 60 KB of a field's 70, which a page listing several read-only fields paid for every one. A bound
+  flag still renders both, so it can turn them on.
+- **The package checks the plugin contract it was built for.** The framework's client says which contract it implements
+  (`GlobalApi.contractVersion`), and the package refuses to register against another one, with an error naming both
+  numbers, instead of working in part.
+- **Both packages bring their namespaces as global usings.** Installing the package is enough to write against it; a
+  project that would rather write its own `using` lines sets `NEStandardUIImplicitUsings` to `false`.
+- **The demo edits Orvane Cloud's configs, scripts and incident report**, with the page's source a press away.
+- **The mirror's demo builds against the framework's packages.** It reached this slice's own namespaces only through
+  the monorepo's usings, and this slice's sources wrote `using` lines the framework's packages now bring, which is
+  IDE0005; `Directory.Build.targets` travels to the mirror and a package's sources keep their own lines.
+- The README's licence link names the mirror, so it resolves on nuget.org too.
+- **The packages carry their symbols and sources inside their assemblies**, so a debugger steps into them.
+- **Replace steps on past what it wrote.** A replacement the query still matches (`Foo` for `foo` with Match case off, `logger`
+  for `log`) was found again where it was put, so every press rewrote the same place; the next match is now the one after the
+  new text.
+- **An `http:` address written without its slashes is a link off the page.** A browser reads `http:host` as another host, so
+  any http or https address now opens in a new tab rather than in place of the application.
+- **A tab size chosen or pushed redraws the extra carets** at the columns the text moved to, rather than at the old ones until
+  the next scroll.
+- **Switching `Search` or `MultiCaret` off takes effect at once**: an open find panel closes, and the extra carets are let go.
+- **Typing at several carets opens the completion list** as typing at one does; only Ctrl+Space did.
+- **The field marks a one-column table's delimiter row** (`|---|`), which the display already drew as a table: the editor and
+  the display read the same block markers. A fence line whose info string holds a backtick no longer interrupts a paragraph in
+  the display.
+- **A fenced block inside a quote is highlighted as one** (`` > ```js `` … `` > ``` ``): its info string, its body by the language it
+  names, and its close. As in the display, it also ends where the quote does — at a line without the quote's markers, nested
+  quotes counted.
+- **The display carries a line without a quote's marker on only an open paragraph**, as CommonMark does: after a fence, a
+  heading, a rule or a table it starts a block of its own after the quote, and the same holds for a list item's lazy line.
+- **Bash:** an assignment's value is a word, not a command (in `MODE=production run` the command is `run`), `$((…))` holds variables
+  rather than a command, a command inside `$(…)` is coloured as one, and `2>&1` is one operator.
+- **C#:** a raw string opened with four or more quotes after its dollars closes on as many, and a character literal takes
+  `\u`, `\U` and `\x` escapes.
+- **`UICodeLanguages.Register`** compares the trimmed id, so registering `" sql"` twice renames the entry rather than adding a
+  second one.
+- **A completion source registered under an empty language id** reaches plain-text fields, as the id is read everywhere else.
+
 ## 1.0.0-rc.3
 
 Several carets, as in Visual Studio, and an undo of the field's own.

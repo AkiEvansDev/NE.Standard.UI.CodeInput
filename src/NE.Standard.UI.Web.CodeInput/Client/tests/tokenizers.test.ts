@@ -166,11 +166,37 @@ test("csharp keywords, strings, types, calls and holes", () => {
     assert.equal(kindOf(tokens, "Baz"), "type");
 });
 
+test("csharp member after a dot is a property, a qualifier stays a type", () => {
+    const tokens = tokensOf(csharpTokenizer, "x.SetType(UIButtonType.Ghost);\nvar e = System.Text.Encoding.UTF8;\nvar n = Items.Count;");
+
+    assert.equal(kindOf(tokens, "UIButtonType"), "type");
+    assert.equal(kindOf(tokens, "Ghost"), "property");
+    assert.equal(kindOf(tokens, "Encoding"), "type");
+    assert.equal(kindOf(tokens, "UTF8"), "property");
+    assert.equal(kindOf(tokens, "Count"), "property");
+});
+
 test("csharp raw string carries across lines", () => {
     const tokens = tokensOf(csharpTokenizer, "var r = \"\"\"\n  {\"a\": 1}\n  \"\"\";\nint n = 0x1F;");
 
     assert.equal(kindOf(tokens, "  {\"a\": 1}"), "string");
     assert.equal(kindOf(tokens, "0x1F"), "number");
+});
+
+test("csharp interpolated raw string closes on as many quotes as it opened with", () => {
+    const tokens = tokensOf(csharpTokenizer, "var r = $$\"\"\"\"\n  holds \"\"\" inside\n  \"\"\"\";\nint n = 1;");
+
+    assert.equal(kindOf(tokens, "  holds \"\"\" inside"), "string");
+    assert.equal(kindOf(tokens, "int"), "keyword");
+});
+
+test("csharp character literals take every escape form", () => {
+    const tokens = tokensOf(csharpTokenizer, "var a = '\\u0041'; var b = '\\x41'; var c = '\\U00000041'; var d = '\\n';");
+
+    assert.equal(kindOf(tokens, "'\\u0041'"), "string");
+    assert.equal(kindOf(tokens, "'\\x41'"), "string");
+    assert.equal(kindOf(tokens, "'\\U00000041'"), "string");
+    assert.equal(kindOf(tokens, "'\\n'"), "string");
 });
 
 test("python definitions, strings, decorators and f-string holes", () => {
@@ -215,6 +241,38 @@ test("bash commands, options, variables, strings and here-documents", () => {
     assert.equal(kindOf(tokens, "-la"), "attribute");
 });
 
+test("bash assignment values are words, and the word after them is the command", () => {
+    const tokens = tokensOf(bashTokenizer, "MODE=production run --fast\nA=$(pwd) B=x make");
+
+    assert.equal(kindOf(tokens, "MODE"), "variable");
+    assert.equal(kindOf(tokens, "production"), undefined);
+    assert.equal(kindOf(tokens, "run"), "function");
+    assert.equal(kindOf(tokens, "pwd"), "function");
+    assert.equal(kindOf(tokens, "B"), "variable");
+    assert.equal(kindOf(tokens, "x"), undefined);
+    assert.equal(kindOf(tokens, "make"), "function");
+});
+
+test("bash arithmetic expansion holds variables, not commands", () => {
+    const tokens = tokensOf(bashTokenizer, "sleep $((i * 5)) \"$((j + 1))\"\n(( k++ )) && echo done");
+
+    assert.equal(kindOf(tokens, "sleep"), "function");
+    assert.equal(kindOf(tokens, "$(("), "punctuation");
+    assert.equal(kindOf(tokens, "i"), "variable");
+    assert.equal(kindOf(tokens, "j"), "variable");
+    assert.equal(kindOf(tokens, "k"), "variable");
+    assert.equal(kindOf(tokens, "echo"), "function");
+});
+
+test("bash reads a descriptor duplication as one operator", () => {
+    const tokens = tokensOf(bashTokenizer, "make 2>&1 | tee log");
+
+    assert.equal(kindOf(tokens, "2>&1"), "operator");
+    assert.equal(kindOf(tokens, "1"), undefined);
+    assert.equal(kindOf(tokens, "tee"), "function");
+    assert.equal(kindOf(tokens, "log"), undefined);
+});
+
 test("every tokenizer covers a line without gaps in position order", () => {
     const sources: [Tokenizer, string][] = [
         [jsonTokenizer, "[1, {\"a\": \"b\"}]"],
@@ -256,6 +314,13 @@ test("markdown blocks: headings, quotes, lists, rules and references", () => {
     assert.equal(kindOf(tokens, "==="), "heading");
 });
 
+test("markdown marks a table's delimiter row, a one-column one included, by its pipe", () => {
+    const tokens = tokensOf(languages.get("markdown")!, "| a |\n|---|\n- item\n-");
+
+    assert.equal(kindOf(tokens, "|---|"), "punctuation");
+    assert.equal(kindOf(tokens, "-"), "keyword");
+});
+
 test("markdown inline spans", () => {
     const tokens = tokensOf(languages.get("markdown")!, "a **bold** _it_ snake_case ~~gone~~ `co*de*` [link](http://x.y) <b>tag</b> \\* https://ne.dev.");
 
@@ -280,4 +345,38 @@ test("markdown fenced blocks are read by the language they name", () => {
     assert.equal(kindOf(tokens, "\"s\""), "string");
     assert.equal(kindOf(tokens, "**not bold**"), "code");
     assert.equal(kindOf(tokens, "**bold**"), "strong");
+});
+
+test("markdown reads a fence inside a quote as a fence, to its close", () => {
+    const tokens = tokensOf(languages.get("markdown")!, "> ```cs\n> var x = \"s\";\n>\n> ```\n**bold**");
+    const markers = tokens.filter(token => token.text === ">");
+
+    assert.equal(markers.length, 4);
+    assert.equal(markers.every(token => token.kind === "quote"), true);
+    assert.equal(tokens.filter(token => token.text === "```").every(token => token.kind === "code"), true);
+    assert.equal(kindOf(tokens, "cs"), "keyword");
+    assert.equal(kindOf(tokens, "var"), "keyword");
+    assert.equal(kindOf(tokens, "\"s\""), "string");
+    assert.equal(kindOf(tokens, "**bold**"), "strong");
+
+    // A deeper marker inside the fence is the code's own text.
+    const deeper = tokensOf(languages.get("markdown")!, "> ```\n> > *kept*\n> ```");
+
+    assert.equal(kindOf(deeper, "> *kept*"), "code");
+});
+
+test("markdown ends a quote's fence where the quote ends, at its own depth", () => {
+    const lazy = tokensOf(languages.get("markdown")!, "> ```\n> *in*\n*out*");
+
+    assert.equal(kindOf(lazy, "*in*"), "code");
+    assert.equal(kindOf(lazy, "*out*"), "emphasis");
+
+    const blank = tokensOf(languages.get("markdown")!, "> ```\n\n*out*");
+
+    assert.equal(kindOf(blank, "*out*"), "emphasis");
+
+    const nested = tokensOf(languages.get("markdown")!, "> > ```\n> > *in*\n> *out*");
+
+    assert.equal(kindOf(nested, "*in*"), "code");
+    assert.equal(kindOf(nested, "*out*"), "emphasis");
 });

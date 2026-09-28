@@ -37,7 +37,7 @@ const StringStart = /(?:[rRbBuUfF]{1,2})?(?:'''|"""|'|")/y;
 const Operator = /[+\-*/%=<>!&|^~@:]+|->/y;
 const CallAhead = /\s*\(/y;
 
-export const pythonMode: Mode<PythonState> = {
+const pythonMode: Mode<PythonState> = {
     initialState: () => ({ mode: "code", strings: [], frames: [], declaring: null }),
     token(stream, state) {
         return state.mode === "string" ? stringToken(stream, state) : codeToken(stream, state);

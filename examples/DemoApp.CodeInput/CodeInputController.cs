@@ -1,12 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using NE.Standard.UI.Abstractions.Effects;
-using NE.Standard.UI.CodeInput;
-using NE.Standard.UI.Controllers;
-using NE.Standard.UI.Primitives.Annotations;
-using NE.Standard.UI.Primitives.Styling;
-using NE.Standard.UI.Shell.Commands;
 
 namespace DemoApp.CodeInput;
 
@@ -104,57 +98,61 @@ internal sealed partial class CodeInputController : UIControllerBase
         return string.Create(CultureInfo.InvariantCulture, $"On the server: {lines} lines, {code.Length} characters, {encoding ?? UICodeEncodings.Utf8}, {ending.ToUpperInvariant()}.");
     }
 
-    // Each sample has more than keywords — strings, numbers, comments, nesting, operators and a construction of its own.
+    // Each sample has more than keywords — strings, numbers, comments, nesting, operators and a construction of its own — and each
+    // is a text an operator of the demo's host would edit (docs/DEMO-THEME.md).
     private static readonly Dictionary<string, string> Samples = new(StringComparer.Ordinal)
     {
         [UICodeLanguages.PlainText] = """
-            Hello, world!
+            Ticket #48213 — Saltmarsh Media
 
-            Name: Alice
-            Version: 1.2.3
-            Enabled: true
+            Server: web-eu-west-3
+            Plan: Standard
+            Opened: 21 Sep 2026, 09:14
 
-            This is just plain text.
-            No syntax should be highlighted here.
+            The site has answered slowly since this morning.
+            Nothing in this text should be highlighted.
             """,
         [UICodeLanguages.Json] = /*lang=json,strict*/ """
             {
-              "name": "Demo",
-              "version": 3,
-              "enabled": true,
-              "tags": ["ui", "framework", "test"],
-              "options": {
-                "theme": "dark",
-                "timeout": null
-              }
+              "name": "api-eu-west-1",
+              "plan": "pro",
+              "region": "eu-west",
+              "image": "ubuntu-24.04",
+              "backups": true,
+              "firewall": [
+                { "port": 443, "from": "0.0.0.0/0" },
+                { "port": 22, "from": "10.20.0.0/16" }
+              ],
+              "tags": ["api", "production"],
+              "maintenance": null
             }
             """,
         [UICodeLanguages.Css] = """
-            /* Card component */
-            .card:hover {
-              background: #1f2937;
+            /* Server status badges */
+            .status--running:hover {
+              background: #16a34a;
               border: 1px solid rgba(255, 255, 255, 0.15);
-              transform: translateY(-2px);
+              transform: translateY(-1px);
             }
 
-            .card > .title {
+            .server-card > .name {
               font-weight: 600;
               color: var(--text-primary);
             }
             """,
         [UICodeLanguages.Less] = """
-            @accent: #4f8cff;
+            @running: #16a34a;
             @spacing: 8px;
 
             .rounded(@radius: 6px) {
               border-radius: @radius;
             }
 
-            .button {
+            .status {
               .rounded();
 
               padding: @spacing (@spacing * 2);
-              background: @accent;
+              background: @running;
 
               &:hover {
                 opacity: 0.85;
@@ -162,48 +160,49 @@ internal sealed partial class CodeInputController : UIControllerBase
             }
             """,
         [UICodeLanguages.JavaScript] = """
-            const users = [
-              { id: 1, name: "Alice", active: true },
-              { id: 2, name: "Bob", active: false }
+            const servers = [
+              { name: "api-eu-west-1", cpu: 58, status: "running" },
+              { name: "db-eu-west-1", cpu: 91, status: "degraded" }
             ];
 
-            function getActiveNames(items) {
+            function busiest(items, limit) {
               return items
-                .filter(user => user.active)
-                .map(user => `${user.id}: ${user.name}`);
+                .filter(server => server.cpu >= limit)
+                .map(server => `${server.name}: ${server.cpu}%`);
             }
 
-            console.log(getActiveNames(users));
+            console.log(busiest(servers, 80));
             """,
         [UICodeLanguages.TypeScript] = """
-            interface User {
-              id: number;
-              name: string;
-              active?: boolean;
+            interface Subscription {
+              number: string;
+              seats: number;
+              plan: "starter" | "standard" | "pro" | "dedicated";
+              paid?: boolean;
             }
 
-            const formatUser = (user: User): string => {
-              const state = user.active ?? false;
-              return `${user.name} (${state ? "active" : "inactive"})`;
+            const describe = (subscription: Subscription): string => {
+              const paid = subscription.paid ?? false;
+              return `${subscription.number} (${paid ? "paid" : "due"})`;
             };
 
-            const user: User = { id: 42, name: "Alice", active: true };
-            console.log(formatUser(user));
+            const row: Subscription = { number: "SUB-000042", seats: 12, plan: "pro", paid: true };
+            console.log(describe(row));
             """,
         [UICodeLanguages.Html] = """
             <!doctype html>
             <html lang="en">
             <head>
               <meta charset="utf-8">
-              <title>Syntax Test</title>
+              <title>Orvane Cloud status</title>
             </head>
             <body>
-              <!-- Main content -->
+              <!-- One line per region goes here -->
               <button class="primary" disabled>
-                Save
+                Subscribe to updates
               </button>
 
-              <input type="text" value="Hello">
+              <input type="email" value="ops@orvane.example">
             </body>
             </html>
             """,
@@ -212,30 +211,35 @@ internal sealed partial class CodeInputController : UIControllerBase
 
             set -euo pipefail
 
-            name="${1:-world}"
-            count=3
+            server="${1:?usage: provision.sh <server>}"
+            region="${2:-eu-west}"
+            retries=3
 
-            for ((i = 1; i <= count; i++)); do
-              echo "Hello, $name! Attempt: $i"
+            for ((i = 1; i <= retries; i++)); do
+              echo "Provisioning $server in $region (attempt $i)"
+              orvane servers create "$server" --region "$region" && break
+              sleep $((i * 5))
             done
 
-            [[ -f "./config.json" ]] && echo "Config found"
+            [[ -f "/etc/orvane/agent.conf" ]] && systemctl restart orvane-agent
             """,
         [UICodeLanguages.CSharp] = """
-            public sealed class UserService
+            public sealed class DiskHealthCheck(IServerMetrics metrics) : IHealthCheck
             {
-                private readonly Dictionary<int, string> _users = new()
-                {
-                    [1] = "Alice",
-                    [2] = "Bob"
-                };
+                private const double WarnAt = 0.80;
+                private const double FailAt = 0.95;
 
-                public string? GetName(int id)
+                public async Task<HealthResult> CheckAsync(string server, CancellationToken cancellationToken)
                 {
-                    // Return null when the user is unknown.
-                    return _users.TryGetValue(id, out var name)
-                        ? $"{id}: {name}"
-                        : null;
+                    // Used space over capacity: the one number a full disk is judged by.
+                    var used = await metrics.DiskUsedAsync(server, cancellationToken);
+
+                    return used switch
+                    {
+                        >= FailAt => HealthResult.Failed($"{server}: disk {used:P0} full"),
+                        >= WarnAt => HealthResult.Degraded($"{server}: disk {used:P0} full"),
+                        _ => HealthResult.Healthy
+                    };
                 }
             }
             """,
@@ -244,20 +248,20 @@ internal sealed partial class CodeInputController : UIControllerBase
 
 
             @dataclass
-            class User:
-                id: int
+            class Server:
                 name: str
-                active: bool = True
+                cpu: float
+                running: bool = True
 
 
-            def describe(user: User) -> str:
-                # Format a readable user status.
-                state = "active" if user.active else "inactive"
-                return f"{user.id}: {user.name} ({state})"
+            def headroom(server: Server) -> str:
+                # How much CPU is left before the server needs a larger plan.
+                left = 100 - server.cpu if server.running else 0
+                return f"{server.name}: {left:.0f}% left"
 
 
-            user = User(42, "Alice")
-            print(describe(user))
+            server = Server("api-eu-west-1", 58.0)
+            print(headroom(server))
             """,
         [UICodeLanguages.Markdown] = MarkdownController.Sample
     };

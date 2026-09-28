@@ -2,6 +2,7 @@
 // adds the language's keywords and the document's words beside them.
 
 import type { CompletionSource } from "./completions.ts";
+import { LanguageRegistry } from "./languages/index.ts";
 
 const Wildcard = "*";
 
@@ -10,7 +11,7 @@ export class CompletionsRegistry {
     private readonly sources = new Map<string, CompletionSource[]>();
 
     public register(languageId: string, source: CompletionSource): void {
-        const key = normalize(languageId);
+        const key = LanguageRegistry.normalize(languageId);
         const list = this.sources.get(key);
 
         if (list === undefined)
@@ -21,7 +22,7 @@ export class CompletionsRegistry {
 
     public sourcesFor(languageId: string): readonly CompletionSource[] {
         const wildcard = this.sources.get(Wildcard) ?? [];
-        const own = this.sources.get(normalize(languageId)) ?? [];
+        const own = this.sources.get(LanguageRegistry.normalize(languageId)) ?? [];
 
         return [...wildcard, ...own];
     }
@@ -30,10 +31,6 @@ export class CompletionsRegistry {
     public hasOwnSource(languageId: string): boolean {
         return this.sourcesFor(languageId).length > 0;
     }
-}
-
-function normalize(languageId: string): string {
-    return languageId.trim().toLowerCase();
 }
 
 export const completionsRegistry = new CompletionsRegistry();

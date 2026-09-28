@@ -14,7 +14,7 @@ function isKey(stream: Stream): boolean {
     return KeyAhead.test(stream.text);
 }
 
-export const jsonMode: Mode<JsonState> = {
+const jsonMode: Mode<JsonState> = {
     initialState: () => ({}),
     token(stream) {
         if (stream.eatWhile(/\s/))

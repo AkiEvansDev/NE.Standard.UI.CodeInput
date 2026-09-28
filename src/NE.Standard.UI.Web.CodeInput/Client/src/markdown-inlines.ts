@@ -120,6 +120,7 @@ const Escapable = /^[!-/:-@[-`{-~]$/;
 const Whitespace = /^\s$/u;
 const Punctuation = /^[\p{P}\p{S}]$/u;
 const EntityPattern = /&(?:#\d{1,7}|#[xX][\da-fA-F]{1,6}|[A-Za-z][A-Za-z\d]{1,31});/y;
+// oxlint-disable-next-line no-control-regex -- an autolink ends at a control character, as CommonMark says
 const UriAutolink = /<([A-Za-z][A-Za-z\d+.-]{1,31}:[^<>\u0000-\u0020]*)>/y;
 const EmailAutolink = /<([A-Za-z\d.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z\d](?:[A-Za-z\d-]{0,61}[A-Za-z\d])?(?:\.[A-Za-z\d](?:[A-Za-z\d-]{0,61}[A-Za-z\d])?)*)>/y;
 const BacktickRun = /`+/g;
@@ -456,6 +457,7 @@ class InlineParser {
 
                 depth--;
             }
+            // oxlint-disable-next-line no-control-regex -- a link destination ends at a control character, as CommonMark says
             else if (/[\s\u0000-\u001f]/.test(character))
                 break;
 
@@ -680,7 +682,8 @@ class InlineParser {
     }
 }
 
-function unescape(text: string): string {
+/** A backslash escape's character without its backslash, for every ASCII punctuation mark CommonMark lets be escaped. */
+export function unescape(text: string): string {
     return text.replace(/\\([!-/:-@[-`{-~])/g, "$1");
 }
 

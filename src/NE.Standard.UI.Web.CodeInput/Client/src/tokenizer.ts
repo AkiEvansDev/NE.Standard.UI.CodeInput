@@ -171,7 +171,7 @@ export function modeTokenizer<TState extends object>(mode: Mode<TState>): Tokeni
 }
 
 /** Runs a mode over a stream's remaining range, emitting tokens; a mode that consumed nothing is moved one character on. */
-export function runMode<TState extends object>(stream: Stream, state: TState, mode: Mode<TState>, emit: EmitToken): void {
+function runMode<TState extends object>(stream: Stream, state: TState, mode: Mode<TState>, emit: EmitToken): void {
     while (!stream.eol()) {
         stream.start = stream.pos;
 
@@ -185,7 +185,7 @@ export function runMode<TState extends object>(stream: Stream, state: TState, mo
     }
 }
 
-export function cloneState(state: unknown): unknown {
+function cloneState(state: unknown): unknown {
     if (Array.isArray(state))
         return state.map(cloneState);
 

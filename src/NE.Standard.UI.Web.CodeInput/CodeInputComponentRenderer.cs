@@ -17,17 +17,39 @@ namespace NE.Standard.UI.Web.CodeInput;
 /// </summary>
 public sealed class CodeInputComponentRenderer : TextContentRendererBase
 {
+    /// <summary>On the root: the language id the text is highlighted in.</summary>
     public const string LanguageAttribute = "data-ui-code-language";
+
+    /// <summary>On the root while the line-number gutter shows.</summary>
     public const string LineNumbersAttribute = "data-ui-code-line-numbers";
+
+    /// <summary>On the root while long lines wrap.</summary>
     public const string WrapLinesAttribute = "data-ui-code-wrap";
+
+    /// <summary>On the root while the field offers find and replace.</summary>
     public const string SearchAttribute = "data-ui-code-search";
+
+    /// <summary>On the root while the field supports multiple carets.</summary>
     public const string MultiCaretAttribute = "data-ui-code-multi-caret";
+
+    /// <summary>On the root while the field offers completions.</summary>
     public const string CompletionsAttribute = "data-ui-code-completions";
+
+    /// <summary>On the root: the address of a JSON file of completions, when one is set.</summary>
     public const string CompletionsSourceAttribute = "data-ui-code-completions-source";
+
+    /// <summary>On the root while the status bar shows.</summary>
     public const string StatusBarAttribute = "data-ui-code-status";
+
+    /// <summary>On the root: the line ending the value arrived with, <c>lf</c> or <c>crlf</c>.</summary>
     public const string DetectedLineEndingAttribute = "data-ui-code-eol";
+
+    /// <summary>On the root: the tab stop, in columns.</summary>
     public const string TabSizeVariable = "--ui-code-tab-size";
+
+    /// <summary>On the root: how many text rows the field starts at.</summary>
     public const string RowsVariable = "--ui-code-rows";
+
     /// <summary>The value kind the textarea is read by: the chosen line ending put back into the text the browser normalized.</summary>
     public const string ValueKind = "code";
 
@@ -120,29 +142,41 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 });
             });
 
-            RenderSearchPanel(context, field);
-            RenderStatusBar(context, root, field);
+            // A part switched off for good is not drawn at all: the two carry fifteen framework components between them, most of a
+            // field's markup, and a read-only listing on a page of them paid for every one.
+            if (!IsSwitchedOff(context, CodeInputComponent.SearchProperty))
+                RenderSearchPanel(context, field);
+
+            RenderStatusBar(context, root, field, !IsSwitchedOff(context, CodeInputComponent.StatusBarProperty));
         });
     }
 
+    /// <summary>Whether a flag is a literal <see langword="false"/> no binding can turn back on.</summary>
+    private static bool IsSwitchedOff(WebRenderContext context, UIProperty property)
+        => ResolveRenderValue(context, property, out bool? value, out _) == WebRenderValueKind.Static && value == false;
+
     /// <summary>
     /// The line under the text: the caret's place the engine writes, and four pickers (tab size, encoding, line ending, language),
-    /// each a select paired with a hidden input carrying the two-way setting.
+    /// each a select paired with a hidden input carrying the two-way setting. Without <paramref name="pickers"/>, only the hidden
+    /// inputs, which still carry the tab size and the language to the root.
     /// </summary>
-    private void RenderStatusBar(WebRenderContext context, IHtmlElementBuilder root, IHtmlElementBuilder field)
+    private void RenderStatusBar(WebRenderContext context, IHtmlElementBuilder root, IHtmlElementBuilder field, bool pickers)
     {
         _ = field.Element("div", status =>
         {
             _ = status.Class($"{ClassName}__status");
 
-            _ = status.Element("span", position =>
+            if (pickers)
             {
-                _ = position.Class($"{ClassName}__status-position");
-                _ = position.Attribute("data-ui-code-position");
-                _ = position.Text(context.Translate(CodeInputStrings.Position).Replace("{line}", "1", StringComparison.Ordinal).Replace("{column}", "1", StringComparison.Ordinal));
-            });
+                _ = status.Element("span", position =>
+                {
+                    _ = position.Class($"{ClassName}__status-position");
+                    _ = position.Attribute("data-ui-code-position");
+                    _ = position.Text(context.Translate(CodeInputStrings.Position).Replace("{line}", "1", StringComparison.Ordinal).Replace("{column}", "1", StringComparison.Ordinal));
+                });
+            }
 
-            RenderStatusPicker(context, status, "data-ui-code-tab-size", UICodeInputRegions.TabSize, carrier =>
+            RenderStatusPicker(context, status, pickers, "data-ui-code-tab-size", UICodeInputRegions.TabSize, carrier =>
                 // The root's variable is what the stylesheet and the Tab key read.
                 _ = RenderProperty<int?>(context, carrier, CodeInputComponent.TabSizeProperty, (target, value) =>
                 {
@@ -152,19 +186,19 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                     _ = root.Style(TabSizeVariable, size);
                 }, [WebDomOperation.Property("value"), WebDomOperation.Style(TabSizeVariable, target: "root")]));
 
-            RenderStatusPicker(context, status, "data-ui-code-encoding", UICodeInputRegions.Encoding, carrier =>
+            RenderStatusPicker(context, status, pickers, "data-ui-code-encoding", UICodeInputRegions.Encoding, carrier =>
                 _ = RenderProperty<string?>(context, carrier, CodeInputComponent.EncodingProperty, static (target, value) =>
                     _ = target.Attribute("value", string.IsNullOrWhiteSpace(value) ? UICodeEncodings.Utf8 : value)
                 , [WebDomOperation.Property("value")]));
 
             // Unset is the empty value, which a null push also lands on: the engine then shows the ending the text came with.
-            RenderStatusPicker(context, status, "data-ui-code-line-ending", UICodeInputRegions.LineEnding, carrier =>
+            RenderStatusPicker(context, status, pickers, "data-ui-code-line-ending", UICodeInputRegions.LineEnding, carrier =>
                 _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LineEndingProperty, static (target, value) =>
                     _ = target.Attribute("value", value ?? string.Empty)
                 , [WebDomOperation.Property("value")]));
 
             // The id as the author wrote it; the client looks it up case-insensitively and falls back to plain text for one it does not know.
-            RenderStatusPicker(context, status, "data-ui-code-language", UICodeInputRegions.Language, carrier =>
+            RenderStatusPicker(context, status, pickers, "data-ui-code-language", UICodeInputRegions.Language, carrier =>
                 _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LanguageProperty, (target, value) =>
                 {
                     var language = string.IsNullOrWhiteSpace(value) ? UICodeLanguages.PlainText : value.Trim();
@@ -176,7 +210,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     }
 
     /// <summary>One picker: the hidden input carrying the setting, and the framework's select that shows and offers it.</summary>
-    private void RenderStatusPicker(WebRenderContext context, IHtmlElementBuilder status, string attribute, string region, Action<IHtmlElementBuilder> renderCarrier)
+    private void RenderStatusPicker(WebRenderContext context, IHtmlElementBuilder status, bool withSelect, string attribute, string region, Action<IHtmlElementBuilder> renderCarrier)
         => _ = status.Element("span", picker =>
         {
             _ = picker.Class($"{ClassName}__status-picker");
@@ -189,7 +223,8 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
             });
 
             // The engine writes the select's value from the carrier, and its placeholder with the line ending the text came with.
-            RenderRegion(context, picker, region, IInputComponent.ValueProperty, IPlaceholderInputComponent.PlaceholderProperty);
+            if (withSelect)
+                RenderRegion(context, picker, region, IInputComponent.ValueProperty, IPlaceholderInputComponent.PlaceholderProperty);
         });
 
     private void RenderTextarea(WebRenderContext context, IHtmlElementBuilder textarea)
@@ -201,6 +236,9 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         _ = textarea.Attribute("autocomplete", "off");
         _ = textarea.Attribute("autocapitalize", "off");
         _ = textarea.Attribute("autocorrect", "off");
+
+        // The text the reader edits is this textarea, so the caption names it rather than the root it stands in.
+        RenderFieldLabel(context, textarea);
 
         // Read by DebouncedCommitEngine on every keystroke, so a bound value is in force at once.
         _ = RenderProperty<int?>(context, textarea, CodeInputComponent.DebounceMillisecondsProperty, static (target, value) =>
@@ -216,8 +254,9 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
         _ = RenderProperty<string?>(context, textarea, IInputComponent.ValueProperty, static (target, value) =>
         {
+            // The HTML parser drops one line break straight after <textarea>, so a text that opens with one is given a second.
             if (!string.IsNullOrEmpty(value))
-                _ = target.Text(value);
+                _ = target.Text(value[0] is '\n' or '\r' ? "\n" + value : value);
         }, [WebDomOperation.Property("value")]);
     }
 

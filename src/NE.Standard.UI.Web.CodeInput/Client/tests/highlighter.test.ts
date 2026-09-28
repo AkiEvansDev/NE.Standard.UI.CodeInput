@@ -51,7 +51,13 @@ test("lines that repeat still come out as the new text", () => {
     assert.deepEqual(Array.from({ length: highlighter.lineCount }, (_, index) => highlighter.lineText(index)).join("\n"), next);
 });
 
-test("a read over many edits renders what a fresh read of the same text does", () => {
+for (const span of [3, 20]) {
+    test(`a read over many edits of up to ${span} lines renders what a fresh read of the same text does`, () => {
+        readsMatchFreshReads(span);
+    });
+}
+
+function readsMatchFreshReads(span: number): void {
     const pieces = ["/*", "*/", "}", "{", "", "let a = 1;", "`", "x"];
     let seed = 7;
     const next = (limit: number): number => (seed = (seed * 48271) % 2147483647) % limit;
@@ -62,9 +68,9 @@ test("a read over many edits renders what a fresh read of the same text does", (
         const at = next(lines.length + 1);
 
         if (next(3) === 0 && lines.length > 1)
-            lines.splice(at % lines.length, 1 + next(2));
+            lines.splice(at % lines.length, 1 + next(span - 1));
         else
-            lines.splice(at, next(2), ...Array.from({ length: 1 + next(3) }, () => pieces[next(pieces.length)]));
+            lines.splice(at, next(span - 1), ...Array.from({ length: 1 + next(span) }, () => pieces[next(pieces.length)]));
 
         if (lines.length === 0)
             lines = [""];
@@ -80,6 +86,51 @@ test("a read over many edits renders what a fresh read of the same text does", (
         for (let i = 0; i < fresh.lineCount; i++)
             assert.equal(incremental.renderLine(i), fresh.renderLine(i), `round ${round}, line ${i}`);
     }
+}
+
+test("a block of many lines pasted or deleted re-renders only those lines", () => {
+    const highlighter = new Highlighter(javascriptTokenizer);
+    const body = Array.from({ length: 200 }, (_, index) => `let v${index} = ${index};`);
+    const pasted = Array.from({ length: 30 }, (_, index) => `let p${index} = ${index};`);
+
+    highlighter.update(body.join("\n"));
+
+    assert.deepEqual(highlighter.update([...body.slice(0, 50), ...pasted, ...body.slice(50)].join("\n")), [{ from: 50, removed: 0, added: 30 }]);
+    assert.deepEqual(highlighter.update(body.join("\n")), [{ from: 50, removed: 30, added: 0 }]);
+    assert.deepEqual(highlighter.update([...body.slice(0, 50), ...body.slice(70)].join("\n")), [{ from: 50, removed: 20, added: 0 }]);
+});
+
+test("a block replaced by another re-renders the block, and a state it opens still reaches the lines after it", () => {
+    const highlighter = new Highlighter(javascriptTokenizer);
+    const body = Array.from({ length: 40 }, (_, index) => `x${index}`);
+
+    highlighter.update(body.join("\n"));
+
+    const replaced = [...body.slice(0, 10), ...Array.from({ length: 12 }, () => "y"), "/*", ...body.slice(20)];
+
+    highlighter.update(replaced.join("\n"));
+
+    assert.equal(highlighter.lineCount, replaced.length);
+    assert.ok(highlighter.renderLine(replaced.length - 1).includes("ui-tk-comment"));
+});
+
+test("a tokenizer that throws leaves its line plain and the rest still drawn", () => {
+    const highlighter = new Highlighter({
+        initialState: {},
+        tokenizeLine: (line, state, emit) => {
+            if (line === "boom")
+                throw new Error("boom");
+
+            emit(0, line.length, "keyword");
+
+            return state;
+        }
+    });
+
+    highlighter.update("a\nboom\nb");
+
+    assert.equal(highlighter.renderLine(1), "<span class=\"ui-code-input__code\">boom</span>");
+    assert.ok(highlighter.renderLine(2).includes("ui-tk-keyword"));
 });
 
 test("opening a comment re-reads the lines after it until it closes", () => {

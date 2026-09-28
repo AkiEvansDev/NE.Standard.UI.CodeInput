@@ -2,13 +2,13 @@
 // arrow/Home/End navigation with Shift and Ctrl, Shift+Alt column selection, Ctrl+Alt+click to add a caret, and Shift+Alt+./; to
 // select the next or every occurrence.
 
+import { MultiCaretAttribute } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import type { Lines } from "./motion.ts";
 import { homePosition, nextCharacter, positionAtColumn, previousCharacter, verticalPosition, visualColumn, wordAt, wordLeft, wordRight } from "./motion.ts";
 import type { Selection, SelectionSet } from "./selections.ts";
 import { caretAt, findOccurrences, isCaret, nextOccurrence, normalizeSelections, rangeEnd, rangeStart, singleSelection } from "./selections.ts";
 
-const MultiCaretAttribute = "data-ui-code-multi-caret";
 const LayerClass = "ui-code-input__carets";
 const CaretClass = "ui-code-input__caret";
 const SelectionClass = "ui-code-input__selection";
@@ -103,6 +103,12 @@ export class CodeEditorCarets {
         return this.root.hasAttribute(MultiCaretAttribute) && !this.textarea.readOnly;
     }
 
+    /** The field's switches may have changed: with multiple carets switched off, the others are let go. */
+    public settingsChanged(): void {
+        if (!this.enabled)
+            this.collapse();
+    }
+
     /** Whether more than one caret stands in the field. */
     public get isMulti(): boolean {
         return this.read().ranges.length > 1;
@@ -165,36 +171,6 @@ export class CodeEditorCarets {
 
         if (reveal)
             this.reveal(primary.head);
-    }
-
-    /** Leaves the primary caret alone in the field. */
-    public collapse(): void {
-        if (this.ranges === null)
-            return;
-
-        this.ranges = null;
-        this.primary = 0;
-        this.goals = null;
-        this.box = null;
-        this.pads = null;
-        this.render();
-    }
-
-    /** The document's selection moved: other carets are let go when the textarea's moved without them. */
-    public selectionChanged(): void {
-        this.read();
-    }
-
-    /** Redraws after the geometry changed under the carets — a tab size, a wrap, the scroll. */
-    public queueRender(): void {
-        if (this.renderQueued || (this.ranges === null && this.adding === null))
-            return;
-
-        this.renderQueued = true;
-        requestAnimationFrame(() => {
-            this.renderQueued = false;
-            this.render();
-        });
     }
 
     /** Draws every range but the primary, which the textarea draws itself; only the lines in view, since a field may hold thousands of carets. */
@@ -456,6 +432,36 @@ export class CodeEditorCarets {
             this.scroller.scrollLeft -= view.left + gutter - caret.left + width;
         else if (caret.left + width > view.left + this.scroller.clientWidth)
             this.scroller.scrollLeft += caret.left + width - (view.left + this.scroller.clientWidth);
+    }
+
+    /** Leaves the primary caret alone in the field. */
+    public collapse(): void {
+        if (this.ranges === null)
+            return;
+
+        this.ranges = null;
+        this.primary = 0;
+        this.goals = null;
+        this.box = null;
+        this.pads = null;
+        this.render();
+    }
+
+    /** The document's selection moved: other carets are let go when the textarea's moved without them. */
+    public selectionChanged(): void {
+        this.read();
+    }
+
+    /** Redraws after the geometry changed under the carets — a tab size, a wrap, the scroll. */
+    public queueRender(): void {
+        if (this.renderQueued || (this.ranges === null && this.adding === null))
+            return;
+
+        this.renderQueued = true;
+        requestAnimationFrame(() => {
+            this.renderQueued = false;
+            this.render();
+        });
     }
 
     /** The textarea's `mousedown`: Ctrl+Alt starts adding a caret; a plain press lets the others go. */

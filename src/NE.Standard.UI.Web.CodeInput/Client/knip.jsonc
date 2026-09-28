@@ -1,0 +1,12 @@
+{
+  // The other half of `npm run lint`: an export nothing imports, a file nothing reaches, a dependency nothing uses.
+  "entry": [
+    "src/code-input.ts",
+    // What another package reaches of this one, `window.NEStandardUICodeInput`: its shapes are public by design.
+    "src/package-api.ts",
+    "tests/**/*.test.ts"
+  ],
+  "project": ["src/**/*.ts", "tests/**/*.ts", "*.ts"],
+  // The plugin contract's module, declared by plugin/ne-standard-ui.d.ts rather than installed.
+  "ignoreDependencies": ["ne-standard-ui"]
+}

@@ -24,7 +24,7 @@ const Entity = /&(?:#\d+|#x[\da-fA-F]+|[A-Za-z]\w*);/y;
 
 const css = cssMode(false);
 
-export const htmlMode: Mode<HtmlState> = {
+const htmlMode: Mode<HtmlState> = {
     initialState: () => ({ mode: "text", tag: "", closing: false, quote: "", inner: null, closingAt: null }),
     token(stream, state) {
         switch (state.mode) {

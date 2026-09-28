@@ -1,9 +1,9 @@
 // Completions: the shape of a suggestion and a source, and the pure prefix, ranking and document-word rules the popup filters by.
 // The popup, the `CompletionsSource` fetch and the list's keys live in `code-editor-completions.ts`.
 
-import { wordAt } from "./motion.ts";
+import { WordCharacter, wordAt } from "./motion.ts";
 
-export type CompletionKind = "keyword" | "type" | "function" | "variable" | "property" | "text";
+type CompletionKind = "keyword" | "type" | "function" | "variable" | "property" | "text";
 
 /** One suggestion: `insert` defaults to `label`, `detail` is shown muted after it, `kind` colours the row. */
 export type CompletionItem = {
@@ -24,7 +24,7 @@ export type CompletionContext = {
 };
 
 /** A fixed list, or a function asked afresh each time the list opens or re-filters — synchronously or over a promise. */
-export type CompletionProvider = (context: CompletionContext) => readonly CompletionItem[] | Promise<readonly CompletionItem[]>;
+type CompletionProvider = (context: CompletionContext) => readonly CompletionItem[] | Promise<readonly CompletionItem[]>;
 export type CompletionSource = readonly CompletionItem[] | CompletionProvider;
 
 /** What a `CompletionsSource` JSON file carries, read. */
@@ -33,13 +33,11 @@ export type CompletionsFile = {
     readonly triggers: readonly string[];
 };
 
-const IdentifierCharacter = /[\p{L}\p{N}_]/u;
-
 /** Where the identifier immediately before an offset starts — the span a completion replaces. */
 export function prefixStart(text: string, offset: number): number {
     let start = offset;
 
-    while (start > 0 && IdentifierCharacter.test(text.charAt(start - 1)))
+    while (start > 0 && WordCharacter.test(text.charAt(start - 1)))
         start--;
 
     return start;
@@ -122,25 +120,39 @@ const DocumentWord = /[\p{L}\p{N}_]+/gu;
 /** Every identifier of two or more characters the text holds, but not the one the caret stands in the middle of typing. */
 export function documentWordsSource(context: CompletionContext): CompletionItem[] {
     const current = wordAt(context.text, context.offset);
-    const seen = new Set<string>();
+    // The text less the word being typed, which non-word characters stand either side of, so taking it out joins no two words.
+    const rest = current === null ? context.text : context.text.slice(0, current.from) + context.text.slice(current.to);
     const items: CompletionItem[] = [];
+
+    for (const word of documentWords(rest))
+        items.push({ label: word, kind: "text" });
+
+    return items;
+}
+
+// The last text read and its words. Typing an identifier changes only the word being typed, which is left out of the key, so the
+// words are read once per word rather than once per keystroke — on a long text the read cost more than the keystroke.
+let wordsText: string | null = null;
+let wordsRead: readonly string[] = [];
+
+/** Every distinct word of two or more characters, in the order it first appears. */
+function documentWords(text: string): readonly string[] {
+    if (text === wordsText)
+        return wordsRead;
+
+    const seen = new Set<string>();
 
     DocumentWord.lastIndex = 0;
 
-    for (let match = DocumentWord.exec(context.text); match !== null; match = DocumentWord.exec(context.text)) {
-        const word = match[0];
-        const from = match.index;
-
-        if (current !== null && from === current.from && from + word.length === current.to)
-            continue;
-
-        if (word.length >= 2 && !seen.has(word)) {
-            seen.add(word);
-            items.push({ label: word, kind: "text" });
-        }
+    for (let match = DocumentWord.exec(text); match !== null; match = DocumentWord.exec(text)) {
+        if (match[0].length >= 2)
+            seen.add(match[0]);
     }
 
-    return items;
+    wordsText = text;
+    wordsRead = [...seen];
+
+    return wordsRead;
 }
 
 const ValidKinds: ReadonlySet<CompletionKind> = new Set(["keyword", "type", "function", "variable", "property", "text"]);

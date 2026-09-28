@@ -8,9 +8,12 @@ rendering**, which carries the highlighting engine and the stylesheet embedded i
 ## Install
 
 ```
-dotnet add package NE.Standard.UI.CodeInput --prerelease
-dotnet add package NE.Standard.UI.Web.CodeInput --prerelease
+dotnet add package NE.Standard.UI.CodeInput
+dotnet add package NE.Standard.UI.Web.CodeInput
 ```
+
+Both packages bring their namespaces as global usings, so the code below needs no `using` line for them; a project that
+sets `NEStandardUIImplicitUsings` to `false` writes its own.
 
 Register the web rendering beside the framework's renderers:
 
@@ -64,7 +67,9 @@ Under the text runs a status bar, as an editor's: the caret's line and column, a
 encoding, the line ending and the language. A picker's choice is the property's value — bind `TabSize`, `Encoding`,
 `LineEnding` and `Language` two-way to read them. The line ending is the one thing the browser cannot keep for itself
 (a text field holds every break as LF), so the field notes the ending the value came with, shows it, and sends the
-value back with it; a choice converts the text on the next commit. `SetStatusBar(false)` hides the bar.
+value back with it; a choice converts the text on the next commit. `SetStatusBar(false)` hides the bar, and
+`SetSearch(false)` the find panel; written as a value rather than bound, either leaves its controls out of the page
+altogether, which is what keeps a read-only listing light.
 
 The pickers list what the server knows. A language a package adds — a script that registers its tokenizer with the editor
 under an id of its own — is declared on the server too, once at startup, so the picker lists it under its name:
@@ -116,7 +121,8 @@ caret alone. `SetMultiCaret(false)` turns all of it off; a read-only field never
 The panel stands over the field in three rows, as Visual Studio's does: the find field with the two arrows among the
 matches and the cross; the replace field with its two buttons, folded out by the chevron before the find field, each
 standing under one of the arrows; and, under both, the three switches — match case, whole word and regular expression —
-with the match count at the far end of that row, where what it says never sets the panel's width.
+with the match count at the far end of that row, where what it says never sets the panel's width. The switches are drawn as
+marks, and a screen reader hears the words of their tooltips as their names.
 
 Ctrl+F opens the panel, Ctrl+H opens it with the replace row out, and the row stays as the reader left it between
 openings. Enter and Shift+Enter step through the matches; in the replace field Enter replaces the match the reader is
@@ -124,12 +130,18 @@ on and Ctrl+Enter replaces every one. A read-only field shows neither the replac
 out. The panel's words translate through the application's localization source under the `ui.code.*` keys, exactly as
 the framework's own do.
 
+Whole word counts a word as the editor does — letters of any script, digits and the underscore — so a Cyrillic or accented
+word has its edges. With a regular expression, the replacement's `$` patterns (`$1`, `$<name>`, `$&`, `` $` ``, `$'`, `$$`)
+are filled the same way by Replace and Replace all, each match read in the whole text, so a lookaround sees what stands around
+it.
+
 ## Completions
 
 Ctrl+Space opens a completion list at the caret; typing an identifier opens it too, once it has somewhere to complete from beyond
 the document's own words. The arrows move among the suggestions, Enter and Tab accept the one that is active, and Escape closes
 the list, as they do in Visual Studio; a click accepts the one the pointer is over. The list never opens inside a comment or a
-string, and closes on a blur, a scroll, or the caret leaving the word.
+string, and closes on a blur, a scroll, or the caret moving anywhere but along with what is typed; a provider's answer that
+arrives after that is dropped.
 
 The field offers the mechanism; the words are the application's own, or a package's. `Completions` turns the mechanism on and off
 (on by default). `CompletionsSource` names the URL of a JSON file the client loads once, the first time the list is needed, and
@@ -182,8 +194,10 @@ the browser; a value the server pushes renders again.
 
 Raw HTML in a document is shown as text, not markup, and a link or an image keeps its address only when it is relative
 or `http`, `https`, `mailto` or `tel` (an image also takes a `data:image/…` address); anything else — `javascript:` among
-them — leaves its words alone. A link off the page opens in a new tab. A task item's box is the framework's checkbox,
-shown and never toggled.
+them — leaves its words alone. A link off the page opens in a new tab — `//host`, and `\\host` and `/\host` too, which a
+browser reads as another host. A task item's box is the framework's checkbox, shown and never toggled. Quotes and lists nest
+at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
+tokenizer that fails leaves its block, or its line in the field, plain.
 
 The body is styled by element under `.ui-markdown__body`, in the page's type and the theme's inks; an application
 restyles it there.
@@ -205,15 +219,19 @@ new ScrollContainerComponent()
 
 ## Inside the package
 
-Every control the field shows is the framework's own component, carried as a region under the names `UICodeInputRegions`
-gives them: the find and replace fields are text inputs, the arrows, the cross, the chevron and the two replacements are
-ghost buttons with the framework's `ne-` glyphs, the three switches are toggle buttons (`Pressed`), and the status bar's
-pickers are ghost selects. The field keeps each setting on a hidden input of its own and holds the select beside it in
-step through the plugin surface (`properties.set`), so a choice travels the ordinary value path. The stylesheet imports the
-framework's Less contract (`Client/plugin/ne-standard-ui.less` — the tokens and the mixins, copied like the TypeScript
-contract beside it) and lays the parts out; it draws none of them.
+Every control the field shows is the framework's own component — the find and replace fields are text inputs, the
+arrows and the switches are buttons, the status bar's pickers are selects — carried as a region under the names
+`UICodeInputRegions` gives them, so the panel and the bar follow the theme as every other field does.
 
 ## Licence
 
 The framework's: **the Prosperity Public License 3.0.0** — free for noncommercial use, with a thirty-day trial
-for commercial use. See [LICENSE.md](LICENSE.md).
+for commercial use. See [LICENSE.md](https://github.com/AkiEvansDev/NE.Standard.UI.CodeInput/blob/main/LICENSE.md).
+
+## Contributing
+
+This repository is a **read-only mirror**. Development happens in a private repository alongside the
+framework — that is how the editor stays in step with the renderer it plugs into — and everything here is
+generated from it, so pull requests are switched off.
+
+Issues are open and welcome.

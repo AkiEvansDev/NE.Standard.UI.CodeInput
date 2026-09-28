@@ -101,12 +101,14 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
             .SetIcon(icon)
             .SetTooltip(tooltip);
 
+    // Drawn as a mark ("Aa", ".*"), so the words that explain it on hover are its name to a screen reader too.
     private static ButtonComponent SearchSwitch(string title, string tooltip)
         => new ButtonComponent()
             .SetType(UIButtonType.Ghost)
             .SetSize(UIButtonSize.Small)
             .SetTitle(title)
             .SetTooltip(tooltip)
+            .SetAccessibleName(tooltip)
             .SetPressed(false);
 
     /// <inheritdoc/>

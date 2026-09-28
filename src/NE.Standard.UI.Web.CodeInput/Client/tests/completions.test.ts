@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { CompletionsRegistry } from "../src/completions-registry.ts";
 import type { CompletionContext, CompletionItem } from "../src/completions.ts";
 import { collectCompletions, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
 
@@ -55,6 +56,13 @@ test("document words leaves out the identifier the caret is in the middle of typ
     assert.deepEqual(items.map(item => item.label), ["value"]);
 });
 
+test("document words keeps a word being typed that the text holds elsewhere, and follows the text as it is typed", () => {
+    assert.deepEqual(documentWordsSource(context({ text: "cat; cat", offset: 8 })).map(item => item.label), ["cat"]);
+    assert.deepEqual(documentWordsSource(context({ text: "one two t", offset: 9 })).map(item => item.label), ["one", "two"]);
+    assert.deepEqual(documentWordsSource(context({ text: "one two tw", offset: 10 })).map(item => item.label), ["one", "two"]);
+    assert.deepEqual(documentWordsSource(context({ text: "one three tw", offset: 12 })).map(item => item.label), ["one", "three"]);
+});
+
 test("a fixed list and a provider collect in source order; a rejected provider contributes nothing", async () => {
     const items = await collectCompletions([
         [{ label: "a" }],
@@ -88,4 +96,19 @@ test("a completions file defaults insert to the label, drops an unknown kind, an
 test("a completions file with nothing usable reads as empty", () => {
     assert.deepEqual(parseCompletionsFile(null), { items: [], triggers: [] });
     assert.deepEqual(parseCompletionsFile({}), { items: [], triggers: [] });
+});
+
+test("a source is keyed by the language id as a field names it: trimmed, any case, and an empty one is plain text", () => {
+    const registry = new CompletionsRegistry();
+    const everywhere: CompletionItem[] = [{ label: "all" }];
+    const plain: CompletionItem[] = [{ label: "plain" }];
+    const csharp: CompletionItem[] = [{ label: "cs" }];
+
+    registry.register("*", everywhere);
+    registry.register("", plain);
+    registry.register(" CSharp ", csharp);
+
+    assert.deepEqual(registry.sourcesFor("plain-text"), [everywhere, plain]);
+    assert.deepEqual(registry.sourcesFor("csharp"), [everywhere, csharp]);
+    assert.deepEqual(registry.sourcesFor("json"), [everywhere]);
 });

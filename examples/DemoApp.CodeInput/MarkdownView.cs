@@ -1,11 +1,3 @@
-using NE.Standard.UI.Abstractions.Styling;
-using NE.Standard.UI.Authoring.Components;
-using NE.Standard.UI.Authoring.Views;
-using NE.Standard.UI.CodeInput;
-using NE.Standard.UI.Components.BuiltIns.Layouts;
-using NE.Standard.UI.Primitives.Binding;
-using NE.Standard.UI.Primitives.Styling;
-
 namespace DemoApp.CodeInput;
 
 /// <summary>
@@ -26,8 +18,8 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
     protected override string Description
         => "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other.";
 
-    protected override IVisualComponent CreatePage()
-        => new ContainerComponent()
+    protected override DemoPage CreatePage()
+        => Page(new ContainerComponent()
             .SetHeight(UILayoutLength.Fill())
             .AddChild(new CodeInputComponent()
                 .SetTitle("Document")
@@ -51,5 +43,6 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                     .BindText(nameof(MarkdownController.Document))
                 )
                 .SetPlacement(13, 1, 12, 1)
-            );
+            )
+        );
 }

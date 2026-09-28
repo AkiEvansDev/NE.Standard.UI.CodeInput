@@ -1,8 +1,9 @@
 import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
 import { Stream, modeTokenizer, words } from "../tokenizer.ts";
 
-// What the reader is inside of, innermost last: double quotes, a `$(…)` substitution, a `${…}` expansion or backticks.
-type BashFrame = "\"" | "$(" | "${" | "`";
+// What the reader is inside of, innermost last: double quotes, a `$(…)` substitution, a `${…}` expansion, backticks, or `((…))`
+// arithmetic standing as a command or `$((…))` standing as a word.
+type BashFrame = "\"" | "$(" | "${" | "`" | "((" | "$((";
 
 type BashState = {
     mode: "code" | "single" | "heredoc";
@@ -15,8 +16,8 @@ type BashState = {
     heredocPending: string;
     /** `<<-` strips leading tabs from the tag line too. */
     heredocIndented: boolean;
-    /** Inside `((…))`, where a word is a variable and nothing is a command. */
-    arithmetic: boolean;
+    /** The frame depth an assignment's value is read at, so the space that ends it makes the next word a command; -1 outside one. */
+    valueDepth: number;
 };
 
 const Keywords = words(`
@@ -32,14 +33,16 @@ const Option = /--?[A-Za-z][\w-]*/y;
 const Variable = /\$(?:[A-Za-z_]\w*|\d|[@*#?$!-])/y;
 const Assignment = /[A-Za-z_]\w*(?=\+?=)/y;
 const HeredocStart = /<<-?\s*(?:'([^']+)'|"([^"]+)"|\\?([A-Za-z_]\w*))/y;
-const Operator = /\d?>>?|\d?>&\d?|<|\|\||&&|\||;;|;|&/y;
+// `>&` ahead of `>`, or `2>&1` would read as `2>` and a lone `&` that starts a command.
+const Operator = /\d?>&\d?|\d?>>?|<|\|\||&&|\||;;|;|&/y;
 
-export const bashMode: Mode<BashState> = {
-    initialState: () => ({ mode: "code", frames: [], command: true, heredoc: "", heredocPending: "", heredocIndented: false, arithmetic: false }),
+const bashMode: Mode<BashState> = {
+    initialState: () => ({ mode: "code", frames: [], command: true, heredoc: "", heredocPending: "", heredocIndented: false, valueDepth: -1 }),
     token(stream, state) {
         if (stream.sol()) {
             // A new line is a new command, unless a here-document opened on the one before.
             state.command = true;
+            state.valueDepth = -1;
 
             if (state.heredocPending !== "") {
                 state.heredoc = state.heredocPending;
@@ -131,8 +134,19 @@ function doubleQuoted(stream: Stream, state: BashState): TokenKind {
     return "string";
 }
 
-/** `$(`, `${`, a backtick or a plain `$name`, wherever it stands. */
+/**
+ * `$((`, `$(`, `${`, a backtick or a plain `$name`, wherever it stands. An opened substitution starts with a command; anything else
+ * is a word, after which a command is no longer due.
+ */
 function substitutionToken(stream: Stream, state: BashState): TokenKind | null {
+    // Arithmetic before a substitution: `$((i * 5))` holds no command, where `$(` and a subshell's `(` would make `i` one.
+    if (stream.match("$((")) {
+        state.frames.push("$((");
+        state.command = false;
+
+        return "punctuation";
+    }
+
     if (stream.match("$(")) {
         state.frames.push("$(");
         state.command = true;
@@ -142,14 +156,17 @@ function substitutionToken(stream: Stream, state: BashState): TokenKind | null {
 
     if (stream.match("${")) {
         state.frames.push("${");
+        state.command = false;
 
         // The whole `${…}` as one name, unless a substitution nested in it cuts it.
         return expansion(stream, state);
     }
 
     if (stream.match("`")) {
-        if (state.frames[state.frames.length - 1] === "`")
+        if (state.frames[state.frames.length - 1] === "`") {
             state.frames.pop();
+            state.command = false;
+        }
         else {
             state.frames.push("`");
             state.command = true;
@@ -158,8 +175,11 @@ function substitutionToken(stream: Stream, state: BashState): TokenKind | null {
         return "punctuation";
     }
 
-    if (stream.match(Variable))
+    if (stream.match(Variable)) {
+        state.command = false;
+
         return "variable";
+    }
 
     return null;
 }
@@ -189,8 +209,15 @@ function expansion(stream: Stream, state: BashState): TokenKind {
 }
 
 function codeToken(stream: Stream, state: BashState): TokenKind | null {
-    if (stream.eatWhile(/\s/))
+    if (stream.eatWhile(/\s/)) {
+        // The space that ends an assignment's value leaves the next word a command, as it was before the assignment.
+        if (state.valueDepth === state.frames.length) {
+            state.command = true;
+            state.valueDepth = -1;
+        }
+
         return null;
+    }
 
     const character = stream.peek();
     const afterSpace = stream.pos === 0 || /\s/.test(stream.text.charAt(stream.pos - 1));
@@ -218,20 +245,24 @@ function codeToken(stream: Stream, state: BashState): TokenKind | null {
     }
 
     if (stream.match("((")) {
-        state.arithmetic = true;
+        state.frames.push("((");
         state.command = false;
 
         return "punctuation";
     }
 
-    if (state.arithmetic && stream.match("))")) {
-        state.arithmetic = false;
-        state.command = true;
+    const frame = state.frames[state.frames.length - 1];
+    const arithmetic = frame === "((" || frame === "$((";
+
+    if (arithmetic && stream.match("))")) {
+        state.frames.pop();
+        // `((…))` was a command, and what follows it may be another; `$((…))` was a word within one.
+        state.command = frame === "((";
 
         return "punctuation";
     }
 
-    if (state.arithmetic) {
+    if (arithmetic) {
         if (stream.match(/\d+/y))
             return "number";
 
@@ -256,8 +287,6 @@ function codeToken(stream: Stream, state: BashState): TokenKind | null {
         return "keyword";
     }
 
-    const frame = state.frames[state.frames.length - 1];
-
     if (character === ")" && frame === "$(") {
         stream.next();
         state.frames.pop();
@@ -268,11 +297,8 @@ function codeToken(stream: Stream, state: BashState): TokenKind | null {
 
     const substitution = substitutionToken(stream, state);
 
-    if (substitution !== null) {
-        state.command = false;
-
+    if (substitution !== null)
         return substitution;
-    }
 
     if (stream.match("\\")) {
         stream.next();
@@ -280,8 +306,15 @@ function codeToken(stream: Stream, state: BashState): TokenKind | null {
         return "escape";
     }
 
-    if (stream.match("="))
+    if (stream.match("=")) {
+        // Right after an assignment's name the command is yet to come: the value is a word, not the command.
+        if (state.command) {
+            state.command = false;
+            state.valueDepth = state.frames.length;
+        }
+
         return "operator";
+    }
 
     if (stream.match(Operator)) {
         const operator = stream.current();

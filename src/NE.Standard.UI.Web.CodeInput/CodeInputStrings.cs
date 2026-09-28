@@ -13,10 +13,18 @@ namespace NE.Standard.UI.Web.CodeInput;
 /// </summary>
 public sealed class CodeInputStrings : IUIStringsSource
 {
+    /// <summary>The find panel's count: which match of how many.</summary>
     public const string Matches = "ui.code.matches";
+
+    /// <summary>The find panel's count when nothing matches.</summary>
     public const string NoMatches = "ui.code.no-matches";
+
+    /// <summary>The find panel's count when a regular expression cannot be read.</summary>
     public const string InvalidPattern = "ui.code.invalid-pattern";
+
+    /// <summary>The status bar's caret position: line and column.</summary>
     public const string Position = "ui.code.position";
+
     /// <summary>The completion list's own accessible name.</summary>
     public const string Suggestions = "ui.code.suggestions";
 

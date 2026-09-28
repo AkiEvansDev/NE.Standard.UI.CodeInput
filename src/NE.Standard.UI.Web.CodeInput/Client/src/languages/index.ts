@@ -21,7 +21,7 @@ const BuiltIn: readonly [string, Tokenizer][] = [
     ["python", pythonTokenizer]
 ];
 
-export const PlainText = "plain-text";
+const PlainText = "plain-text";
 
 /**
  * The languages the editor knows, by id — built-in ones plus any a package registered. A registration reaches every field that
@@ -46,15 +46,6 @@ export class LanguageRegistry {
     /** The tokenizer for an id; null for plain text and for an id nothing has registered. */
     public get(id: string | null | undefined): Tokenizer | null {
         return this.tokenizers.get(LanguageRegistry.normalize(id)) ?? null;
-    }
-
-    public has(id: string): boolean {
-        return this.tokenizers.has(LanguageRegistry.normalize(id));
-    }
-
-    /** Every id the registry knows, the built-in ones first in their order, then what packages added. */
-    public ids(): string[] {
-        return [...this.tokenizers.keys()];
     }
 
     /** Adds a language, or replaces one, and tells every listener. */

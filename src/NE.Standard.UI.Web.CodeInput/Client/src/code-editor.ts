@@ -5,7 +5,7 @@ import type { PluginEngineContext } from "ne-standard-ui";
 import { CodeEditorCarets } from "./code-editor-carets.ts";
 import { CodeEditorCompletions } from "./code-editor-completions.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { CrLf, DetectedLineEndingAttribute, LanguageAttribute } from "./code-editor-dom.ts";
+import { CrLf, DetectedLineEndingAttribute, LanguageAttribute, LineEndingAttribute, MatchCaseAttribute, RegexAttribute, SearchAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
 import { CodeEditorEditing } from "./code-editor-editing.ts";
 import { CodeEditorFindReplace } from "./code-editor-find-replace.ts";
 import { CodeEditorStatusBar } from "./code-editor-status-bar.ts";
@@ -13,22 +13,26 @@ import type { StatusPicker } from "./code-editor-status-bar.ts";
 import { CodeEditorSurface } from "./code-editor-surface.ts";
 import { LanguageRegistry } from "./languages/index.ts";
 
-const SearchAttribute = "data-ui-code-search";
 // The framework's own button inside one of the find panel's parts, which the renderer carries under an attribute each.
 const PartButton = "> .ui-button";
-const SwitchAttributes = ["data-ui-code-match-case", "data-ui-code-whole-word", "data-ui-code-regex"];
+const SwitchAttributes = [MatchCaseAttribute, WholeWordAttribute, RegexAttribute];
 
-type EditorParts = {
-    readonly textarea: HTMLTextAreaElement;
-    readonly scroller: HTMLElement;
-    readonly content: HTMLElement;
-    readonly highlight: HTMLElement;
+type SearchPanelParts = {
     readonly panel: HTMLElement;
     readonly findField: HTMLInputElement;
     readonly replaceField: HTMLInputElement;
     readonly replaceRow: HTMLElement;
     readonly expand: HTMLElement | null;
     readonly count: HTMLElement;
+};
+
+type EditorParts = {
+    readonly textarea: HTMLTextAreaElement;
+    readonly scroller: HTMLElement;
+    readonly content: HTMLElement;
+    readonly highlight: HTMLElement;
+    /** Null when the field was drawn with its search switched off for good: the renderer leaves the panel out. */
+    readonly search: SearchPanelParts | null;
     readonly position: HTMLElement | null;
     readonly tabSize: StatusPicker | null;
     readonly encoding: StatusPicker | null;
@@ -42,7 +46,7 @@ export class CodeEditor {
     private readonly carets: CodeEditorCarets;
     private readonly editing: CodeEditorEditing;
     private readonly completions: CodeEditorCompletions;
-    private readonly findReplace: CodeEditorFindReplace;
+    private readonly findReplace: CodeEditorFindReplace | null;
     private readonly statusBar: CodeEditorStatusBar;
     private language: string;
 
@@ -57,7 +61,7 @@ export class CodeEditor {
             strings,
             () => this.language,
             { read: () => this.carets.read(), write: (set, reveal) => this.carets.write(set, reveal), virtualColumns: () => this.carets.primaryPadding },
-            fromServer => this.findReplace.refreshIfOpen(fromServer)
+            fromServer => this.findReplace?.refreshIfOpen(fromServer)
         );
         this.surface.renderAll();
 
@@ -72,21 +76,9 @@ export class CodeEditor {
             () => this.language
         );
 
-        this.findReplace = new CodeEditorFindReplace(
-            {
-                root,
-                textarea: parts.textarea,
-                scroller: parts.scroller,
-                panel: parts.panel,
-                findField: parts.findField,
-                replaceField: parts.replaceField,
-                replaceRow: parts.replaceRow,
-                expand: parts.expand,
-                count: parts.count
-            },
-            strings,
-            this.surface
-        );
+        this.findReplace = parts.search === null
+            ? null
+            : new CodeEditorFindReplace({ textarea: parts.textarea, scroller: parts.scroller, ...parts.search }, strings, this.surface);
 
         this.statusBar = new CodeEditorStatusBar(
             {
@@ -101,15 +93,15 @@ export class CodeEditor {
             context.properties,
             () => {
                 this.settingsChanged();
-                // A tab size moves every column the carets are drawn at; not folded into settingsChanged, which fires on any field
-                // change and would redraw the carets forever.
+                // A tab size or a language moves every column the carets are drawn at; not folded into settingsChanged, which fires
+                // on any field change and would redraw the carets forever.
                 this.carets.queueRender();
             }
         );
 
         this.surface.writePosition();
 
-        const { textarea, scroller, panel, findField, replaceField } = parts;
+        const { textarea, scroller } = parts;
 
         textarea.addEventListener("beforeinput", domEvent => this.editing.beforeInput(domEvent));
         textarea.addEventListener("input", domEvent => this.surface.nativeInput(domEvent));
@@ -132,20 +124,27 @@ export class CodeEditor {
         scroller.addEventListener("scroll", () => this.completions.close(), { passive: true });
         root.addEventListener("keydown", domEvent => this.rootKey(domEvent));
 
-        findField.addEventListener("input", () => this.findReplace.search(false, true));
-        findField.addEventListener("keydown", domEvent => this.findReplace.findFieldKey(domEvent));
-        replaceField.addEventListener("keydown", domEvent => this.findReplace.replaceFieldKey(domEvent));
+        if (this.findReplace !== null && parts.search !== null)
+            this.wireSearch(this.findReplace, parts.search);
+    }
+
+    private wireSearch(findReplace: CodeEditorFindReplace, search: SearchPanelParts): void {
+        const { panel, findField, replaceField } = search;
+
+        findField.addEventListener("input", () => findReplace.search(false, true));
+        findField.addEventListener("keydown", domEvent => findReplace.findFieldKey(domEvent));
+        replaceField.addEventListener("keydown", domEvent => findReplace.replaceFieldKey(domEvent));
 
         // The switches are the framework's toggle buttons: a press flips them and says so with a change, and the matches follow.
         for (const attribute of SwitchAttributes)
-            this.panelButton(panel, attribute)?.addEventListener("change", () => this.findReplace.search(false, true));
+            panelButton(panel, attribute)?.addEventListener("change", () => findReplace.search(false, true));
 
-        this.panelButton(panel, "data-ui-code-toggle-replace")?.addEventListener("click", () => this.findReplace.toggleReplace());
-        this.panelButton(panel, "data-ui-code-previous")?.addEventListener("click", () => this.findReplace.step(-1));
-        this.panelButton(panel, "data-ui-code-next")?.addEventListener("click", () => this.findReplace.step(1));
-        this.panelButton(panel, "data-ui-code-close")?.addEventListener("click", () => this.findReplace.close());
-        this.panelButton(panel, "data-ui-code-replace-one")?.addEventListener("click", () => this.findReplace.replaceOne());
-        this.panelButton(panel, "data-ui-code-replace-all")?.addEventListener("click", () => this.findReplace.replaceEvery());
+        panelButton(panel, "data-ui-code-toggle-replace")?.addEventListener("click", () => findReplace.toggleReplace());
+        panelButton(panel, "data-ui-code-previous")?.addEventListener("click", () => findReplace.step(-1));
+        panelButton(panel, "data-ui-code-next")?.addEventListener("click", () => findReplace.step(1));
+        panelButton(panel, "data-ui-code-close")?.addEventListener("click", () => findReplace.close(true));
+        panelButton(panel, "data-ui-code-replace-one")?.addEventListener("click", () => findReplace.replaceOne());
+        panelButton(panel, "data-ui-code-replace-all")?.addEventListener("click", () => findReplace.replaceEvery());
     }
 
     /** Wires a root the renderer wrote; null when the markup is not the renderer's. */
@@ -154,13 +153,8 @@ export class CodeEditor {
         const scroller = root.querySelector<HTMLElement>(".ui-code-input__scroller");
         const content = root.querySelector<HTMLElement>(".ui-code-input__content");
         const highlight = root.querySelector<HTMLElement>(".ui-code-input__highlight");
-        const panel = root.querySelector<HTMLElement>(".ui-code-input__search");
-        const findField = root.querySelector<HTMLInputElement>("[data-ui-code-find] input");
-        const replaceField = root.querySelector<HTMLInputElement>("[data-ui-code-replace] input");
-        const replaceRow = root.querySelector<HTMLElement>(".ui-code-input__search-row--replace");
-        const count = root.querySelector<HTMLElement>("[data-ui-code-count]");
 
-        if (textarea === null || scroller === null || content === null || highlight === null || panel === null || findField === null || replaceField === null || replaceRow === null || count === null)
+        if (textarea === null || scroller === null || content === null || highlight === null)
             return null;
 
         return new CodeEditor(root, context, {
@@ -168,22 +162,13 @@ export class CodeEditor {
             scroller,
             content,
             highlight,
-            panel,
-            findField,
-            replaceField,
-            replaceRow,
-            expand: root.querySelector<HTMLElement>(`[data-ui-code-toggle-replace] ${PartButton}`),
-            count,
+            search: searchPanel(root),
             position: root.querySelector<HTMLElement>("[data-ui-code-position]"),
             tabSize: statusPicker(root, "data-ui-code-tab-size"),
             encoding: statusPicker(root, "data-ui-code-encoding"),
-            lineEnding: statusPicker(root, "data-ui-code-line-ending"),
-            language: statusPicker(root, "data-ui-code-language")
+            lineEnding: statusPicker(root, LineEndingAttribute),
+            language: statusPicker(root, LanguageAttribute)
         });
-    }
-
-    private panelButton(panel: HTMLElement, attribute: string): HTMLElement | null {
-        return panel.querySelector<HTMLElement>(`[${attribute}] ${PartButton}`);
     }
 
     public get languageId(): string {
@@ -199,8 +184,10 @@ export class CodeEditor {
         this.carets.dispose();
     }
 
+    /** A setting the server pushed: the pickers show it, and the carets are drawn again, since a tab size moves their columns. */
     public syncPickers(): void {
         this.statusBar.syncPickers();
+        this.carets.queueRender();
     }
 
     /** The document's selection moved: the position follows it, carets the textarea moved away from are let go, and a completion
@@ -211,12 +198,17 @@ export class CodeEditor {
         this.completions.selectionChanged();
     }
 
-    /** The language attribute may have been patched; anything else the observer reports is this editor's own writing. */
+    /** The language or a switch may have been patched; anything else the observer reports is this editor's own writing. */
     public settingsChanged(): void {
         const language = LanguageRegistry.normalize(this.root.getAttribute(LanguageAttribute));
 
         // The bar reads its selects again whatever the language did: the same attach carries a new tab size, encoding or ending.
         this.statusBar.syncPickers();
+        this.carets.settingsChanged();
+
+        // Search switched off takes the open panel with it; the focus stays where the switch left it.
+        if (!this.searchEnabled && this.findReplace?.isOpen === true)
+            this.findReplace.close(false);
 
         if (language === this.language)
             return;
@@ -229,7 +221,7 @@ export class CodeEditor {
     public reload(): void {
         this.completions.close();
         this.surface.setLanguage();
-        this.findReplace.search(true, false);
+        this.findReplace?.search(true, false);
     }
 
     /**
@@ -237,7 +229,7 @@ export class CodeEditor {
      * its ending, so the field keeps what it had rather than guess.
      */
     public refresh(pushed: unknown): void {
-        if (typeof pushed === "string" && /\n/.test(pushed)) {
+        if (typeof pushed === "string" && pushed.includes("\n")) {
             const ending = pushed.includes("\r\n") ? CrLf : "lf";
 
             this.root.setAttribute(DetectedLineEndingAttribute, ending);
@@ -260,29 +252,48 @@ export class CodeEditor {
             return;
 
         const command = domEvent.ctrlKey || domEvent.metaKey;
+        const findReplace = this.findReplace;
 
         // By the key's position, not its letter: under another layout Ctrl+F arrives as the letter that layout puts there.
-        if (command && !domEvent.altKey && domEvent.code === "KeyF" && this.searchEnabled) {
+        if (command && !domEvent.altKey && domEvent.code === "KeyF" && this.searchEnabled && findReplace !== null) {
             domEvent.preventDefault();
-            this.findReplace.open(false);
+            findReplace.open(false);
         }
-        else if (command && !domEvent.altKey && domEvent.code === "KeyH" && this.searchEnabled) {
+        else if (command && !domEvent.altKey && domEvent.code === "KeyH" && this.searchEnabled && findReplace !== null) {
             domEvent.preventDefault();
-            this.findReplace.open(true);
+            findReplace.open(true);
         }
         else if (command && !domEvent.altKey && domEvent.code === "KeyS") {
             domEvent.preventDefault();
             this.surface.save();
         }
-        else if (domEvent.key === "Escape" && this.findReplace.isOpen) {
+        else if (domEvent.key === "Escape" && findReplace?.isOpen === true) {
             domEvent.preventDefault();
-            this.findReplace.close();
+            findReplace.close(true);
         }
-        else if (domEvent.code === "F3" && this.findReplace.isOpen) {
+        else if (domEvent.code === "F3" && findReplace?.isOpen === true) {
             domEvent.preventDefault();
-            this.findReplace.step(domEvent.shiftKey ? -1 : 1);
+            findReplace.step(domEvent.shiftKey ? -1 : 1);
         }
     }
+}
+
+/** The find panel's parts the renderer drew; null when it left the panel out, or drew it incomplete. */
+function searchPanel(root: HTMLElement): SearchPanelParts | null {
+    const panel = root.querySelector<HTMLElement>(".ui-code-input__search");
+    const findField = root.querySelector<HTMLInputElement>("[data-ui-code-find] input");
+    const replaceField = root.querySelector<HTMLInputElement>("[data-ui-code-replace] input");
+    const replaceRow = root.querySelector<HTMLElement>(".ui-code-input__search-row--replace");
+    const count = root.querySelector<HTMLElement>("[data-ui-code-count]");
+
+    if (panel === null || findField === null || replaceField === null || replaceRow === null || count === null)
+        return null;
+
+    return { panel, findField, replaceField, replaceRow, expand: panelButton(panel, "data-ui-code-toggle-replace"), count };
+}
+
+function panelButton(panel: HTMLElement, attribute: string): HTMLElement | null {
+    return panel.querySelector<HTMLElement>(`[${attribute}] ${PartButton}`);
 }
 
 /** A status bar picker the renderer drew: the hidden carrier under its attribute, and the framework's select beside it. */

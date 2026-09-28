@@ -12,6 +12,7 @@ namespace NE.Standard.UI.Web.CodeInput;
 /// </summary>
 public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
 {
+    /// <summary>On the root: the Markdown document the client renders into the body.</summary>
     public const string SourceAttribute = "data-ui-markdown-source";
 
     public override string ComponentTypeKey => MarkdownDisplayComponent.ComponentTypeKey;

@@ -31,7 +31,7 @@ export class CodeEditorStatusBar {
      * Settings travel the framework's two-way binding on the carrier's `change`; this applies the tab stop, highlighting and line
      * ending immediately, before the server echoes back.
      */
-    public constructor(parts: StatusBarParts, values: ValueReading, properties: PropertyWriting, onLanguageChanged: () => void) {
+    public constructor(parts: StatusBarParts, values: ValueReading, properties: PropertyWriting, onSettingChanged: () => void) {
         this.root = parts.root;
         this.textarea = parts.textarea;
         this.lineEnding = parts.lineEnding;
@@ -41,6 +41,7 @@ export class CodeEditorStatusBar {
 
         parts.tabSize?.carrier.addEventListener("change", () => {
             this.root.style.setProperty(TabSizeVariable, parts.tabSize?.carrier.value ?? "4");
+            onSettingChanged();
         });
 
         // A new ending goes with the text now, not with the next keystroke: the reader puts it in, so the value is sent again.
@@ -50,7 +51,7 @@ export class CodeEditorStatusBar {
 
         parts.language?.carrier.addEventListener("change", () => {
             this.root.setAttribute(LanguageAttribute, parts.language?.carrier.value ?? "");
-            onLanguageChanged();
+            onSettingChanged();
         });
 
         for (const picker of this.pickers)

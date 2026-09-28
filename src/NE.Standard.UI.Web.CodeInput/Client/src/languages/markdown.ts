@@ -1,12 +1,15 @@
+import { closesFence, MaxNesting, openFence, QuoteMarker, TableDelimiter, ThematicBreak } from "../markdown-syntax.ts";
 import type { EmitToken, LineState, TokenKind, Tokenizer } from "../tokenizer.ts";
 
 // Markdown a line at a time: the block a line opens (heading, fence, quote, list item, rule) and the inline spans inside it. A span
 // spanning a line break is left plain, since an editor re-reads a line without its neighbors. A fenced block reads by the language
 // its info string names, when registered.
 
-export type MarkdownState = {
+type MarkdownState = {
     /** The opening fence (its character repeated), while inside a fenced block; empty outside one. */
     fence: string;
+    /** How many quotes the fence was opened inside; each of its lines carries that many markers, and one short of them ends it. */
+    quotes: number;
     /** The registry id the fence's info string names; empty when it names none. */
     language: string;
     /** That language's own state, carried from line to line inside the block. */
@@ -42,13 +45,10 @@ export function fenceLanguageId(info: string): string {
     return Aliases[word] ?? word;
 }
 
-const InitialState: MarkdownState = { fence: "", language: "", inner: null, comment: false };
+const InitialState: MarkdownState = { fence: "", quotes: 0, language: "", inner: null, comment: false };
 
-const FenceOpen = /^( {0,3})(`{3,}|~{3,})(.*)$/;
 const AtxHeading = /^#{1,6}(?=\s|$)/;
 const SetextUnderline = /^ {0,3}=+[ \t]*$/;
-const ThematicBreak = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
-const TableDelimiter = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$/;
 const ReferenceDefinition = /^( {0,3})(\[[^\]]+\]:)([ \t]*)(\S+)(.*)$/;
 const ListMarker = /(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$)/y;
 const TaskBox = /\[[ xX]\](?=[ \t]|$)/y;
@@ -74,10 +74,20 @@ export function markdownTokenizer(resolve: (id: string) => Tokenizer | null): To
 }
 
 function fencedLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null): MarkdownState {
-    const closing = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+    const quotes = readQuotes(line, state.quotes);
 
-    if (closing !== null && closing[1][0] === state.fence[0] && closing[1].length >= state.fence.length) {
-        emit(line.indexOf(closing[1]), line.indexOf(closing[1]) + closing[1].length, "code");
+    // A fence inside a quote ends with the quote, as the display's parser reads it: a line short of the markers is read afresh,
+    // and no line carries on a fenced block lazily.
+    if (quotes.marks.length < state.quotes)
+        return blockLine(line, InitialState, emit, resolve);
+
+    emitQuotes(quotes, emit);
+
+    const offset = quotes.end;
+    const body = offset === 0 ? line : line.slice(offset);
+
+    if (closesFence(body, state.fence)) {
+        emit(offset + body.search(/\S/), offset + body.trimEnd().length, "code");
 
         return InitialState;
     }
@@ -85,15 +95,46 @@ function fencedLine(line: string, state: MarkdownState, emit: EmitToken, resolve
     const tokenizer = state.language.length > 0 ? resolve(state.language) : null;
 
     if (tokenizer === null) {
-        if (line.length > 0)
-            emit(0, line.length, "code");
+        if (body.length > 0)
+            emit(offset, line.length, "code");
 
         return state;
     }
 
-    const inner = tokenizer.tokenizeLine(line, state.inner ?? tokenizer.initialState, emit);
+    const shifted: EmitToken = offset === 0 ? emit : (from, to, kind) => emit(offset + from, offset + to, kind);
+    const inner = tokenizer.tokenizeLine(body, state.inner ?? tokenizer.initialState, shifted);
 
     return { ...state, inner };
+}
+
+type QuotePrefix = {
+    /** Where each marker's `>` stands. */
+    readonly marks: readonly number[];
+    /** Where the text after the last marker starts. */
+    readonly end: number;
+};
+
+/** A line's leading quote markers, up to `limit` of them, each read as the display's parser strips one quote level at a time. */
+function readQuotes(line: string, limit: number): QuotePrefix {
+    const marks: number[] = [];
+    let end = 0;
+
+    while (marks.length < limit) {
+        const marker = QuoteMarker.exec(end === 0 ? line : line.slice(end));
+
+        if (marker === null)
+            break;
+
+        marks.push(end + marker[0].indexOf(">"));
+        end += marker[0].length;
+    }
+
+    return { marks, end };
+}
+
+function emitQuotes(quotes: QuotePrefix, emit: EmitToken): void {
+    for (const mark of quotes.marks)
+        emit(mark, mark + 1, "quote");
 }
 
 function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null): MarkdownState {
@@ -114,18 +155,21 @@ function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve:
     }
 
     if (from === 0) {
-        const fence = FenceOpen.exec(line);
+        // A fence may open inside quotes, as deep as the display's parser nests them.
+        const quotes = readQuotes(line, MaxNesting);
+        const fence = openFence(quotes.end === 0 ? line : line.slice(quotes.end));
 
-        if (fence !== null && !(fence[2][0] === "`" && fence[3].includes("`"))) {
-            const start = fence[1].length;
-            const language = fenceLanguageId(fence[3]);
+        if (fence !== null) {
+            const start = quotes.end + fence.indent;
+            const language = fenceLanguageId(fence.info);
 
-            emit(start, start + fence[2].length, "code");
+            emitQuotes(quotes, emit);
+            emit(start, start + fence.marker.length, "code");
 
-            if (fence[3].trim().length > 0)
-                emit(start + fence[2].length + fence[3].search(/\S/), line.trimEnd().length, "keyword");
+            if (fence.info.trim().length > 0)
+                emit(start + fence.marker.length + fence.info.search(/\S/), line.trimEnd().length, "keyword");
 
-            return { fence: fence[2], language, inner: resolve(language)?.initialState ?? null, comment: false };
+            return { fence: fence.marker, quotes: quotes.marks.length, language, inner: resolve(language)?.initialState ?? null, comment: false };
         }
 
         if (SetextUnderline.test(line)) {
@@ -134,7 +178,8 @@ function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve:
             return InitialState;
         }
 
-        if (ThematicBreak.test(line) || TableDelimiter.test(line)) {
+        // A line at a time, the header above is out of sight, so a delimiter row is known by its pipe: a lone `-` is a list's marker.
+        if (ThematicBreak.test(line) || (TableDelimiter.test(line) && line.includes("|"))) {
             emit(line.search(/\S/), line.trimEnd().length, "punctuation");
 
             return InitialState;
@@ -215,7 +260,7 @@ function skipSpaces(line: string, from: number): number {
 }
 
 /** Emits one line's inline spans from `from`, text between them as `base` or nothing; true when an HTML comment opened and stayed open. */
-export function inlineSpans(line: string, from: number, base: TokenKind | null, emit: EmitToken): boolean {
+function inlineSpans(line: string, from: number, base: TokenKind | null, emit: EmitToken): boolean {
     let plain = from;
     let i = from;
 

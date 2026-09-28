@@ -7,6 +7,9 @@ using NE.Standard.UI.Web.Renderers.Foundation;
 
 namespace NE.Standard.UI.Web.CodeInput;
 
+/// <summary>
+/// Registers the code input package with a web host.
+/// </summary>
 public static class CodeInputWebExtensions
 {
     private const string AssemblyName = "NE.Standard.UI.Web.CodeInput";

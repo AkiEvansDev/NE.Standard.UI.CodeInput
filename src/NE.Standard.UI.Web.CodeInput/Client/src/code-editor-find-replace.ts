@@ -5,12 +5,10 @@ import { diffText } from "./history.ts";
 import type { SearchMatch, SearchOptions, SearchQuery } from "./search.ts";
 import { compileQuery, expandReplacement, findMatches, nextMatchFrom, previousMatchFrom, replaceAll } from "./search.ts";
 import type { Strings } from "./code-editor-dom.ts";
+import { MatchCaseAttribute, RegexAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 
-const InvalidPatternClass = "ui-code-input--invalid-pattern";
-
 export type FindReplaceParts = {
-    readonly root: HTMLElement;
     readonly textarea: HTMLTextAreaElement;
     readonly scroller: HTMLElement;
     readonly panel: HTMLElement;
@@ -22,7 +20,6 @@ export type FindReplaceParts = {
 };
 
 export class CodeEditorFindReplace {
-    private readonly root: HTMLElement;
     private readonly textarea: HTMLTextAreaElement;
     private readonly scroller: HTMLElement;
     private readonly panel: HTMLElement;
@@ -38,7 +35,6 @@ export class CodeEditorFindReplace {
     private query: SearchQuery = null;
 
     public constructor(parts: FindReplaceParts, strings: Strings, surface: CodeEditorSurface) {
-        this.root = parts.root;
         this.textarea = parts.textarea;
         this.scroller = parts.scroller;
         this.panel = parts.panel;
@@ -58,9 +54,9 @@ export class CodeEditorFindReplace {
 
     private get options(): SearchOptions {
         return {
-            matchCase: this.pressed("data-ui-code-match-case"),
-            wholeWord: this.pressed("data-ui-code-whole-word"),
-            regex: this.pressed("data-ui-code-regex")
+            matchCase: this.pressed(MatchCaseAttribute),
+            wholeWord: this.pressed(WholeWordAttribute),
+            regex: this.pressed(RegexAttribute)
         };
     }
 
@@ -108,14 +104,16 @@ export class CodeEditorFindReplace {
         field.select();
     }
 
-    public close(): void {
+    /** Hides the panel and its marks; `returnFocus` puts the reader back in the text, as Escape and the close button do. */
+    public close(returnFocus: boolean): void {
         this.panel.hidden = true;
         this.matches = [];
         this.current = -1;
         this.surface.applyMatches([], -1);
-        this.root.classList.remove(InvalidPatternClass);
         this.findField.closest(".ui-text-input")?.classList.remove("ui-invalid");
-        this.textarea.focus({ preventScroll: true });
+
+        if (returnFocus)
+            this.textarea.focus({ preventScroll: true });
     }
 
     /** Re-reads the matches; `keepCurrent` holds on to the match the reader is on when it survived, `follow` selects it and scrolls to it. */
@@ -128,7 +126,6 @@ export class CodeEditorFindReplace {
 
         const invalid = this.query !== null && "invalid" in this.query;
 
-        this.root.classList.toggle(InvalidPatternClass, invalid);
         // The find field says so as any invalid field does: the framework's own mark on its root.
         this.findField.closest(".ui-text-input")?.classList.toggle("ui-invalid", invalid);
 
@@ -136,39 +133,6 @@ export class CodeEditorFindReplace {
         const current = kept >= 0 ? kept : nextMatchFrom(this.matches, this.textarea.selectionStart);
 
         this.goTo(current, follow);
-    }
-
-    /**
-     * Re-searches only while the panel is open, since a hidden match need not refresh. A reader's own edit leaves the caret where
-     * they're typing; only a server-pushed text jumps to the match.
-     */
-    public refreshIfOpen(fromServer: boolean): void {
-        if (this.isOpen)
-            this.search(true, fromServer);
-    }
-
-    public findFieldKey(domEvent: KeyboardEvent): void {
-        if (domEvent.key === "Enter" && !domEvent.isComposing) {
-            domEvent.preventDefault();
-            this.step(domEvent.shiftKey ? -1 : 1);
-        }
-    }
-
-    public step(direction: 1 | -1): void {
-        if (this.panel.hidden) {
-            this.open(false);
-            return;
-        }
-
-        if (this.matches.length === 0) {
-            this.search(false, true);
-            return;
-        }
-
-        const position = this.current >= 0 ? this.matches[this.current].from : this.textarea.selectionStart;
-        const next = direction > 0 ? nextMatchFrom(this.matches, position + 1) : previousMatchFrom(this.matches, position);
-
-        this.goTo(next, true);
     }
 
     private goTo(index: number, follow: boolean): void {
@@ -227,6 +191,39 @@ export class CodeEditorFindReplace {
             scroller.scrollLeft = Math.max(0, left - scroller.clientWidth / 2);
     }
 
+    /**
+     * Re-searches only while the panel is open, since a hidden match need not refresh. A reader's own edit leaves the caret where
+     * they're typing; only a server-pushed text jumps to the match.
+     */
+    public refreshIfOpen(fromServer: boolean): void {
+        if (this.isOpen)
+            this.search(true, fromServer);
+    }
+
+    public findFieldKey(domEvent: KeyboardEvent): void {
+        if (domEvent.key === "Enter" && !domEvent.isComposing) {
+            domEvent.preventDefault();
+            this.step(domEvent.shiftKey ? -1 : 1);
+        }
+    }
+
+    public step(direction: 1 | -1): void {
+        if (this.panel.hidden) {
+            this.open(false);
+            return;
+        }
+
+        if (this.matches.length === 0) {
+            this.search(false, true);
+            return;
+        }
+
+        const position = this.current >= 0 ? this.matches[this.current].from : this.textarea.selectionStart;
+        const next = direction > 0 ? nextMatchFrom(this.matches, position + 1) : previousMatchFrom(this.matches, position);
+
+        this.goTo(next, true);
+    }
+
     public replaceFieldKey(domEvent: KeyboardEvent): void {
         if (domEvent.key === "Enter" && !domEvent.isComposing) {
             domEvent.preventDefault();
@@ -251,9 +248,10 @@ export class CodeEditorFindReplace {
         const replacement = expandReplacement(this.textarea.value, match, this.query, this.replaceField.value, this.options.regex);
 
         this.surface.replaceRange(match.from, match.to, replacement);
-        // The edit re-read the matches; the one at this index is now the next one on.
         this.replaceField.focus({ preventScroll: true });
-        this.goTo(this.matches.length === 0 ? -1 : Math.min(this.current < 0 ? 0 : this.current, this.matches.length - 1), true);
+        // The edit re-read the matches; the next one starts past the new text, since a replacement the query still matches would
+        // otherwise be found again where it was put.
+        this.goTo(nextMatchFrom(this.matches, match.from + replacement.length), true);
     }
 
     public replaceEvery(): void {

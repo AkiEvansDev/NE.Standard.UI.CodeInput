@@ -234,7 +234,9 @@ export class CodeEditorCompletions {
         const context = this.buildContext(prefix, position, languageId);
         const collected = await collectCompletions(this.sourcesFor(languageId), context);
 
-        if (requestId !== this.requestId || !this.textarea.isConnected)
+        // A provider may answer long after it was asked: after Escape, a blur, an accepted word or a caret moved elsewhere, the answer
+        // belongs to a list nobody is waiting for.
+        if (requestId !== this.requestId || !this.textarea.isConnected || document.activeElement !== this.textarea || this.textarea.selectionStart !== position)
             return;
 
         const ranked = rankCompletions(collected, prefix);
@@ -295,7 +297,8 @@ export class CodeEditorCompletions {
                 onDismiss: () => this.dismissed()
             });
 
-            this.textarea.setAttribute("aria-expanded", "true");
+            // A textarea takes no combobox role and so no aria-expanded; what it may say is that it offers a list, and which.
+            this.textarea.setAttribute("aria-autocomplete", "list");
             this.textarea.setAttribute("aria-controls", this.list.id);
         }
         else
@@ -412,6 +415,9 @@ export class CodeEditorCompletions {
     }
 
     public close(): void {
+        // An answer still on its way would open the list again.
+        this.requestId++;
+
         if (this.handle === null)
             return;
 
@@ -426,7 +432,7 @@ export class CodeEditorCompletions {
         this.list = null;
         this.items = [];
         this.active = -1;
-        this.textarea.removeAttribute("aria-expanded");
+        this.textarea.removeAttribute("aria-autocomplete");
         this.textarea.removeAttribute("aria-controls");
         this.textarea.removeAttribute("aria-activedescendant");
     }

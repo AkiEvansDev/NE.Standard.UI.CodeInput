@@ -166,7 +166,7 @@ export class CodeEditorEditing {
             case "deleteSoftLineForward":
             case "deleteHardLineForward":
                 domEvent.preventDefault();
-                this.deleteEach(position => text.indexOf("\n", position) < 0 ? text.length : text.indexOf("\n", position), "other");
+                this.deleteEach(position => text.includes("\n", position) ? text.indexOf("\n", position) : text.length, "other");
                 return;
         }
 

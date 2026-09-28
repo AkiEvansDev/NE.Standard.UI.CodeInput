@@ -115,15 +115,6 @@ export class CodeEditorSurface {
         }
     }
 
-    private renderLines(indexes: readonly number[]): void {
-        for (const index of indexes) {
-            const line = this.highlight.children[index];
-
-            if (line !== undefined)
-                line.innerHTML = this.highlighter.renderLine(index);
-        }
-    }
-
     private updateGutter(): void {
         const digits = String(Math.max(2, String(this.highlighter.lineCount).length));
 
@@ -227,7 +218,7 @@ export class CodeEditorSurface {
         const value = this.textarea.value;
 
         this.history.record({ edits, removed: edits.map(edit => value.slice(edit.from, edit.to)), before: this.selections.read(), after }, kind);
-        this.commit(applyEdits(value, edits), edits.length === 1 ? edits[0] : null, after);
+        this.commit(applyEdits(value, edits), edits.length === 1 ? edits[0] : null, after, kind === "typing");
     }
 
     /** A value that changed with no edit and no push — a form reset — leaves the history nothing it can still undo. */
@@ -242,9 +233,10 @@ export class CodeEditorSurface {
 
     /**
      * Puts new text in the textarea via `setRangeText` for a single span, or replaces the whole value otherwise; then the layer,
-     * carets and position follow, and `input` fires as a keystroke's would.
+     * carets and position follow, and `input` fires as a keystroke's would — as typed text when it was, so text typed at several
+     * carets opens completions as it does at one.
      */
-    private commit(text: string, single: Edit | null, selections: SelectionSet): void {
+    private commit(text: string, single: Edit | null, selections: SelectionSet, typed: boolean): void {
         if (single !== null)
             this.textarea.setRangeText(single.text, single.from, single.to);
         else
@@ -256,7 +248,7 @@ export class CodeEditorSurface {
         this.selections.write(selections, true);
         this.writePosition();
         this.notifyTextChanged(false);
-        this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        this.textarea.dispatchEvent(typed ? new InputEvent("input", { bubbles: true, inputType: "insertText" }) : new Event("input", { bubbles: true }));
     }
 
     /** Replaces one span and leaves the caret after it — find and replace's edit. */
@@ -286,7 +278,7 @@ export class CodeEditorSurface {
         const restored = take(this.textarea.value);
 
         if (restored !== null)
-            this.commit(restored.text, null, restored.selections);
+            this.commit(restored.text, null, restored.selections, false);
     }
 
     /** The text's lines as the highlighter holds them. */
@@ -320,6 +312,15 @@ export class CodeEditorSurface {
     /** Lays the find panel's matches over the highlighted lines and redraws whichever ones changed. */
     public applyMatches(matches: readonly { readonly from: number; readonly to: number }[], current: number): void {
         this.renderLines(this.highlighter.setMatches(matches, current));
+    }
+
+    private renderLines(indexes: readonly number[]): void {
+        for (const index of indexes) {
+            const line = this.highlight.children[index];
+
+            if (line !== undefined)
+                line.innerHTML = this.highlighter.renderLine(index);
+        }
     }
 }
 

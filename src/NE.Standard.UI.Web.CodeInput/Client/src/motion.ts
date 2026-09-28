@@ -68,7 +68,8 @@ const Word = 1;
 const Punctuation = 2;
 const LineBreak = 3;
 
-const WordCharacter = /[\p{L}\p{N}_]/u;
+/** The editor's word: what Ctrl+arrows stop at, what completions complete and what a whole-word search stands apart from. */
+export const WordCharacter = /[\p{L}\p{N}_]/u;
 
 function classify(character: string): number {
     if (character === "\n")

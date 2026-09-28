@@ -43,6 +43,15 @@ test("next and previous wrap around", () => {
     assert.equal(nextMatchFrom([], 0), -1);
 });
 
+test("after a replacement the query still matches, the next match is the one past the new text", () => {
+    const query = compileQuery("log", plain);
+    // "log a; log b" with the first "log" made "logger": the panel reads the matches again and steps past what it wrote.
+    const matches = findMatches("logger a; log b", query);
+
+    assert.deepEqual(matches, [{ from: 0, to: 3 }, { from: 10, to: 13 }]);
+    assert.equal(nextMatchFrom(matches, 0 + "logger".length), 1);
+});
+
 test("replacement is literal unless the query is a regex", () => {
     const text = "x1 y2";
     const literal = compileQuery("x1", plain);
@@ -52,6 +61,30 @@ test("replacement is literal unless the query is a regex", () => {
     assert.equal(expandReplacement(text, { from: 0, to: 2 }, regex, "$2$1", true), "1x");
     assert.equal(replaceAll(text, literal, "$&", false), "$& y2");
     assert.equal(replaceAll(text, regex, "$2$1", true), "1x 2y");
+});
+
+test("whole word knows a word in any script, and a word's edge is not a boundary inside it", () => {
+    const whole = { ...plain, wholeWord: true };
+
+    assert.deepEqual(findMatches("привет мир приветствие", compileQuery("привет", whole)), [{ from: 0, to: 6 }]);
+    assert.equal(findMatches("café cafés", compileQuery("café", whole)).length, 1);
+    assert.equal(findMatches("$scope.x", compileQuery("$scope", whole)).length, 1);
+    assert.deepEqual(findMatches("aab ab", compileQuery("a+b", { ...whole, regex: true })), [{ from: 0, to: 3 }, { from: 4, to: 6 }]);
+    assert.equal(replaceAll("мир мирный мир", compileQuery("мир", whole), "world", false), "world мирный world");
+});
+
+test("a single replacement reads its match in the whole text, as Replace all does", () => {
+    const text = "a.bc x.yz";
+    const behind = compileQuery("(?<=\\.)\\w+", { ...plain, regex: true });
+
+    assert.equal(expandReplacement(text, { from: 2, to: 4 }, behind, "[$&]", true), "[bc]");
+    assert.equal(replaceAll(text, behind, "[$&]", true), "a.[bc] x.[yz]");
+
+    const around = compileQuery("b", { ...plain, regex: true });
+
+    assert.equal(expandReplacement("abc", { from: 1, to: 2 }, around, "$`|$'", true), "a|c");
+    assert.equal(replaceAll("abc", around, "$`|$'", true), "abc".replace(/b/g, "$`|$'"));
+    assert.equal(replaceAll("x1 y2", compileQuery("(?<l>[a-z])(\\d)", { ...plain, regex: true }), "$2$<l>$$$9", true), "1x$$9 2y$$9");
 });
 
 test("the language registry keys ids case-insensitively, ships the built-ins and takes a package's own", () => {

@@ -3,10 +3,11 @@
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import { CodeEditor } from "./code-editor.ts";
-import { CrLf, DetectedLineEndingAttribute, LanguageAttribute } from "./code-editor-dom.ts";
+import { CrLf, DetectedLineEndingAttribute, LanguageAttribute, LineEndingAttribute, MultiCaretAttribute, SearchAttribute } from "./code-editor-dom.ts";
 import { languages } from "./languages/index.ts";
 
 const RootSelector = ".ui-code-input";
+const MarkdownLanguage = "markdown";
 
 // The settings a push from the server redraws a picker's word for.
 const PickerPropertyNames = new Set(["TabSize", "Encoding", "LineEnding", "Language"]);
@@ -24,7 +25,7 @@ export function readCodeValue(element: Element): unknown {
 
 /** The chosen line ending when there is one, else the one the value came with (the root's attribute), else LF. */
 function effectiveLineEnding(root: HTMLElement): string {
-    const carrier = root.querySelector<HTMLInputElement>("input[data-ui-code-line-ending]");
+    const carrier = root.querySelector<HTMLInputElement>(`input[${LineEndingAttribute}]`);
     const chosen = carrier?.value ?? "";
 
     return chosen.length > 0 ? chosen : root.getAttribute(DetectedLineEndingAttribute) ?? "lf";
@@ -40,15 +41,19 @@ export class CodeInputEngine {
         this.context = context;
 
         this.attach(context.root.querySelectorAll<HTMLElement>(RootSelector));
-        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [LanguageAttribute] }, roots => this.attach(roots));
+        // The language, and the switches that take away what an open panel or the extra carets stand on.
+        const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute];
+
+        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter }, roots => this.attach(roots));
 
         // A root that left the page takes its editor with it; a removal is a childList change above every selector.
         context.observeComponents(context.root, "*", { childList: true }, () => this.prune());
 
-        // The status bar lists what the server declared; a tokenizer registered after a field was drawn still redraws its text.
+        // The status bar lists what the server declared; a tokenizer registered after a field was drawn still redraws its text, and
+        // a Markdown field's too, whose fenced blocks read in whatever language their info string names.
         languages.onRegistered(id => {
             for (const editor of this.live) {
-                if (editor.connected && editor.languageId === id)
+                if (editor.connected && (editor.languageId === id || editor.languageId === MarkdownLanguage))
                     editor.reload();
             }
         });
