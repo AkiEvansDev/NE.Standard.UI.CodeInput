@@ -4,6 +4,12 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.1.0
+
+- **A Markdown table whose head row is empty starts with its rows.** GitHub's key/value table — `| | |` over its delimiter row —
+  drew its empty head as a bare tinted strip over the rows; a head with no words is now left out, the first row takes the
+  frame's top edge, and the delimiter row still aligns the columns. A head with one word in it is drawn as before.
+
 ## 1.0.1
 
 - **The first stable release.** No `--prerelease` is needed any more. Until 2.0.0 the public surface may still move

@@ -95,12 +95,17 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
         return `<${tag}${align}>${renderInline(parseInlines(text, references))}</${tag}>`;
     };
 
-    let html = `<div class="${ClassName}__table"${sourceLine(line)}><table><thead><tr>`;
+    let html = `<div class="${ClassName}__table"${sourceLine(line)}><table>`;
 
-    for (const [column, text] of head.entries())
-        html += cell("th", text, column);
+    // A head with no words is a key/value table's: its empty cells would draw a bare strip over the rows.
+    if (head.some(text => text !== "")) {
+        html += "<thead><tr>";
 
-    html += "</tr></thead>";
+        for (const [column, text] of head.entries())
+            html += cell("th", text, column);
+
+        html += "</tr></thead>";
+    }
 
     if (rows.length > 0) {
         html += "<tbody>";

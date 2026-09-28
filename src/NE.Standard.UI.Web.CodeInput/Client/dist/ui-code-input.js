@@ -3519,9 +3519,13 @@ function Ki(e, t, n, r, i) {
 	let a = (e, n, r) => {
 		let a = t[r];
 		return `<${e}${a == null ? "" : ` class="${Q}__cell--${a}"`}>${$(ui(n, i))}</${e}>`;
-	}, o = `<div class="${Q}__table"${Wi(e)}><table><thead><tr>`;
-	for (let [e, t] of n.entries()) o += a("th", t, e);
-	if (o += "</tr></thead>", r.length > 0) {
+	}, o = `<div class="${Q}__table"${Wi(e)}><table>`;
+	if (n.some((e) => e !== "")) {
+		o += "<thead><tr>";
+		for (let [e, t] of n.entries()) o += a("th", t, e);
+		o += "</tr></thead>";
+	}
+	if (r.length > 0) {
 		o += "<tbody>";
 		for (let e of r) {
 			o += "<tr>";

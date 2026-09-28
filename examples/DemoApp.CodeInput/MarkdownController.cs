@@ -15,6 +15,12 @@ internal sealed partial class MarkdownController : UIControllerBase
         **Resolved** at 09:47 UTC. From 09:12 the two *API servers* in Europe West answered slowly; the status page at
         https://status.orvane.example moved from ~~investigating~~ to monitoring by 09:30.
 
+        | | |
+        |:--|:--|
+        | **Duration** | 35 minutes |
+        | **Impact** | One request in five slower than 2 s |
+        | **Owner** | Platform team |
+
         ## Timeline
 
         1. 09:12 — the latency alert fires

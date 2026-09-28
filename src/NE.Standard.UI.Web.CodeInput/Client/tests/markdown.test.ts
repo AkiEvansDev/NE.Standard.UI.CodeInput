@@ -97,6 +97,13 @@ test("tables with alignments, escaped pipes and short rows", () => {
         "<td class=\"ui-markdown__cell--center\"><code>x|y</code></td><td class=\"ui-markdown__cell--right\"></td></tr></tbody></table></div><p>after</p>");
 });
 
+test("a table whose head has no words starts with its rows, and one word keeps the head", () => {
+    assert.equal(html("|  |   |\n|---|--:|\n| Key | 1 |"),
+        "<div class=\"ui-markdown__table\"><table><tbody><tr><td>Key</td><td class=\"ui-markdown__cell--right\">1</td></tr></tbody></table></div>");
+    assert.equal(html("| | b |\n|---|---|\n| 1 | 2 |"),
+        "<div class=\"ui-markdown__table\"><table><thead><tr><th></th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table></div>");
+});
+
 test("every block and item says the source line it starts on", () => {
     const lines = [...renderMarkdown("# A\n\ntext\nmore\n\n> quote\n>\n> inner\n\n- one\n\n  two\n- three\n\n| a |\n|---|\n\n```\nx\n```\n---", () => null)
         .matchAll(/<(\w+)[^>]* data-ui-source-line="(\d+)"/g)].map(match => `${match[1]}:${match[2]}`);
