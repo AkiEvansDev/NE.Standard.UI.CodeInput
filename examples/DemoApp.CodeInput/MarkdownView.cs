@@ -13,16 +13,15 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
 
     protected override string Route => MarkdownRoute;
 
-    public override string Title => "Markdown";
+    public override string Title => "code-demo.markdown.title";
 
-    protected override string Description
-        => "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other.";
+    protected override string Description => "code-demo.markdown.description";
 
     protected override DemoPage CreatePage()
         => Page(new ContainerComponent()
             .SetHeight(UILayoutLength.Fill())
             .AddChild(new CodeInputComponent()
-                .SetTitle("Document")
+                .SetTitle("code-demo.markdown.document")
                 .SetLanguage(UICodeLanguages.Markdown)
                 .SetWrapLines()
                 .SetTabSize(2)

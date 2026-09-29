@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using NE.Standard.UI.Abstractions.Binding.Properties;
 using NE.Standard.UI.Authoring.BuiltIns;
@@ -92,8 +93,6 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 _ = target.Attribute(CompletionsSourceAttribute, value.Trim());
         }, [WebDomOperation.Attribute(CompletionsSourceAttribute)]);
 
-        // Which line break the value came with, for the status bar to show when nothing was chosen — the browser normalizes every
-        // break to LF, so the client can't tell otherwise.
         _ = root.Attribute(DetectedLineEndingAttribute, DetectLineEnding(context));
 
         _ = RenderProperty<int?>(context, root, CodeInputComponent.RowsProperty, static (target, value) =>
@@ -103,7 +102,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         }, [WebDomOperation.Style(RowsVariable)]);
     }
 
-    /// <summary>The line break the value came with, by looking: the browser normalizes every break to LF, so only the render can tell.</summary>
+    /// <summary>The line break the value came with: the browser holds every break as LF, so only the render can tell.</summary>
     private static string DetectLineEnding(WebRenderContext context)
     {
         _ = ResolveRenderValue(context, IInputComponent.ValueProperty, out string? text, out _);
@@ -138,7 +137,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                         _ = highlight.Attribute(WebAttributes.ScrollLines);
                     });
 
-                    _ = content.Element("textarea", textarea => RenderTextarea(context, textarea));
+                    _ = content.Element("textarea", textarea => RenderTextarea(context, root, textarea));
                 });
             });
 
@@ -155,11 +154,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     private static bool IsSwitchedOff(WebRenderContext context, UIProperty property)
         => ResolveRenderValue(context, property, out bool? value, out _) == WebRenderValueKind.Static && value == false;
 
-    /// <summary>
-    /// The line under the text: the caret's place the engine writes, and four pickers (tab size, encoding, line ending, language),
-    /// each a select paired with a hidden input carrying the two-way setting. Without <paramref name="pickers"/>, only the hidden
-    /// inputs, which still carry the tab size and the language to the root.
-    /// </summary>
+    /// <summary>The status bar; without <paramref name="pickers"/>, only the hidden carriers, which still take the tab size and language to the root.</summary>
     private void RenderStatusBar(WebRenderContext context, IHtmlElementBuilder root, IHtmlElementBuilder field, bool pickers)
     {
         _ = field.Element("div", status =>
@@ -172,7 +167,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 {
                     _ = position.Class($"{ClassName}__status-position");
                     _ = position.Attribute("data-ui-code-position");
-                    _ = position.Text(context.Translate(CodeInputStrings.Position).Replace("{line}", "1", StringComparison.Ordinal).Replace("{column}", "1", StringComparison.Ordinal));
+                    WebWords.Write(context, position, null, CodeInputStrings.Position, new Dictionary<string, object?>(StringComparer.Ordinal) { ["line"] = 1, ["column"] = 1 });
                 });
             }
 
@@ -198,7 +193,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 , [WebDomOperation.Property("value")]));
 
             // The id as the author wrote it; the client looks it up case-insensitively and falls back to plain text for one it does not know.
-            RenderStatusPicker(context, status, pickers, "data-ui-code-language", UICodeInputRegions.Language, carrier =>
+            RenderStatusPicker(context, status, pickers, LanguageAttribute, UICodeInputRegions.Language, carrier =>
                 _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LanguageProperty, (target, value) =>
                 {
                     var language = string.IsNullOrWhiteSpace(value) ? UICodeLanguages.PlainText : value.Trim();
@@ -222,12 +217,13 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 renderCarrier(carrier);
             });
 
-            // The engine writes the select's value from the carrier, and its placeholder with the line ending the text came with.
+            // The engine writes the select's value from the carrier, its placeholder with the line ending the text came with, and
+            // its read-only with the field's.
             if (withSelect)
-                RenderRegion(context, picker, region, IInputComponent.ValueProperty, IPlaceholderInputComponent.PlaceholderProperty);
+                RenderRegion(context, picker, region, IInputComponent.ValueProperty, IPlaceholderInputComponent.PlaceholderProperty, IInputComponent.IsReadOnlyProperty);
         });
 
-    private void RenderTextarea(WebRenderContext context, IHtmlElementBuilder textarea)
+    private void RenderTextarea(WebRenderContext context, IHtmlElementBuilder root, IHtmlElementBuilder textarea)
     {
         _ = textarea.Class($"{ClassName}__text");
         // Read by the package's own reader, which puts the chosen line ending back into the text the browser holds as LF.
@@ -250,7 +246,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         NativeInputRendererBase.RenderPlaceholder(context, textarea);
         NativeInputRendererBase.RenderFormId(context, textarea);
         NativeInputRendererBase.RenderFieldName(context, textarea);
-        NativeInputRendererBase.RenderIsReadOnly(context, textarea);
+        NativeInputRendererBase.RenderIsReadOnly(context, root, textarea);
 
         _ = RenderProperty<string?>(context, textarea, IInputComponent.ValueProperty, static (target, value) =>
         {

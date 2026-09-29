@@ -13,6 +13,8 @@ export type StatusPicker = {
 export type StatusBarParts = {
     readonly root: HTMLElement;
     readonly textarea: HTMLTextAreaElement;
+    /** Null when the renderer drew no bar. */
+    readonly bar: HTMLElement | null;
     readonly tabSize: StatusPicker | null;
     readonly encoding: StatusPicker | null;
     readonly lineEnding: StatusPicker | null;
@@ -22,6 +24,7 @@ export type StatusBarParts = {
 export class CodeEditorStatusBar {
     private readonly root: HTMLElement;
     private readonly textarea: HTMLTextAreaElement;
+    private readonly bar: HTMLElement | null;
     private readonly lineEnding: StatusPicker | null;
     private readonly pickers: StatusPicker[];
     private readonly values: ValueReading;
@@ -34,6 +37,7 @@ export class CodeEditorStatusBar {
     public constructor(parts: StatusBarParts, values: ValueReading, properties: PropertyWriting, onSettingChanged: () => void) {
         this.root = parts.root;
         this.textarea = parts.textarea;
+        this.bar = parts.bar;
         this.lineEnding = parts.lineEnding;
         this.values = values;
         this.properties = properties;
@@ -63,12 +67,6 @@ export class CodeEditorStatusBar {
 
     /** A choice in a select: the carrier takes it and raises its own `change`, which is what sends it and what the editor answers. */
     private chosen(picker: StatusPicker): void {
-        // A read-only field has no settings to change: the select goes back to what the field holds.
-        if (this.textarea.readOnly) {
-            this.syncPickers();
-            return;
-        }
-
         const value = this.values.read(picker.select);
         const text = value === null || value === undefined ? "" : String(value);
 
@@ -79,6 +77,12 @@ export class CodeEditorStatusBar {
         picker.carrier.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
+    /** The bar was switched off: the keyboard on one of its pickers goes to the text, as the find panel's does, not to the page. */
+    public barHidden(): void {
+        if (this.bar?.contains(document.activeElement) === true)
+            this.textarea.focus({ preventScroll: true });
+    }
+
     /** Every select shows its carrier's setting — after a push from the server, or a row the client built patched before this saw it. */
     public syncPickers(): void {
         for (const picker of this.pickers) {
@@ -87,6 +91,12 @@ export class CodeEditorStatusBar {
             if (String(this.values.read(picker.select) ?? "") !== value)
                 this.properties.set(picker.select, "Value", value.length === 0 ? null : value);
         }
+    }
+
+    /** The selects are read-only while the field is: a read-only field's settings are not the reader's to change. */
+    public syncReadOnly(readOnly: boolean): void {
+        for (const picker of this.pickers)
+            this.properties.set(picker.select, "IsReadOnly", readOnly);
     }
 
     /** The pushed text's own line ending, shown as the line-ending select's placeholder while nothing is chosen. */

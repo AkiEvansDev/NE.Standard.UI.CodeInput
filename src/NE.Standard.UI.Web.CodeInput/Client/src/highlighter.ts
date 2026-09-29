@@ -1,3 +1,4 @@
+import { CodeClass, CurrentMatchClass, MatchClass } from "./code-editor-dom.ts";
 import type { LineState, Token, TokenKind, Tokenizer } from "./tokenizer.ts";
 import { statesEqual } from "./tokenizer.ts";
 
@@ -72,16 +73,17 @@ export class Highlighter {
     }
 
     /**
-     * Reads a new text and returns the runs of lines whose rendering changed, in order. A line is kept when its text and start
-     * state match. The lines both texts end with stand opposite each other, so an edit of any size at one place meets the old
-     * lines after it however far it shifted them; before them, old and new lines are walked side by side, looking ahead where
-     * they diverge, so an edit at many carets re-reads only those places.
+     * The runs of lines whose rendering changed; a line is kept when its text and start state match, matching old and new from
+     * both ends so an edit re-reads only where it was made.
      */
     public update(text: string): LineChange[] {
         const texts = text.split("\n");
         const old = this.lines;
         const lines: CachedLine[] = [];
         const changes: LineChange[] = [];
+        // The lines both texts end with stand opposite each other, so an edit of any size at one place meets the old lines after
+        // it however far it shifted them; before them the two are walked side by side, looking ahead where they part, so an
+        // edit at many carets re-reads only those places.
         const tail = commonTail(texts, old);
         const newHead = texts.length - tail;
         const oldHead = old.length - tail;
@@ -251,7 +253,7 @@ export class Highlighter {
         if (line === undefined)
             return "";
 
-        return line.text.length === 0 ? "<span class=\"ui-code-input__code\"><br></span>" : `<span class="ui-code-input__code">${renderSegments(line.text, line.tokens, line.marks)}</span>`;
+        return line.text.length === 0 ? `<span class="${CodeClass}"><br></span>` : `<span class="${CodeClass}">${renderSegments(line.text, line.tokens, line.marks)}</span>`;
     }
 }
 
@@ -349,7 +351,7 @@ function classesFor(kind: TokenKind | null, mark: Mark | null): string {
     let classes = kind === null ? "" : `ui-tk-${kind}`;
 
     if (mark !== null)
-        classes += (classes.length > 0 ? " " : "") + (mark.current ? "ui-code-match ui-code-match--current" : "ui-code-match");
+        classes += (classes.length > 0 ? " " : "") + (mark.current ? `${MatchClass} ${CurrentMatchClass}` : MatchClass);
 
     return classes;
 }

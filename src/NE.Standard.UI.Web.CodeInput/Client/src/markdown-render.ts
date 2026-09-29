@@ -1,6 +1,8 @@
 // A Markdown document as HTML. Every character is escaped on its way out and an address is kept only for a scheme a reader can
 // safely follow, so the markup is whatever the document says and nothing it could smuggle in.
 
+import type { MarkdownNames } from "./code-editor-dom.ts";
+import { CoreNames, MarkdownRootClass } from "./code-editor-dom.ts";
 import { escapeHtml } from "./highlighter.ts";
 import type { Block, ListItem, TableAlignment } from "./markdown-blocks.ts";
 import { parseMarkdown } from "./markdown-blocks.ts";
@@ -10,27 +12,33 @@ import { parseInlines } from "./markdown-inlines.ts";
 /** Highlights a code block's text as the language its info string names, as HTML; null leaves it plain. */
 export type CodeHighlighter = (text: string, info: string) => string | null;
 
-const ClassName = "ui-markdown";
-// The framework's scroll-group contract: a block says which source line it was drawn from, so an editor of the source scrolls level with it.
-const SourceLineAttribute = "data-ui-source-line";
+const ClassName = MarkdownRootClass;
 
-export function renderMarkdown(source: string, highlight: CodeHighlighter): string {
+/** What every block of one document is drawn against: its link references, the highlighter, and the framework's names. */
+type Rendering = {
+    readonly references: ReadonlyMap<string, LinkTarget>;
+    readonly highlight: CodeHighlighter;
+    readonly names: MarkdownNames;
+};
+
+export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames): string {
     const document = parseMarkdown(source);
 
-    return renderBlocks(document.blocks, document.references, highlight, false);
+    return renderBlocks(document.blocks, { references: document.references, highlight, names }, false);
 }
 
-function renderBlocks(blocks: readonly Block[], references: ReadonlyMap<string, LinkTarget>, highlight: CodeHighlighter, tight: boolean): string {
+function renderBlocks(blocks: readonly Block[], rendering: Rendering, tight: boolean): string {
     let html = "";
 
     for (const block of blocks)
-        html += renderBlock(block, references, highlight, tight);
+        html += renderBlock(block, rendering, tight);
 
     return html;
 }
 
-function renderBlock(block: Block, references: ReadonlyMap<string, LinkTarget>, highlight: CodeHighlighter, tight: boolean): string {
-    const line = sourceLine(block.line);
+function renderBlock(block: Block, rendering: Rendering, tight: boolean): string {
+    const { references, highlight } = rendering;
+    const line = sourceLine(block.line, rendering);
 
     switch (block.type) {
         case "paragraph": {
@@ -49,53 +57,54 @@ function renderBlock(block: Block, references: ReadonlyMap<string, LinkTarget>, 
             return `<pre class="${ClassName}__code"${language}${line}><code>${highlighted ?? escapeHtml(block.text)}</code></pre>`;
         }
         case "quote":
-            return `<blockquote${line}>${renderBlocks(block.children, references, highlight, false)}</blockquote>`;
+            return `<blockquote${line}>${renderBlocks(block.children, rendering, false)}</blockquote>`;
         case "list":
-            return renderList(block.ordered, block.start, block.tight, block.items, references, highlight);
+            return renderList(block.ordered, block.start, block.tight, block.items, rendering);
         case "table":
-            return renderTable(block.line, block.alignments, block.head, block.rows, references);
+            return renderTable(block.line, block.alignments, block.head, block.rows, rendering);
         case "rule":
             return `<hr${line}>`;
     }
 }
 
-function sourceLine(line: number): string {
-    return ` ${SourceLineAttribute}="${line}"`;
+// The framework's scroll-group contract: a block says which source line it was drawn from, so an editor of the source scrolls level with it.
+function sourceLine(line: number, rendering: Rendering): string {
+    return ` ${rendering.names.sourceLine}="${line}"`;
 }
 
-function renderList(ordered: boolean, start: number, tight: boolean, items: readonly ListItem[], references: ReadonlyMap<string, LinkTarget>, highlight: CodeHighlighter): string {
+function renderList(ordered: boolean, start: number, tight: boolean, items: readonly ListItem[], rendering: Rendering): string {
     const tag = ordered ? "ol" : "ul";
     const from = ordered && start !== 1 ? ` start="${start}"` : "";
     const tasks = items.some(item => item.checked !== null) ? ` class="${ClassName}__tasks"` : "";
     let html = `<${tag}${from}${tasks}>`;
 
     for (const item of items) {
-        const content = renderBlocks(item.children, references, highlight, tight);
+        const content = renderBlocks(item.children, rendering, tight);
 
         if (item.checked === null) {
-            html += `<li${sourceLine(item.line)}>${content}</li>`;
+            html += `<li${sourceLine(item.line, rendering)}>${content}</li>`;
             continue;
         }
 
-        // The framework's own checkbox, drawn by hand and out of reach — not disabled, which would grey it out; the reader sees the
-        // state, but the document is not a form.
+        // Read-only, not disabled, which would grey the state out; the framework refuses a click that reaches it.
         const checked = item.checked ? " checked" : "";
+        const box = `${CoreNames.checkboxClass} ${CoreNames.smallInputClass} ${rendering.names.readOnlyClass} ${ClassName}__check`;
 
-        html += `<li class="${ClassName}__task"${sourceLine(item.line)}><span class="ui-checkbox ui-input--small ${ClassName}__check"><input class="ui-checkbox__input" type="checkbox" tabindex="-1" aria-readonly="true"${checked}><span class="ui-checkbox__box"></span></span>${content}</li>`;
+        html += `<li class="${ClassName}__task"${sourceLine(item.line, rendering)}><span class="${box}"><input class="${CoreNames.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${checked}><span class="${CoreNames.checkboxBoxClass}"></span></span>${content}</li>`;
     }
 
     return `${html}</${tag}>`;
 }
 
-function renderTable(line: number, alignments: readonly TableAlignment[], head: readonly string[], rows: readonly (readonly string[])[], references: ReadonlyMap<string, LinkTarget>): string {
+function renderTable(line: number, alignments: readonly TableAlignment[], head: readonly string[], rows: readonly (readonly string[])[], rendering: Rendering): string {
     const cell = (tag: string, text: string, column: number): string => {
         const alignment = alignments[column];
         const align = alignment === null || alignment === undefined ? "" : ` class="${ClassName}__cell--${alignment}"`;
 
-        return `<${tag}${align}>${renderInline(parseInlines(text, references))}</${tag}>`;
+        return `<${tag}${align}>${renderInline(parseInlines(text, rendering.references))}</${tag}>`;
     };
 
-    let html = `<div class="${ClassName}__table"${sourceLine(line)}><table>`;
+    let html = `<div class="${ClassName}__table"${sourceLine(line, rendering)}><table>`;
 
     // A head with no words is a key/value table's: its empty cells would draw a bare strip over the rows.
     if (head.some(text => text !== "")) {

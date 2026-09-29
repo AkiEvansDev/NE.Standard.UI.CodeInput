@@ -5,9 +5,12 @@ import test from "node:test";
 
 import { renderMarkdown, safeAddress } from "../src/markdown-render.ts";
 
+// The framework's names as the plugin surface hands them over.
+const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
+
 /** The markup without the source lines, which one test below reads on its own. */
 function html(source: string): string {
-    return renderMarkdown(source, () => null).replace(/ data-ui-source-line="\d+"/g, "");
+    return renderMarkdown(source, () => null, names).replace(/ data-ui-source-line="\d+"/g, "");
 }
 
 test("headings, paragraphs and rules", () => {
@@ -77,8 +80,8 @@ test("lists: tight, loose, nested, ordered and tasks", () => {
     assert.equal(html("3. three\n4. four"), "<ol start=\"3\"><li>three</li><li>four</li></ol>");
     assert.equal(html("- [x] done\n- [ ] open"),
         "<ul class=\"ui-markdown__tasks\">" +
-        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\" checked><span class=\"ui-checkbox__box\"></span></span>done</li>" +
-        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\"><span class=\"ui-checkbox__box\"></span></span>open</li></ul>");
+        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\" checked><span class=\"ui-checkbox__box\"></span></span>done</li>" +
+        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\"><span class=\"ui-checkbox__box\"></span></span>open</li></ul>");
     assert.equal(html("text\n2. not a list\n- but this is"), "<p>text\n2. not a list</p><ul><li>but this is</li></ul>");
     assert.equal(html("- a\n- b\n+ c"), "<ul><li>a</li><li>b</li></ul><ul><li>c</li></ul>");
 });
@@ -87,7 +90,7 @@ test("code blocks, fenced and indented, highlighted when a language is known", (
     assert.equal(html("```\n<a> & *b*\n```"), "<pre class=\"ui-markdown__code\"><code>&lt;a&gt; &amp; *b*</code></pre>");
     assert.equal(html("    indented\n\n    more\n\ntext"), "<pre class=\"ui-markdown__code\"><code>indented\n\nmore</code></pre><p>text</p>");
     assert.equal(html("- item\n\n  ```js\n  x\n  ```"), "<ul><li><p>item</p><pre class=\"ui-markdown__code\" data-language=\"js\"><code>x</code></pre></li></ul>");
-    assert.equal(renderMarkdown("~~~cs extra\nvar\n~~~", (text, info) => `[${info}:${text}]`), "<pre class=\"ui-markdown__code\" data-language=\"cs\" data-ui-source-line=\"1\"><code>[cs:var]</code></pre>");
+    assert.equal(renderMarkdown("~~~cs extra\nvar\n~~~", (text, info) => `[${info}:${text}]`, names), "<pre class=\"ui-markdown__code\" data-language=\"cs\" data-ui-source-line=\"1\"><code>[cs:var]</code></pre>");
 });
 
 test("tables with alignments, escaped pipes and short rows", () => {
@@ -105,7 +108,7 @@ test("a table whose head has no words starts with its rows, and one word keeps t
 });
 
 test("every block and item says the source line it starts on", () => {
-    const lines = [...renderMarkdown("# A\n\ntext\nmore\n\n> quote\n>\n> inner\n\n- one\n\n  two\n- three\n\n| a |\n|---|\n\n```\nx\n```\n---", () => null)
+    const lines = [...renderMarkdown("# A\n\ntext\nmore\n\n> quote\n>\n> inner\n\n- one\n\n  two\n- three\n\n| a |\n|---|\n\n```\nx\n```\n---", () => null, names)
         .matchAll(/<(\w+)[^>]* data-ui-source-line="(\d+)"/g)].map(match => `${match[1]}:${match[2]}`);
 
     assert.deepEqual(lines, ["h1:1", "p:3", "blockquote:6", "p:6", "p:8", "li:10", "p:10", "p:12", "li:13", "p:13", "div:15", "pre:18", "hr:21"]);

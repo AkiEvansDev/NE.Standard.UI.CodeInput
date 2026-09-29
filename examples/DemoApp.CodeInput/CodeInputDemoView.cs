@@ -6,8 +6,8 @@ using System.Text;
 namespace DemoApp.CodeInput;
 
 /// <summary>
-/// What every page of the demo wears: the title band with the theme switcher, the sidebar naming the pages, and the page filling
-/// what is left.
+/// What every page of the demo wears: the title band with the language and theme switchers, the sidebar naming the pages, and the
+/// page filling what is left.
 /// </summary>
 public abstract class CodeInputDemoView : UIViewBase
 {
@@ -27,8 +27,8 @@ public abstract class CodeInputDemoView : UIViewBase
 
     private static readonly (string Route, string Label)[] Pages =
     [
-        (EditorRoute, "Editor"),
-        (MarkdownRoute, "Markdown")
+        (EditorRoute, "code-demo.editor.title"),
+        (MarkdownRoute, "code-demo.markdown.title")
     ];
 
     /// <summary>The title band and the sidebar stand, the sidebar from the top of the page; the content scrolls by itself.</summary>
@@ -39,13 +39,13 @@ public abstract class CodeInputDemoView : UIViewBase
     protected abstract string Description { get; }
 
     /// <summary>
-    /// The page band from the preset, with the page's source behind a button before the theme switcher; the switcher is on every page,
-    /// since the theme is the framework's state.
+    /// The page band from the preset, with the page's source behind a button before the language and theme switchers; the switchers
+    /// are on every page, since both are the framework's state.
     /// </summary>
     /// <remarks>The page is asked for twice, here for its source and in the content for itself: a component has one owner, so the two
     /// cannot share one build.</remarks>
     protected override IVisualComponent? CreateHeader()
-        => UIPage.Header(Title, Description, CreateCodeFlyout(CreatePage().Code).SetVerticalAlignment(UIAlignment.Center), new ThemeSwitcherComponent()
+        => UIPage.Header(Title, Description, CreateCodeFlyout(CreatePage().Code).SetVerticalAlignment(UIAlignment.Center), new LanguageSwitcherComponent(), new ThemeSwitcherComponent()
             .SetLightIcon(MaterialIcons.Outlined(LightIcon))
             .SetDarkIcon(MaterialIcons.Outlined(DarkIcon))
         );
@@ -67,7 +67,7 @@ public abstract class CodeInputDemoView : UIViewBase
                 .SetType(UIButtonType.Ghost)
                 .SetSize(UIButtonSize.Small)
                 .SetIcon(MaterialIcons.Outlined(CodeIcon))
-                .SetTooltip("Code")
+                .SetTooltip("code-demo.code")
             )
             .SetContent(new ContainerComponent()
                 .SetWidth(UILayoutLength.Absolute(640))
@@ -87,7 +87,7 @@ public abstract class CodeInputDemoView : UIViewBase
                     .SetType(UIButtonType.Ghost)
                     .SetSize(UIButtonSize.Small)
                     .SetIcon(MaterialIcons.Outlined(CopyIcon))
-                    .SetTooltip("Copy")
+                    .SetTooltip("code-demo.copy")
                     .SetHorizontalAlignment(UIAlignment.End)
                     .SetVerticalAlignment(UIAlignment.Start)
                     // Clear of the text's vertical scrollbar, which runs down the same edge once the source is longer than the box.

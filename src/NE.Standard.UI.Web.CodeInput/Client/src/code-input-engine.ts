@@ -3,10 +3,10 @@
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import { CodeEditor } from "./code-editor.ts";
-import { CrLf, DetectedLineEndingAttribute, LanguageAttribute, LineEndingAttribute, MultiCaretAttribute, SearchAttribute } from "./code-editor-dom.ts";
+import { CompletionsAttribute, CrLf, DetectedLineEndingAttribute, LanguageAttribute, LineEndingAttribute, MultiCaretAttribute, RootClass, SearchAttribute, StatusBarAttribute } from "./code-editor-dom.ts";
 import { languages } from "./languages/index.ts";
 
-const RootSelector = ".ui-code-input";
+const RootSelector = `.${RootClass}`;
 const MarkdownLanguage = "markdown";
 
 // The settings a push from the server redraws a picker's word for.
@@ -41,10 +41,16 @@ export class CodeInputEngine {
         this.context = context;
 
         this.attach(context.root.querySelectorAll<HTMLElement>(RootSelector));
-        // The language, and the switches that take away what an open panel or the extra carets stand on.
-        const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute];
+        // The language, and the switches that take away what an open panel, the extra carets, an open list or the bar stand on.
+        const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute, CompletionsAttribute, StatusBarAttribute];
 
         context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter }, roots => this.attach(roots));
+
+        // Read-only follows the root's own mark, however it moved — the value handler below skips an interaction on this page.
+        context.observeComponents(context.root, RootSelector, { attributeFilter: ["class"], relevant: mutation => mutation.target instanceof Element && mutation.target.matches(RootSelector) }, roots => {
+            for (const root of roots)
+                this.editors.get(root)?.readOnlyChanged();
+        });
 
         // A root that left the page takes its editor with it; a removal is a childList change above every selector.
         context.observeComponents(context.root, "*", { childList: true }, () => this.prune());
@@ -55,6 +61,14 @@ export class CodeInputEngine {
             for (const editor of this.live) {
                 if (editor.connected && (editor.languageId === id || editor.languageId === MarkdownLanguage))
                     editor.reload();
+            }
+        });
+
+        // The find panel's count is the one word an editor writes unmarked.
+        context.strings.onChange(() => {
+            for (const editor of this.live) {
+                if (editor.connected)
+                    editor.wordsChanged();
             }
         });
 

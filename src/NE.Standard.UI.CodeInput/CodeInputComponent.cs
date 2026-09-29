@@ -25,7 +25,7 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
 
     protected CodeInputComponent(string? id = null) : base(id)
     {
-        // An editor is read, not filled in: no box until it is focused, and no lift under the pointer either (the stylesheet's part).
+        // An editor is read, not filled in: no box, focused or under the pointer (the stylesheet's part).
         Appearance = UIInputAppearance.Ghost;
 
         _regions = CreateParts();
@@ -51,7 +51,7 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
         {
             [UICodeInputRegions.TabSize] = StatusPicker(UICodeInputStrings.Indentation, tabSizes),
             [UICodeInputRegions.Encoding] = StatusPicker(UICodeInputStrings.Encoding, Options(UICodeEncodings.All)),
-            [UICodeInputRegions.LineEnding] = StatusPicker(UICodeInputStrings.LineEnding, [Option(UICodeLineEndings.Lf, "LF"), Option(UICodeLineEndings.CrLf, "CRLF")]),
+            [UICodeInputRegions.LineEnding] = LineEndingPicker(),
             [UICodeInputRegions.Language] = StatusPicker(UICodeInputStrings.Language, Options(UICodeLanguages.All)),
             [UICodeInputRegions.Find] = SearchField(UICodeInputStrings.Find),
             [UICodeInputRegions.Replace] = SearchField(UICodeInputStrings.Replace),
@@ -67,18 +67,24 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
         };
     }
 
-    private static OptionItem Option(string id, string title)
-        => new() { Id = id, Title = title };
+    private static OptionItem Option(string id, string title, bool content = false)
+        => new() { Id = id, Title = title, IsContent = content };
 
+    // A listed name (`UTF-8`, `C#`) is content, prefixes or not; only the package's own words are looked up.
     private static List<OptionItem> Options(IReadOnlyList<KeyValuePair<string, string>> named)
     {
         List<OptionItem> options = new(named.Count);
 
         foreach (KeyValuePair<string, string> entry in named)
-            options.Add(Option(entry.Key, entry.Value));
+            options.Add(Option(entry.Key, entry.Value, content: !UICodeInputStrings.IsWord(entry.Value)));
 
         return options;
     }
+
+    // `LF` and `CRLF` are names, and so is the placeholder the engine writes with the ending the text came with.
+    private static SelectComponent LineEndingPicker()
+        => StatusPicker(UICodeInputStrings.LineEnding, [Option(UICodeLineEndings.Lf, "LF", content: true), Option(UICodeLineEndings.CrLf, "CRLF", content: true)])
+            .AsContent(IPlaceholderInputComponent.PlaceholderProperty);
 
     // Sized to its word, not a field, so it sits inline in the status bar; the popup opens from the right edge since bar items are right-aligned.
     private static SelectComponent StatusPicker(string tooltip, IEnumerable<OptionItem> options)
@@ -101,12 +107,13 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
             .SetIcon(icon)
             .SetTooltip(tooltip);
 
-    // Drawn as a mark ("Aa", ".*"), so the words that explain it on hover are its name to a screen reader too.
+    // Its mark ("Aa", ".*") is content; the tooltip's word is its name to a screen reader too.
     private static ButtonComponent SearchSwitch(string title, string tooltip)
         => new ButtonComponent()
             .SetType(UIButtonType.Ghost)
             .SetSize(UIButtonSize.Small)
             .SetTitle(title)
+            .AsContent(ITextBaseComponent.TitleProperty)
             .SetTooltip(tooltip)
             .SetAccessibleName(tooltip)
             .SetPressed(false);
@@ -145,16 +152,18 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     public bool? Search { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the field supports multiple carets — Ctrl+Alt+click adds one, Shift+Alt+. and Shift+Alt+; extend the
-    /// selection, and Shift+Alt+arrows select a column.
+    /// Gets or sets whether the field takes more than one caret; the keys are the package README's, under "Several carets".
     /// </summary>
     [UIComponentProperty(DefaultValue = true)]
     public bool? MultiCaret { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the field offers completions (Ctrl+Space, or while typing). Words come from
-    /// <see cref="CompletionsSource"/>, script registrations, the language's keywords and the document; the field ships none of its own.
+    /// Gets or sets whether the field offers completions (Ctrl+Space, or while typing).
     /// </summary>
+    /// <remarks>
+    /// Words come from <see cref="CompletionsSource"/>, script registrations, the language's keywords and the document; the field
+    /// ships none of its own.
+    /// </remarks>
     [UIComponentProperty(DefaultValue = true)]
     public bool? Completions { get; set; }
 
@@ -183,9 +192,9 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     public bool? StatusBar { get; set; }
 
     /// <summary>
-    /// Gets or sets the encoding the application writes the text out as — one of <see cref="UICodeEncodings"/>. The field only holds
-    /// text; the browser ignores this value, and the status bar offers the choice.
+    /// Gets or sets the encoding the application writes the text out as — one of <see cref="UICodeEncodings"/>.
     /// </summary>
+    /// <remarks>The field only holds text: the browser ignores this value, and the status bar offers the choice.</remarks>
     [UIComponentProperty(
         BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
         DefaultBindingMode = UIBindingMode.TwoWay,
@@ -261,8 +270,6 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
 /// </summary>
 public sealed class CodeInputComponent(string? id = null) : CodeInputComponent<CodeInputComponent>(id), IUIComponentDefinition
 {
-    /// <summary>
-    /// Gets the component type key used to identify this component in the compiled graph.
-    /// </summary>
+    /// <inheritdoc/>
     public static string ComponentTypeKey => "codeinput.input.code";
 }

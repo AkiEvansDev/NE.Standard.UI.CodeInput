@@ -1,22 +1,15 @@
-// Ctrl+Space's suggestion list: opens at the primary caret, filters as the reader types, and accepts into every caret through the
-// editing concern, so multi-caret takes the same word. Words come from `CompletionsSource`, script registrations, the language's
-// keywords and the document.
+// Ctrl+Space's suggestion list: opens under the word at the primary caret, filters as the reader types, and accepts into every
+// caret through the editing concern, so multi-caret takes the same word.
 
 import type { PluginEngineContext, PopupHandle } from "ne-standard-ui";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorEditing } from "./code-editor-editing.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
+import { ActiveCompletionClass, CompletionAnchorClass, CompletionListClass, CompletionRowClass, CompletionsAttribute, CompletionsSourceAttribute, SuggestionsWord } from "./code-editor-dom.ts";
 import type { CompletionContext, CompletionItem, CompletionSource, CompletionsFile } from "./completions.ts";
 import { collectCompletions, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
 import { completionsRegistry } from "./completions-registry.ts";
 import { languages } from "./languages/index.ts";
-
-const CompletionsAttribute = "data-ui-code-completions";
-const CompletionsSourceAttribute = "data-ui-code-completions-source";
-const ListClass = "ui-code-input__completions";
-const RowClass = "ui-code-input__completion";
-const ActiveRowClass = "ui-code-input__completion--active";
-const AnchorClass = "ui-code-input__completions-anchor";
 
 // A file is fetched once and kept for every field on the page that names it, since a page may hold several editors for one language.
 const fileCache = new Map<string, Promise<CompletionsFile>>();
@@ -44,12 +37,14 @@ function isTyped(domEvent: Event): boolean {
 export type CompletionsParts = {
     readonly root: HTMLElement;
     readonly textarea: HTMLTextAreaElement;
+    readonly scroller: HTMLElement;
     readonly content: HTMLElement;
 };
 
 export class CodeEditorCompletions {
     private readonly root: HTMLElement;
     private readonly textarea: HTMLTextAreaElement;
+    private readonly scroller: HTMLElement;
     private readonly context: PluginEngineContext;
     private readonly surface: CodeEditorSurface;
     private readonly editing: CodeEditorEditing;
@@ -58,9 +53,14 @@ export class CodeEditorCompletions {
     private readonly anchor: HTMLElement;
 
     private handle: PopupHandle | null = null;
+
+    /** Made on the first opening and kept: a close hides it, so it fades out as it fades in. */
     private list: HTMLUListElement | null = null;
     private items: readonly CompletionItem[] = [];
     private active = -1;
+
+    /** The text offset the anchor stands at, the start of the word being completed; -1 while the list is closed. */
+    private anchoredAt = -1;
 
     /** Guards a source's answer against a keystroke made while it was still being asked. */
     private requestId = 0;
@@ -74,6 +74,7 @@ export class CodeEditorCompletions {
     public constructor(parts: CompletionsParts, context: PluginEngineContext, surface: CodeEditorSurface, editing: CodeEditorEditing, carets: CodeEditorCarets, getLanguage: () => string) {
         this.root = parts.root;
         this.textarea = parts.textarea;
+        this.scroller = parts.scroller;
         this.context = context;
         this.surface = surface;
         this.editing = editing;
@@ -81,7 +82,7 @@ export class CodeEditorCompletions {
         this.getLanguage = getLanguage;
 
         this.anchor = document.createElement("span");
-        this.anchor.className = AnchorClass;
+        this.anchor.className = CompletionAnchorClass;
         this.anchor.setAttribute("aria-hidden", "true");
         parts.content.appendChild(this.anchor);
     }
@@ -92,6 +93,12 @@ export class CodeEditorCompletions {
 
     private get enabled(): boolean {
         return this.root.hasAttribute(CompletionsAttribute) && !this.textarea.readOnly;
+    }
+
+    /** The field's switches may have changed: a list switched off closes; one on a field turned read-only the framework closes. */
+    public settingsChanged(): void {
+        if (!this.root.hasAttribute(CompletionsAttribute))
+            this.close();
     }
 
     /** The textarea's `keydown`, ahead of the carets and the editing keys: Ctrl+Space, and every key the open list answers to itself. */
@@ -139,9 +146,8 @@ export class CodeEditorCompletions {
     }
 
     /**
-     * The textarea's `input`: re-filters an open list, closing it once its prefix is gone, or opens one on a trigger character or
-     * while typing an identifier. Only a typed key opens it — an editor-made edit (paste, undo, case change, accepted word) is
-     * ignored, or the list would reopen over the word it just completed.
+     * The textarea's `input`: re-filters an open list, or opens one on a trigger character or an identifier being typed. Only a
+     * typed key opens it, or an editor-made edit (paste, undo, an accepted word) would reopen it over the word just completed.
      */
     public textChanged(domEvent: Event): void {
         if (!this.enabled)
@@ -247,7 +253,7 @@ export class CodeEditorCompletions {
             return;
         }
 
-        this.show(ranked);
+        this.show(ranked, position - prefix.length);
     }
 
     private buildContext(prefix: string, position: number, languageId: string): CompletionContext {
@@ -275,46 +281,71 @@ export class CodeEditorCompletions {
         return sources;
     }
 
-    private show(items: readonly CompletionItem[]): void {
+    /** Opens the list, or fills the open one, under the word starting at `start`. */
+    private show(items: readonly CompletionItem[], start: number): void {
         this.items = items;
         this.active = 0;
-        this.positionAnchor();
+
+        // Held under the word's start, as an editor's list is, rather than stepping right with every letter typed.
+        const moved = start !== this.anchoredAt;
+
+        if (moved) {
+            this.anchoredAt = start;
+            this.positionAnchor(start);
+        }
 
         if (this.handle === null) {
-            this.list = document.createElement("ul");
-            this.list.className = ListClass;
-            this.list.setAttribute("role", "listbox");
-            this.list.setAttribute("aria-label", this.context.strings.text("ui.code.suggestions"));
-            this.list.id = this.context.dom.ensureId(this.list, "code-completions");
-            this.list.addEventListener("mousedown", domEvent => domEvent.preventDefault());
-            this.list.addEventListener("click", domEvent => this.pointerAccept(domEvent));
+            const list = this.ensureList();
 
-            // The framework places and dismisses a popup but never puts it on the page: it is fixed, so the field's root will do.
-            this.root.append(this.list);
-            this.handle = this.context.popups.open(this.anchor, this.list, {
+            list.setAttribute("aria-label", this.context.strings.text(SuggestionsWord));
+            list.hidden = false;
+            // The field owns it: the framework closes it once the field turns read-only, disabled or loading, or leaves the page.
+            this.handle = this.context.popups.open(this.anchor, list, {
                 placement: "bottom-start",
                 gap: 2,
+                owner: this.root,
                 onDismiss: () => this.dismissed()
             });
 
             // A textarea takes no combobox role and so no aria-expanded; what it may say is that it offers a list, and which.
             this.textarea.setAttribute("aria-autocomplete", "list");
-            this.textarea.setAttribute("aria-controls", this.list.id);
+            this.textarea.setAttribute("aria-controls", list.id);
         }
-        else
+        else if (moved)
             this.handle.reposition();
 
         this.renderItems();
     }
 
-    private positionAnchor(): void {
-        const rect = this.carets.primaryCaretRect();
+    private positionAnchor(position: number): void {
+        const rect = this.carets.contentCaretRect(position);
 
         if (rect === null)
             return;
 
         this.anchor.style.left = `${rect.left}px`;
         this.anchor.style.top = `${rect.bottom}px`;
+    }
+
+    private ensureList(): HTMLUListElement {
+        if (this.list !== null)
+            return this.list;
+
+        const list = document.createElement("ul");
+
+        list.className = CompletionListClass;
+        list.hidden = true;
+        list.setAttribute("role", "listbox");
+        list.id = this.context.dom.ensureId(list, "code-completions");
+        list.addEventListener("mousedown", domEvent => domEvent.preventDefault());
+        list.addEventListener("click", domEvent => this.pointerAccept(domEvent));
+        list.addEventListener("pointermove", domEvent => this.pointerMoved(domEvent));
+
+        // The framework places and dismisses a popup but never puts it on the page: it is fixed, so the field's root will do.
+        this.root.append(list);
+        this.list = list;
+
+        return list;
     }
 
     private renderItems(): void {
@@ -328,22 +359,22 @@ export class CodeEditorCompletions {
             const row = document.createElement("li");
 
             row.id = `${this.list.id}-${i}`;
-            row.className = RowClass;
+            row.className = CompletionRowClass;
             row.setAttribute("role", "option");
 
             if (item.kind !== undefined)
-                row.classList.add(`${RowClass}--${item.kind}`);
+                row.classList.add(`${CompletionRowClass}--${item.kind}`);
 
             const label = document.createElement("span");
 
-            label.className = `${RowClass}-label`;
+            label.className = `${CompletionRowClass}-label`;
             label.textContent = item.label;
             row.append(label);
 
             if (item.detail !== undefined) {
                 const detail = document.createElement("span");
 
-                detail.className = `${RowClass}-detail`;
+                detail.className = `${CompletionRowClass}-detail`;
                 detail.textContent = item.detail;
                 row.append(detail);
             }
@@ -351,10 +382,11 @@ export class CodeEditorCompletions {
             this.list.append(row);
         }
 
-        this.updateActive();
+        this.updateActive(true);
     }
 
-    private updateActive(): void {
+    /** Marks the active row; `reveal` scrolls it into the list's view, which a row under the pointer already is. */
+    private updateActive(reveal: boolean): void {
         if (this.list === null)
             return;
 
@@ -362,7 +394,7 @@ export class CodeEditorCompletions {
             const row = this.list.children[i];
             const isActive = i === this.active;
 
-            row.classList.toggle(ActiveRowClass, isActive);
+            row.classList.toggle(ActiveCompletionClass, isActive);
             row.setAttribute("aria-selected", isActive ? "true" : "false");
         }
 
@@ -370,7 +402,9 @@ export class CodeEditorCompletions {
 
         if (activeRow instanceof HTMLElement) {
             this.textarea.setAttribute("aria-activedescendant", activeRow.id);
-            activeRow.scrollIntoView({ block: "nearest" });
+
+            if (reveal)
+                activeRow.scrollIntoView({ block: "nearest" });
         }
     }
 
@@ -379,22 +413,37 @@ export class CodeEditorCompletions {
             return;
 
         this.active = (this.active + step + this.items.length) % this.items.length;
-        this.updateActive();
+        this.updateActive(true);
     }
 
     private pointerAccept(domEvent: MouseEvent): void {
-        if (this.list === null || !(domEvent.target instanceof Element))
-            return;
-
-        const row = domEvent.target.closest<HTMLElement>(`.${RowClass}`);
-
-        if (row === null)
-            return;
-
-        const index = Array.prototype.indexOf.call(this.list.children, row);
+        const index = this.rowIndex(domEvent.target);
 
         if (index >= 0)
             this.accept(index);
+    }
+
+    /**
+     * The pointer moves the active row, as a native list's does, so the row under it is the one Enter takes and never two rows
+     * are lit. A move, not an enter: a list opening or scrolling under a still pointer leaves the keyboard's row alone.
+     */
+    private pointerMoved(domEvent: PointerEvent): void {
+        const index = this.rowIndex(domEvent.target);
+
+        if (index >= 0 && index !== this.active) {
+            this.active = index;
+            this.updateActive(false);
+        }
+    }
+
+    /** The row an event landed in, by its place in the list; -1 outside every row. */
+    private rowIndex(target: EventTarget | null): number {
+        if (this.list === null || !(target instanceof Element))
+            return -1;
+
+        const row = target.closest<HTMLElement>(`.${CompletionRowClass}`);
+
+        return row === null ? -1 : Array.prototype.indexOf.call(this.list.children, row);
     }
 
     private accept(index: number): void {
@@ -414,24 +463,40 @@ export class CodeEditorCompletions {
             this.close();
     }
 
-    public close(): void {
-        // An answer still on its way would open the list again.
-        this.requestId++;
-
-        if (this.handle === null)
+    /**
+     * The field scrolled — the browser bringing the caret into view as the reader types past the edge, or the reader. The
+     * framework moves the list with its anchor; it closes only once the word it stands under has left the view.
+     */
+    public scrolled(): void {
+        if (!this.isOpen)
             return;
 
-        this.handle.close();
+        const point = this.anchor.getBoundingClientRect();
+        const view = this.scroller.getBoundingClientRect();
+        const bottom = view.top + this.scroller.clientHeight;
+        const right = view.left + this.scroller.clientWidth;
+
+        if (point.top <= view.top || point.top > bottom || point.left < view.left || point.left > right)
+            this.close();
+    }
+
+    public close(): void {
+        this.handle?.close();
         this.dismissed();
     }
 
-    /** The framework's own dismissal — an outside press or Escape it caught first — or this concern's own close: either way, forgotten. */
+    /** The framework's dismissal or this concern's own close: forgotten, its rows left to fade out with the list. */
     private dismissed(): void {
-        this.list?.remove();
+        // An answer still on its way would open the list again.
+        this.requestId++;
+
+        if (this.list !== null)
+            this.list.hidden = true;
+
         this.handle = null;
-        this.list = null;
         this.items = [];
         this.active = -1;
+        this.anchoredAt = -1;
         this.textarea.removeAttribute("aria-autocomplete");
         this.textarea.removeAttribute("aria-controls");
         this.textarea.removeAttribute("aria-activedescendant");

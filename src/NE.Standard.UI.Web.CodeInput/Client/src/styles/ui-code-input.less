@@ -4,7 +4,9 @@
 
 @import (reference) "../../plugin/ne-standard-ui.less";
 
-@mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+// One selection colour for the textarea's own and the extra ranges the layer draws, so the two read as one selection.
+// Translucent, or an opaque selection would hide the highlighted text under it.
+@ui-code-selection: color-mix(in srgb, var(--ui-color-primary) 30%, transparent);
 
 .ui-code-input {
     // Same header/field/message shell as the text area.
@@ -19,70 +21,37 @@
     // Room for the digits the engine counts, plus the air either side of them.
     --ui-code-gutter: calc(var(--ui-code-gutter-digits, 2) * 1ch + 1.25rem);
 
-    // Visual Studio's own syntax colours, light here and dark below — not the theme's semantic inks, which name states, not syntax.
-    // An application may override any one on the component.
-    .ui-code-palette-light();
+    // Visual Studio's own syntax colours — not the theme's semantic inks, which name states, not syntax. An application may
+    // override any one on the component.
+    .ui-code-palette();
 }
 
-    [data-ui-theme="dark"] .ui-code-input {
-        .ui-code-palette-dark();
-    }
-
-    @media (prefers-color-scheme: dark) {
-        [data-ui-theme="auto"] .ui-code-input {
-            .ui-code-palette-dark();
-        }
-    }
-
-.ui-code-palette-light() {
-    --ui-code-keyword: #0000ff;
-    --ui-code-string: #a31515;
-    --ui-code-number: #098658;
-    --ui-code-comment: #008000;
-    --ui-code-property: #001080;
-    --ui-code-tag: #800000;
-    --ui-code-attribute: #e50000;
-    --ui-code-type: #267f99;
-    --ui-code-function: #795e26;
-    --ui-code-variable: #001080;
-    --ui-code-regex: #811f3f;
-    --ui-code-meta: #af00db;
-    --ui-code-escape: #ee0000;
-    --ui-code-invalid: #cd3131;
-    --ui-code-operator: #000000;
-    --ui-code-punctuation: #000000;
+// Each colour a light and a dark value: `light-dark()` answers the colour scheme in force on the element, which the theme sets,
+// so a field carrying a theme of its own takes that theme's colours, not the page's.
+.ui-code-palette() {
+    --ui-code-keyword: light-dark(#0000ff, #569cd6);
+    --ui-code-string: light-dark(#a31515, #ce9178);
+    --ui-code-number: light-dark(#098658, #b5cea8);
+    --ui-code-comment: light-dark(#008000, #6a9955);
+    --ui-code-property: light-dark(#001080, #9cdcfe);
+    --ui-code-tag: light-dark(#800000, #569cd6);
+    --ui-code-attribute: light-dark(#e50000, #9cdcfe);
+    --ui-code-type: light-dark(#267f99, #4ec9b0);
+    --ui-code-function: light-dark(#795e26, #dcdcaa);
+    --ui-code-variable: light-dark(#001080, #9cdcfe);
+    --ui-code-regex: light-dark(#811f3f, #d16969);
+    --ui-code-meta: light-dark(#af00db, #c586c0);
+    --ui-code-escape: light-dark(#ee0000, #d7ba7d);
+    --ui-code-invalid: light-dark(#cd3131, #f44747);
+    --ui-code-operator: light-dark(#000000, #d4d4d4);
+    --ui-code-punctuation: light-dark(#000000, #d4d4d4);
     // A stylesheet's own two, and markup's prose.
-    --ui-code-selector: #800000;
-    --ui-code-value: #0451a5;
-    --ui-code-heading: #800000;
-    --ui-code-code: #800000;
-    --ui-code-link: #0451a5;
-    --ui-code-quote: #0451a5;
-}
-
-.ui-code-palette-dark() {
-    --ui-code-keyword: #569cd6;
-    --ui-code-string: #ce9178;
-    --ui-code-number: #b5cea8;
-    --ui-code-comment: #6a9955;
-    --ui-code-property: #9cdcfe;
-    --ui-code-tag: #569cd6;
-    --ui-code-attribute: #9cdcfe;
-    --ui-code-type: #4ec9b0;
-    --ui-code-function: #dcdcaa;
-    --ui-code-variable: #9cdcfe;
-    --ui-code-regex: #d16969;
-    --ui-code-meta: #c586c0;
-    --ui-code-escape: #d7ba7d;
-    --ui-code-invalid: #f44747;
-    --ui-code-operator: #d4d4d4;
-    --ui-code-punctuation: #d4d4d4;
-    --ui-code-selector: #d7ba7d;
-    --ui-code-value: #ce9178;
-    --ui-code-heading: #569cd6;
-    --ui-code-code: #ce9178;
-    --ui-code-link: #3794ff;
-    --ui-code-quote: #6a9955;
+    --ui-code-selector: light-dark(#800000, #d7ba7d);
+    --ui-code-value: light-dark(#0451a5, #ce9178);
+    --ui-code-heading: light-dark(#800000, #569cd6);
+    --ui-code-code: light-dark(#800000, #ce9178);
+    --ui-code-link: light-dark(#0451a5, #3794ff);
+    --ui-code-quote: light-dark(#0451a5, #6a9955);
 }
 
     .ui-code-input:not([data-ui-code-line-numbers]) {
@@ -112,10 +81,8 @@
     }
 
     // A ghost editor reads on the page itself, undecorated — not the focus wash the family's ghost normally takes, and no rule
-    // over its status bar.
-    .ui-code-input.ui-input--ghost:not(.ui-disabled) > .ui-code-input__field:focus-within {
-        border-color: transparent;
-        box-shadow: none;
+    // over its status bar. The edge and the ring are the core ghost's: none on focus, an invalid or warned one's edge kept.
+    .ui-code-input.ui-input--ghost:not(.ui-disabled) > .ui-code-input__field@{ui-field-focus} {
         background: none;
     }
 
@@ -128,7 +95,7 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    font-family: @mono;
+    font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);
     line-height: var(--ui-code-line-height);
     tab-size: var(--ui-code-tab-size, 4);
@@ -227,9 +194,8 @@
         color: var(--ui-text-muted);
     }
 
-    // Translucent, or an opaque selection would hide the highlighted text under it.
     .ui-code-input__text::selection {
-        background: color-mix(in srgb, var(--ui-color-primary) 30%, transparent);
+        background: @ui-code-selection;
         color: transparent;
     }
 
@@ -237,8 +203,8 @@
         cursor: default;
     }
 
-// The carets and selections beyond the textarea's own, drawn over the highlighted text and under the textarea. A selection wears
-// the textarea's selection colour; a caret blinks like the textarea's, hidden while unfocused.
+// The carets and selections beyond the textarea's own, between the highlighted text and the textarea. A caret blinks like the
+// textarea's, hidden while unfocused; reduced motion needs no rule here, since core/preferences.less stops every animation.
 .ui-code-input__carets {
     position: absolute;
     inset: 0;
@@ -251,7 +217,7 @@
 
 .ui-code-input__selection {
     position: absolute;
-    background: color-mix(in srgb, var(--ui-color-primary) 30%, transparent);
+    background: @ui-code-selection;
 }
 
 .ui-code-input__caret {
@@ -263,12 +229,6 @@
 
     .ui-code-input__field:not(:focus-within) .ui-code-input__caret {
         visibility: hidden;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .ui-code-input__caret {
-            animation: none;
-        }
     }
 
 @keyframes ui-code-caret-blink {
@@ -338,29 +298,28 @@
 // a named part; the panel lays them out and sets only the fields' width.
 @ui-code-search-field-width: 11rem;
 
+// A popup's look and fade, placed inside the field rather than as a popup is; the look carries the surface its fields step off.
 .ui-code-input__search {
+    .ui-popup-look();
+    .ui-popup-fade();
     position: absolute;
     top: 0.375rem;
     right: 0.375rem;
     z-index: 2;
-    display: flex;
     flex-direction: column;
     gap: @ui-space-1;
     max-width: calc(100% - 0.75rem);
     padding: 0.375rem;
-    border: var(--ui-border-width, 1px) solid var(--ui-color-border);
-    border-radius: var(--ui-radius-input);
-    background: var(--ui-color-surface);
-    .ui-elevation-2();
+    .ui-popup-open(flex);
 }
 
     .ui-code-input__search[hidden] {
-        display: none;
+        .ui-popup-closed();
     }
 
-    // A read-only field has nothing to replace: neither the row nor the chevron that folds it out.
-    .ui-code-input:has(.ui-code-input__text:read-only) .ui-code-input__search-row--replace,
-    .ui-code-input:has(.ui-code-input__text:read-only) [data-ui-code-toggle-replace] {
+    // A read-only field has nothing to replace: neither the row nor the chevron that folds it out, nor the chevron's room the
+    // switches' row stands clear of.
+    .ui-code-input.ui-readonly :is(.ui-code-input__search-row--replace, [data-ui-code-toggle-replace]) {
         display: none;
     }
 
@@ -385,6 +344,10 @@
     .ui-code-input__search-row--replace::after {
         content: "";
         flex: 0 0 @ui-button-height-sm;
+    }
+
+    .ui-code-input.ui-readonly .ui-code-input__search-row--options {
+        padding-left: 0;
     }
 
 // A part takes no box of its own: the component in it is the row's item.
@@ -442,18 +405,20 @@
         display: flex;
     }
 
+// The first to give way in a narrow field: it ellipsises while the pickers keep their words.
 .ui-code-input__status-position {
-    flex: 1 1 auto;
+    .ui-text-nowrap();
+    flex: 1 1000 auto;
     align-self: center;
     min-width: 0;
-    white-space: nowrap;
 }
 
-// A picker is the framework's small ghost select in a part the bar lays out; a read-only field's settings are not the reader's to change.
+// The framework's small ghost select; once the position is gone it ellipsises too, rather than push the bar past the field's edge.
 .ui-code-input__status-picker {
     display: inline-flex;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     align-items: stretch;
+    min-width: 0;
 }
 
     // Stretched to the bar's height less its top rule, not the select's own content height, or a field one rule taller would stand
@@ -465,11 +430,12 @@
         height: auto;
     }
 
-        // The word is square, as the bar's own edge is; the list it opens keeps a list's corners.
+        // The word is square, as the bar's own edge is; the list it opens keeps a list's corners. Its ink eases with its ground.
         .ui-code-input__status-picker .ui-select__trigger {
             flex: 1 1 auto;
             min-height: 0;
             border-radius: 0;
+            transition: border-color @ui-motion-fast @ui-motion-ease, box-shadow @ui-motion-fast @ui-motion-ease, background-color @ui-motion-fast @ui-motion-ease, color @ui-motion-fast @ui-motion-ease;
         }
 
     // Every word on the bar — a chosen setting or the unset placeholder — inherits the bar's muted ink, like the bar's own words.
@@ -478,29 +444,33 @@
     }
 
     // The bar is a row of pressable words, not fields, so hover lifts to the surface's ink on the hover wash, like the bar's own
-    // words — not the ghost field's quiet hover.
-    .ui-code-input__status-picker .ui-select__trigger:is(:hover, [aria-expanded="true"]) {
+    // words — not the ghost field's quiet hover — and a press takes the stronger wash. A read-only field's pickers are read-only
+    // selects (the engine keeps them so): its settings are not the reader's to change, and nothing lifts.
+    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:is(:hover, [aria-expanded="true"]) {
         color: var(--ui-color-on-surface);
         background: var(--ui-wash-hover);
     }
 
-    .ui-code-input:has(.ui-code-input__text:read-only) .ui-code-input__status-picker {
-        pointer-events: none;
+    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:active {
+        background: var(--ui-wash-active);
     }
 
-// Ctrl+Space's suggestion list: the framework's popup surface and scroll, a row per suggestion, about ten shown before it scrolls.
-// The engine places and sizes the popup; nothing here sets its position.
+// Ctrl+Space's suggestion list, about ten rows before it scrolls; the engine places it and keeps it while closed, so it fades out.
 .ui-code-input__completions {
     .ui-popup-surface();
     .ui-popup-scroll();
-    display: flex;
-    flex-direction: column;
+    .ui-popup-open(flex);
+    .ui-entry-list();
     min-width: 12rem;
-    max-height: calc(10 * 1.5rem);
+    max-height: calc(10 * 1.5rem + 9 * @ui-list-entry-gap);
     padding: 0;
     margin: 0;
     list-style: none;
 }
+
+    .ui-code-input__completions[hidden] {
+        .ui-popup-closed();
+    }
 
 // A row is the editor's own line height, its words centred on it; the detail is smaller and would sit off a baseline.
 .ui-code-input__completion {
@@ -510,15 +480,13 @@
     height: 1.5rem;
     padding: 0 @ui-space-2;
     color: var(--ui-color-on-surface);
-    font-family: @mono;
+    font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);
     cursor: pointer;
     white-space: nowrap;
+    // The pointer moves the active row (the engine's), and the hover wash never lands on it, so it never reads weaker.
+    .ui-entry-hover(~".ui-code-input__completion--active");
 }
-
-    .ui-code-input__completion:hover {
-        .ui-row-hover();
-    }
 
     // The active row takes the wash, not the selected ground: a label is coloured by its kind, and the primary tint fought it.
     .ui-code-input__completion--active {
@@ -544,9 +512,52 @@
 .ui-code-input__completion--variable .ui-code-input__completion-label { color: var(--ui-code-variable); }
 .ui-code-input__completion--property .ui-code-input__completion-label { color: var(--ui-code-property); }
 
-// The zero-size point the list opens against, at the caret's own pixel position; the engine measures and places the popup from it.
+// The zero-size point the list opens against, under the start of the word being completed; the engine measures and places the
+// popup from it.
 .ui-code-input__completions-anchor {
     position: absolute;
     width: 0;
     height: 0;
+}
+
+// Forced colours take every ground and shadow away, and these states are drawn with nothing else, so each is drawn again in the
+// system's colours. The textarea keeps its text transparent: forced, it is painted over the highlighted layer and the text shows
+// twice.
+@media (forced-colors: active) {
+    .ui-code-input__text {
+        forced-color-adjust: none;
+        caret-color: CanvasText;
+    }
+
+        .ui-code-input__text::placeholder {
+            color: GrayText;
+        }
+
+        .ui-code-input__text::selection,
+        .ui-code-input__selection {
+            forced-color-adjust: none;
+            background: color-mix(in srgb, Highlight 40%, transparent);
+        }
+
+    .ui-code-input__caret {
+        forced-color-adjust: none;
+        background: CanvasText;
+    }
+
+    .ui-code-match {
+        forced-color-adjust: none;
+        background: Mark;
+        color: MarkText;
+    }
+
+        .ui-code-match--current {
+            box-shadow: none;
+            outline: 2px solid Highlight;
+        }
+
+    // The row Enter takes is the list's current one, not a chosen one: dashed, as the framework draws a select's.
+    .ui-code-input__completion--active {
+        outline: 2px dashed CanvasText;
+        outline-offset: -2px;
+    }
 }

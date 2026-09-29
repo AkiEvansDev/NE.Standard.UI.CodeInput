@@ -9,7 +9,13 @@ namespace DemoApp.CodeInput;
 /// </summary>
 internal sealed partial class CodeInputController : UIControllerBase
 {
-    private static readonly UIInputAppearance[] Appearances = [UIInputAppearance.Ghost, UIInputAppearance.Filled, UIInputAppearance.Outline, UIInputAppearance.Underline];
+    private static readonly (UIInputAppearance Appearance, string Name)[] Appearances =
+    [
+        (UIInputAppearance.Ghost, "code-demo.appearance.ghost"),
+        (UIInputAppearance.Filled, "code-demo.appearance.filled"),
+        (UIInputAppearance.Outline, "code-demo.appearance.outline"),
+        (UIInputAppearance.Underline, "code-demo.appearance.underline")
+    ];
 
     [RecursiveMember]
     public partial string Language { get; set; } = UICodeLanguages.CSharp;
@@ -52,10 +58,10 @@ internal sealed partial class CodeInputController : UIControllerBase
     public partial UIInputAppearance Appearance { get; set; } = UIInputAppearance.Ghost;
 
     [RecursiveMember]
-    public partial string AppearanceCaption { get; set; } = "Appearance: Ghost";
+    public partial UIPhrase? AppearanceCaption { get; set; } = Caption(0);
 
     [RecursiveMember]
-    public partial string Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp], UICodeEncodings.Utf8, null);
+    public partial UIPhrase? Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp], UICodeEncodings.Utf8, null);
 
     /// <summary>The form the editor's text is held in until it is saved.</summary>
     public const string EditorForm = "editor";
@@ -76,26 +82,38 @@ internal sealed partial class CodeInputController : UIControllerBase
     /// <summary>Ctrl+S in the editor: the value has already arrived, so this is where an application would write it out — in <c>Encoding</c>.</summary>
     [UICommand]
     public void Save()
-        => Status = string.Create(CultureInfo.InvariantCulture, $"Saved at {DateTime.Now:HH:mm:ss} — {Describe(Code, Encoding, LineEnding)}");
+        => Status = UIPhrase.Of("code-demo.editor.saved", ("time", DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)), ("status", Describe(Code, Encoding, LineEnding)));
 
     [UICommand]
     public void CycleAppearance()
     {
-        Appearance = Appearances[(Array.IndexOf(Appearances, Appearance) + 1) % Appearances.Length];
-        AppearanceCaption = $"Appearance: {Appearance}";
+        var next = (Array.FindIndex(Appearances, entry => entry.Appearance == Appearance) + 1) % Appearances.Length;
+
+        Appearance = Appearances[next].Appearance;
+        AppearanceCaption = Caption(next);
     }
+
+    private static UIPhrase Caption(int appearance)
+        => UIPhrase.Of("code-demo.editor.appearance", ("appearance", new UIPhrase(Appearances[appearance].Name)));
 
     /// <summary>Puts the language's sample back, from the server: what a value pushed onto a live editor looks like.</summary>
     [UICommand]
     public UICommandResult ResetSample()
         => ChangeLanguage();
 
-    private static string Describe(string code, string? encoding, string? lineEnding)
+    /// <summary>What the server holds: the lines, the characters, the encoding by the name the status bar lists, and the ending.</summary>
+    private static UIPhrase Describe(string code, string? encoding, string? lineEnding)
     {
         var lines = code.Length == 0 ? 0 : code.Split('\n').Length;
         var ending = lineEnding ?? (code.Contains("\r\n", StringComparison.Ordinal) ? UICodeLineEndings.CrLf : UICodeLineEndings.Lf);
+        var name = UICodeEncodings.DisplayName(encoding ?? UICodeEncodings.Utf8);
+        UIPhrase encodingName = UICodeInputStrings.IsWord(name) ? new UIPhrase(name) : UIPhrase.Text(name);
 
-        return string.Create(CultureInfo.InvariantCulture, $"On the server: {lines} lines, {code.Length} characters, {encoding ?? UICodeEncodings.Utf8}, {ending.ToUpperInvariant()}.");
+        // Each count a phrase of its own: a plural follows the one `count` its phrase carries.
+        UIPhrase lineCount = UIPhrase.Of("code-demo.editor.lines", ("count", lines));
+        UIPhrase characterCount = UIPhrase.Of("code-demo.editor.characters", ("count", code.Length));
+
+        return UIPhrase.Of("code-demo.editor.status", ("lines", lineCount), ("characters", characterCount), ("encoding", encodingName), ("ending", ending.ToUpperInvariant()));
     }
 
     // Each sample has more than keywords — strings, numbers, comments, nesting, operators and a construction of its own — and each

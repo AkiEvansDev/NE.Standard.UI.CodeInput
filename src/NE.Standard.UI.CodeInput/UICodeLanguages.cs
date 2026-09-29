@@ -48,7 +48,7 @@ public static class UICodeLanguages
     // Replaced whole on a registration, so a reader always holds one consistent list without taking the lock.
     private static KeyValuePair<string, string>[] _all =
     [
-        new(PlainText, "Plain text"),
+        new(PlainText, UICodeInputStrings.PlainText),
         new(Json, "JSON"),
         new(Css, "CSS"),
         new(Less, "LESS"),
@@ -61,13 +61,10 @@ public static class UICodeLanguages
         new(Markdown, "Markdown")
     ];
 
-    /// <summary>Every language the status bar lists — the ones the package ships, then the ones an application registered — with its name.</summary>
+    /// <summary>Every language the status bar lists, shipped then registered, with its name — or a word's key (plain text's).</summary>
     public static IReadOnlyList<KeyValuePair<string, string>> All => _all;
 
-    /// <summary>
-    /// Registers a language's display name for the status bar; call once at startup, beside the script that registers its tokenizer.
-    /// A second call for the same id renames it.
-    /// </summary>
+    /// <summary>Registers a language's name for the status bar, shown as written; a second call for the same id renames it.</summary>
     public static void Register(string id, string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -93,7 +90,7 @@ public static class UICodeLanguages
         }
     }
 
-    /// <summary>The name a language is listed under; an id nobody declared is its own name.</summary>
+    /// <summary>The name a language is listed under, as <see cref="All"/> gives it; an id nobody declared is its own name.</summary>
     public static string DisplayName(string id)
     {
         foreach (KeyValuePair<string, string> language in All)

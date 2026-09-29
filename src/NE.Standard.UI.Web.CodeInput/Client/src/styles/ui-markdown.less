@@ -1,33 +1,24 @@
-// The Markdown display: a document in the page's own type and inks, its code in the code field's face and colours. Everything
-// under the body is markup the client wrote, styled by element rather than by class.
+// The Markdown display: a document in the page's own type and the inks of its ground, its code in the code field's face and colours.
+// Everything under the body is markup the client wrote, styled by element rather than by class.
 
 @import (reference) "../../plugin/ne-standard-ui.less";
 @import (reference) "./ui-code-input.less";
 
 // The ground inline code and code blocks stand on: a wash of the ink, so it reads on any surface the display is placed on.
-@ui-markdown-code-ground: color-mix(in srgb, var(--ui-color-on-surface) 7%, transparent);
+@ui-markdown-code-ground: color-mix(in srgb, @ui-text-ink 7%, transparent);
 
 .ui-markdown {
     display: block;
     min-width: 0;
     max-width: var(--ui-max-width, 100%);
-    color: var(--ui-color-on-surface);
+    // The ground's ink, not the page's: a document in a filled card reads in that card's on-colour, its muted words with it.
+    color: @ui-text-ink;
     font-size: var(--ui-text-body-font-size);
     line-height: var(--ui-text-body-line-height);
     // A long address has no place to break of its own.
     overflow-wrap: anywhere;
-    .ui-code-palette-light();
+    .ui-code-palette();
 }
-
-    [data-ui-theme="dark"] .ui-markdown {
-        .ui-code-palette-dark();
-    }
-
-    @media (prefers-color-scheme: dark) {
-        [data-ui-theme="auto"] .ui-markdown {
-            .ui-code-palette-dark();
-        }
-    }
 
 .ui-markdown__body {
     > :first-child {
@@ -76,23 +67,19 @@
 
     h6 {
         font-size: 0.875em;
-        color: var(--ui-text-muted);
+        color: @ui-text-muted;
     }
 
+    // The framework's inline link, as in any description.
     a {
-        color: var(--ui-color-primary-ink);
-        text-decoration: none;
-
-        &:hover {
-            text-decoration: underline;
-        }
+        .ui-inline-link();
     }
 
     code {
         padding: 0.1em 0.35em;
         border-radius: var(--ui-radius-input);
         background: @ui-markdown-code-ground;
-        font-family: @mono;
+        font-family: @ui-font-mono;
         font-size: 0.875em;
     }
 
@@ -101,7 +88,7 @@
         padding: @ui-space-3;
         border-radius: var(--ui-radius-input);
         background: @ui-markdown-code-ground;
-        font-family: @mono;
+        font-family: @ui-font-mono;
         font-size: 0.875rem;
         line-height: 1.5;
         tab-size: 4;
@@ -120,7 +107,7 @@
     blockquote {
         padding: 0 @ui-space-3;
         border-left: 0.25rem solid var(--ui-color-border);
-        color: var(--ui-text-muted);
+        color: @ui-text-muted;
     }
 
     :is(ul, ol) {
@@ -155,7 +142,7 @@
     }
 
     del {
-        color: var(--ui-text-muted);
+        color: @ui-text-muted;
     }
 }
 

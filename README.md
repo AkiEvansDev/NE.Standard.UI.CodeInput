@@ -50,15 +50,16 @@ new CodeInputComponent()
 
 `Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon and badge, validation and
 borders come from the framework's field, exactly as a text area's do — except that the editor starts as
-`Ghost` — nothing drawn around it, on focus as at rest — and never lifts under the pointer: it is read, not
-filled in.
+`Ghost` — nothing drawn around it, on focus as at rest, save the edge of an invalid or warned value, which stays while the
+field is focused — and never lifts under the pointer: it is read, not filled in.
 
 Editing is the browser's own `<textarea>` — typing, selection, input methods and the clipboard behave as they
 do everywhere else — with the highlighted text drawn underneath it. Undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are the
 field's own, since the browser's cannot hold an edit made at several carets: typing is taken back a word at a time, and the
 carets come back with the text. A value the server pushes that differs from the text starts the history afresh. Tab inserts
 spaces at the caret, or indents every selected line, and Shift+Tab takes the indent back; Enter keeps the line's indentation,
-Escape closes the panel. **Ctrl+S** commits the value at once, ahead of any debounce, and
+Escape closes the panel. With nothing of the field's own open — the panel, the list, extra carets — Escape leaves the field, and
+the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. **Ctrl+S** commits the value at once, ahead of any debounce, and
 raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out. **Ctrl+U** turns the
 selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
 selection stays selected and a caret keeps its place in the word.
@@ -69,11 +70,17 @@ encoding, the line ending and the language. A picker's choice is the property's 
 (a text field holds every break as LF), so the field notes the ending the value came with, shows it, and sends the
 value back with it; a choice converts the text on the next commit. `SetStatusBar(false)` hides the bar, and
 `SetSearch(false)` the find panel; written as a value rather than bound, either leaves its controls out of the page
-altogether, which is what keeps a read-only listing light.
+altogether, which is what keeps a read-only listing light. While the field is read-only its pickers are too: each still
+shows its setting and stays in the Tab order, and none opens a list.
 
 The pickers list what the server knows. A language a package adds — a script that registers its tokenizer with the editor
 under an id of its own — is declared on the server too, once at startup, so the picker lists it under its name:
-`UICodeLanguages.Register("sql", "SQL")`.
+`UICodeLanguages.Register("sql", "SQL")`. A name is shown as written — every option is marked content (`OptionItem.IsContent`),
+and so is the line-ending placeholder, so none is looked up or reported missing, key prefixes or not; the two that are
+words — plain text and UTF-8 with BOM — are the keys `ui.code.plain-text` and `ui.code.utf8-bom`, translated as the bar's other
+words are. `UICodeInputStrings.IsWord(name)` tells the two apart for a list an application builds from `UICodeLanguages.All` or
+`UICodeEncodings.All` itself: `IsContent = !UICodeInputStrings.IsWord(name)`. In a narrow field the caret's position gives way
+first, then the pickers' words, each ending in an ellipsis.
 
 The encoding is a word, not bytes: the field holds text, and what `Encoding` means is decided where the file is
 written. `Encoding.GetEncoding` knows `utf-8` and the two UTF-16 ids; `windows-1251`, `windows-1252` and
@@ -137,11 +144,13 @@ it.
 
 ## Completions
 
-Ctrl+Space opens a completion list at the caret; typing an identifier opens it too, once it has somewhere to complete from beyond
-the document's own words. The arrows move among the suggestions, Enter and Tab accept the one that is active, and Escape closes
-the list, as they do in Visual Studio; a click accepts the one the pointer is over. The list never opens inside a comment or a
-string, and closes on a blur, a scroll, or the caret moving anywhere but along with what is typed; a provider's answer that
-arrives after that is dropped.
+Ctrl+Space opens a completion list under the word at the caret, and it stays under the word's start as the word is typed;
+typing an identifier opens it too, once it has somewhere to complete from beyond the document's own words. The arrows move among
+the suggestions, Enter and Tab accept the one that is active, and Escape closes the list, as they do in Visual Studio; the
+pointer moves the active suggestion, as it does in a native list, and a click accepts it. The list never opens inside a comment
+or a string, nor in a read-only field, and closes on a blur, on the field turning read-only, disabled or loading, on a scroll
+that takes the word out of view, or on the caret moving anywhere but along with what is typed; a provider's answer that arrives
+after that is dropped.
 
 The field offers the mechanism; the words are the application's own, or a package's. `Completions` turns the mechanism on and off
 (on by default). `CompletionsSource` names the URL of a JSON file the client loads once, the first time the list is needed, and
@@ -176,6 +185,15 @@ window.NEStandardUICodeInput.registerCompletions("csharp", context => lookup(con
 identifier the document itself holds — so a plain-text field, with neither of the first two, only ever completes from the text,
 and does not open itself as the reader types; Ctrl+Space still opens it there.
 
+A language package ships its words with its tokenizer in one call: `registerLanguage` takes them as its third argument, a list
+or a provider as `registerCompletions` does.
+
+```js
+window.NEStandardUICodeInput.registerLanguage("sql", sqlTokenizer, [
+    { label: "SELECT", kind: "keyword" }
+]);
+```
+
 ## Markdown display
 
 `MarkdownDisplayComponent` shows a Markdown document as formatted text. It knows nothing of the code field — put the two
@@ -195,12 +213,17 @@ the browser; a value the server pushes renders again.
 Raw HTML in a document is shown as text, not markup, and a link or an image keeps its address only when it is relative
 or `http`, `https`, `mailto` or `tel` (an image also takes a `data:image/…` address); anything else — `javascript:` among
 them — leaves its words alone. A link off the page opens in a new tab — `//host`, and `\\host` and `/\host` too, which a
-browser reads as another host. A task item's box is the framework's checkbox, shown and never toggled. Quotes and lists nest
+browser reads as another host. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
 at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
 tokenizer that fails leaves its block, or its line in the field, plain.
 
-The body is styled by element under `.ui-markdown__body`, in the page's type and the theme's inks; an application
-restyles it there.
+The body is styled by element under `.ui-markdown__body`, in the page's type and the inks of the ground it stands on — a
+display in a component given a theme `Background` reads in that colour's on-colour; an application restyles it there. A link is the framework's inline link, as in any description: underlined, brightening under the pointer.
+
+The syntax colours — the field's and a display's code — are Visual Studio's, a light and a dark value each, chosen by the
+colour scheme in force on the component: a field or a display given a `Theme` of its own takes that theme's colours, not the
+page's. Under forced colours (Windows' contrast themes) the find matches, the extra carets and selections and the active
+suggestion are drawn in the system's colours.
 
 An editor and a display scroll together when both are in one of the framework's scroll groups — the display through the
 container it scrolls in. The field marks its lines and the display the line each block starts on, so the two are kept

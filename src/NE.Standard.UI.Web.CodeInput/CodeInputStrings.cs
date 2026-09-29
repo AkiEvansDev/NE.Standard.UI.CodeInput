@@ -50,6 +50,8 @@ public sealed class CodeInputStrings : IUIStringsSource
             [UICodeInputStrings.Encoding] = "Encoding",
             [UICodeInputStrings.LineEnding] = "End of line",
             [UICodeInputStrings.Language] = "Language",
+            [UICodeInputStrings.PlainText] = "Plain text",
+            [UICodeInputStrings.Utf8Bom] = "UTF-8 with BOM",
             [Matches] = "{current} of {total}",
             [NoMatches] = "No matches",
             [InvalidPattern] = "Invalid pattern",

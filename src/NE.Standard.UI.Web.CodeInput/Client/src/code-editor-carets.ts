@@ -1,18 +1,12 @@
-// The carets and selections of one field: the textarea shows the primary, the rest are drawn on a layer above the text. Handles
-// arrow/Home/End navigation with Shift and Ctrl, Shift+Alt column selection, Ctrl+Alt+click to add a caret, and Shift+Alt+./; to
-// select the next or every occurrence.
+// The carets and selections of one field, and the keys that move them: the textarea shows the primary, the rest are drawn on a
+// layer above the text.
 
-import { MultiCaretAttribute } from "./code-editor-dom.ts";
+import { CaretClass, CaretLayerClass, MultiCaretAttribute, SelectionClass, VirtualClass } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import type { Lines } from "./motion.ts";
 import { homePosition, nextCharacter, positionAtColumn, previousCharacter, verticalPosition, visualColumn, wordAt, wordLeft, wordRight } from "./motion.ts";
 import type { Selection, SelectionSet } from "./selections.ts";
 import { caretAt, findOccurrences, isCaret, nextOccurrence, normalizeSelections, rangeEnd, rangeStart, singleSelection } from "./selections.ts";
-
-const LayerClass = "ui-code-input__carets";
-const CaretClass = "ui-code-input__caret";
-const SelectionClass = "ui-code-input__selection";
-const VirtualClass = "ui-code-input--virtual";
 
 export type CaretParts = {
     readonly root: HTMLElement;
@@ -78,12 +72,12 @@ export class CodeEditorCarets {
         this.surface = surface;
 
         this.layer = document.createElement("div");
-        this.layer.className = LayerClass;
+        this.layer.className = CaretLayerClass;
         this.layer.setAttribute("aria-hidden", "true");
         this.layer.hidden = true;
 
         this.probe = document.createElement("span");
-        this.probe.className = `${LayerClass}-probe`;
+        this.probe.className = `${CaretLayerClass}-probe`;
         this.probe.textContent = "0";
 
         this.content.insertBefore(this.layer, this.textarea);
@@ -126,10 +120,9 @@ export class CodeEditorCarets {
         return { set, pads: this.pads !== null && this.pads.length === set.ranges.length ? this.pads : null };
     }
 
-    /** Where the primary caret is drawn, in the content's own coordinates — the anchor a popup opens against. */
-    public primaryCaretRect(): { readonly left: number; readonly top: number; readonly bottom: number } | null {
-        const set = this.read();
-        const rect = this.caretRect(this.surface.lines, set.ranges[set.primary].head);
+    /** Where a caret at a position would be drawn, in the content's own coordinates — the anchor a popup opens against. */
+    public contentCaretRect(position: number): { readonly left: number; readonly top: number; readonly bottom: number } | null {
+        const rect = this.caretRect(this.surface.lines, position);
 
         if (rect === null)
             return null;

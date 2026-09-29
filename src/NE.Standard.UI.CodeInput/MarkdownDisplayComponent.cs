@@ -23,8 +23,6 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
 /// </summary>
 public sealed class MarkdownDisplayComponent(string? id = null) : MarkdownDisplayComponent<MarkdownDisplayComponent>(id), IUIComponentDefinition
 {
-    /// <summary>
-    /// Gets the component type key used to identify this component in the compiled graph.
-    /// </summary>
+    /// <inheritdoc/>
     public static string ComponentTypeKey => "codeinput.display.markdown";
 }

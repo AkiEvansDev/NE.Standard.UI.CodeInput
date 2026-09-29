@@ -1,11 +1,12 @@
 // Find and replace: the panel's fields and toggles, stepping among matches and rewriting the text, over `search.ts`'s pure text
 // operations. Marking and scrolling to a match reaches into the editor surface, which owns the highlighted lines.
 
+import type { DomNames, FieldValidation } from "ne-standard-ui";
 import { diffText } from "./history.ts";
 import type { SearchMatch, SearchOptions, SearchQuery } from "./search.ts";
 import { compileQuery, expandReplacement, findMatches, nextMatchFrom, previousMatchFrom, replaceAll } from "./search.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { MatchCaseAttribute, RegexAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
+import { CurrentMatchClass, InvalidPatternWord, MatchesWord, NoMatchesWord } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 
 export type FindReplaceParts = {
@@ -17,6 +18,9 @@ export type FindReplaceParts = {
     readonly replaceRow: HTMLElement;
     readonly expand: HTMLElement | null;
     readonly count: HTMLElement;
+    readonly matchCase: HTMLElement | null;
+    readonly wholeWord: HTMLElement | null;
+    readonly regex: HTMLElement | null;
 };
 
 export class CodeEditorFindReplace {
@@ -28,13 +32,19 @@ export class CodeEditorFindReplace {
     private readonly replaceRow: HTMLElement;
     private readonly expand: HTMLElement | null;
     private readonly count: HTMLElement;
+    private readonly matchCase: HTMLElement | null;
+    private readonly wholeWord: HTMLElement | null;
+    private readonly regex: HTMLElement | null;
     private readonly strings: Strings;
+    private readonly names: DomNames;
+    private readonly validation: FieldValidation;
     private readonly surface: CodeEditorSurface;
     private matches: SearchMatch[] = [];
     private current = -1;
     private query: SearchQuery = null;
+    private invalid = false;
 
-    public constructor(parts: FindReplaceParts, strings: Strings, surface: CodeEditorSurface) {
+    public constructor(parts: FindReplaceParts, strings: Strings, names: DomNames, validation: FieldValidation, surface: CodeEditorSurface) {
         this.textarea = parts.textarea;
         this.scroller = parts.scroller;
         this.panel = parts.panel;
@@ -43,7 +53,12 @@ export class CodeEditorFindReplace {
         this.replaceRow = parts.replaceRow;
         this.expand = parts.expand;
         this.count = parts.count;
+        this.matchCase = parts.matchCase;
+        this.wholeWord = parts.wholeWord;
+        this.regex = parts.regex;
         this.strings = strings;
+        this.names = names;
+        this.validation = validation;
         this.surface = surface;
     }
 
@@ -52,17 +67,13 @@ export class CodeEditorFindReplace {
         return !this.panel.hidden;
     }
 
-    private get options(): SearchOptions {
-        return {
-            matchCase: this.pressed(MatchCaseAttribute),
-            wholeWord: this.pressed(WholeWordAttribute),
-            regex: this.pressed(RegexAttribute)
-        };
+    /** Whether the keyboard is in the panel. */
+    public get holdsFocus(): boolean {
+        return this.panel.contains(document.activeElement);
     }
 
-    // A switch is the framework's toggle button inside the part the renderer names; its state is its own aria-pressed.
-    private pressed(attribute: string): boolean {
-        return this.panel.querySelector(`[${attribute}] > .ui-button`)?.getAttribute("aria-pressed") === "true";
+    private get options(): SearchOptions {
+        return { matchCase: pressed(this.matchCase), wholeWord: pressed(this.wholeWord), regex: pressed(this.regex) };
     }
 
     /** Whether the replace row is folded out; a read-only field never shows it, since there is nothing to rewrite. */
@@ -76,6 +87,14 @@ export class CodeEditorFindReplace {
 
         this.replaceRow.hidden = !showing;
         this.expand?.setAttribute("aria-expanded", showing ? "true" : "false");
+    }
+
+    /** The field turned read-only, which hides the replace row and its chevron: the keyboard in either goes to the find field. */
+    public replaceHidden(): void {
+        const active = document.activeElement;
+
+        if (this.replaceRow.contains(active) || this.expand?.contains(active) === true)
+            this.findField.focus({ preventScroll: true });
     }
 
     public toggleReplace(): void {
@@ -110,10 +129,24 @@ export class CodeEditorFindReplace {
         this.matches = [];
         this.current = -1;
         this.surface.applyMatches([], -1);
-        this.findField.closest(".ui-text-input")?.classList.remove("ui-invalid");
+        this.markInvalid(false);
 
         if (returnFocus)
             this.textarea.focus({ preventScroll: true });
+    }
+
+    /** The find field says so as any invalid field does, through the framework's validation; its words are the count line's. */
+    private markInvalid(invalid: boolean): void {
+        // Only on a change: the search runs on every keystroke, and a mark reads the message line's computed style.
+        if (invalid === this.invalid)
+            return;
+
+        const root = this.findField.closest(`.${this.names.textInputClass}`);
+
+        this.invalid = invalid;
+
+        if (root !== null)
+            this.validation.mark(root, invalid ? "error" : null);
     }
 
     /** Re-reads the matches; `keepCurrent` holds on to the match the reader is on when it survived, `follow` selects it and scrolls to it. */
@@ -126,8 +159,7 @@ export class CodeEditorFindReplace {
 
         const invalid = this.query !== null && "invalid" in this.query;
 
-        // The find field says so as any invalid field does: the framework's own mark on its root.
-        this.findField.closest(".ui-text-input")?.classList.toggle("ui-invalid", invalid);
+        this.markInvalid(invalid);
 
         const kept = keepCurrent && previous !== undefined ? this.matches.findIndex(match => match.from === previous.from) : -1;
         const current = kept >= 0 ? kept : nextMatchFrom(this.matches, this.textarea.selectionStart);
@@ -153,13 +185,13 @@ export class CodeEditorFindReplace {
         let text: string;
 
         if (this.query !== null && "invalid" in this.query)
-            text = this.strings.text("ui.code.invalid-pattern");
+            text = this.strings.text(InvalidPatternWord);
         else if (this.query === null)
             text = "";
         else if (this.matches.length === 0)
-            text = this.strings.text("ui.code.no-matches");
+            text = this.strings.text(NoMatchesWord);
         else
-            text = this.strings.format("ui.code.matches", { current: this.current + 1, total: this.matches.length });
+            text = this.strings.format(MatchesWord, { current: this.current + 1, total: this.matches.length });
 
         if (this.count.textContent !== text)
             this.count.textContent = text;
@@ -179,7 +211,7 @@ export class CodeEditorFindReplace {
         if (top < scroller.scrollTop || bottom > scroller.scrollTop + scroller.clientHeight)
             scroller.scrollTop = Math.max(0, top - scroller.clientHeight / 2);
 
-        const mark = line.querySelector<HTMLElement>(".ui-code-match--current");
+        const mark = line.querySelector<HTMLElement>(`.${CurrentMatchClass}`);
 
         if (mark === null)
             return;
@@ -198,6 +230,11 @@ export class CodeEditorFindReplace {
     public refreshIfOpen(fromServer: boolean): void {
         if (this.isOpen)
             this.search(true, fromServer);
+    }
+
+    /** The page's words changed: the count is written again in them — it may be empty, so it is written rather than marked. */
+    public wordsChanged(): void {
+        this.writeCount();
     }
 
     public findFieldKey(domEvent: KeyboardEvent): void {
@@ -270,4 +307,9 @@ export class CodeEditorFindReplace {
         this.surface.replaceRange(edit.from, edit.to, edit.text);
         this.replaceField.focus({ preventScroll: true });
     }
+}
+
+/** A switch is the framework's toggle button; its state is its own `aria-pressed`. */
+function pressed(button: HTMLElement | null): boolean {
+    return button?.getAttribute("aria-pressed") === "true";
 }

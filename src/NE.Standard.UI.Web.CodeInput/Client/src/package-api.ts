@@ -11,6 +11,7 @@ import { modeTokenizer } from "./tokenizer.ts";
 export type PendingLanguage = {
     readonly id: string;
     readonly tokenizer: Tokenizer;
+    readonly completions?: CompletionSource;
 };
 
 export type PendingCompletions = {
@@ -19,8 +20,11 @@ export type PendingCompletions = {
 };
 
 export type CodeInputGlobalApi = {
-    /** Adds a language by id, or replaces a built-in one; every field naming the id picks it up at once. */
-    registerLanguage(id: string, tokenizer: Tokenizer): void;
+    /**
+     * Adds a language by id, or replaces a built-in one; every field naming the id picks it up at once. `completions`, when given,
+     * is registered for the id as `registerCompletions` would, so a language package ships both in one call.
+     */
+    registerLanguage(id: string, tokenizer: Tokenizer, completions?: CompletionSource): void;
     /** Builds a tokenizer from a mode in the stream shape — one token per call — so a package needs no reader of its own. */
     createTokenizer<TState extends object>(mode: Mode<TState>): Tokenizer;
     /** Adds a completion source for a language, or `"*"` for every one — a fixed list, or a provider asked afresh each time. */
@@ -36,14 +40,14 @@ declare global {
     }
 }
 
-export function installPackageApi(registry: LanguageRegistry, completions: CompletionsRegistry): CodeInputGlobalApi {
+export function installPackageApi(registry: LanguageRegistry, completionsRegistry: CompletionsRegistry): CodeInputGlobalApi {
     const pendingLanguages = window.NEStandardUICodeInput?.__pendingLanguages ?? [];
     const pendingCompletions = window.NEStandardUICodeInput?.__pendingCompletions ?? [];
 
     const api: CodeInputGlobalApi = {
-        registerLanguage: (id, tokenizer) => registry.register(id, tokenizer),
+        registerLanguage: (id, tokenizer, completions) => addLanguage(registry, completionsRegistry, { id, tokenizer, completions }),
         createTokenizer: modeTokenizer,
-        registerCompletions: (languageId, source) => completions.register(languageId, source),
+        registerCompletions: (languageId, source) => completionsRegistry.register(languageId, source),
         __pendingLanguages: [],
         __pendingCompletions: []
     };
@@ -51,10 +55,18 @@ export function installPackageApi(registry: LanguageRegistry, completions: Compl
     window.NEStandardUICodeInput = api;
 
     for (const language of pendingLanguages)
-        registry.register(language.id, language.tokenizer);
+        addLanguage(registry, completionsRegistry, language);
 
     for (const pending of pendingCompletions)
-        completions.register(pending.languageId, pending.source);
+        completionsRegistry.register(pending.languageId, pending.source);
 
     return api;
+}
+
+/** The tokenizer first: one the registry refuses throws before its completions are kept for a language that is not there. */
+function addLanguage(registry: LanguageRegistry, completionsRegistry: CompletionsRegistry, language: PendingLanguage): void {
+    registry.register(language.id, language.tokenizer);
+
+    if (language.completions !== undefined)
+        completionsRegistry.register(language.id, language.completions);
 }

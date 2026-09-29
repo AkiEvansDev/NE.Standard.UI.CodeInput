@@ -4,6 +4,82 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.3.0
+
+- **Needs the framework's plugin contract 2** (the framework's 1.3.0): the package reads its `ui-readonly` mark, the framework's
+  names it spelled itself (`names.buttonClass`, `selectClass`, `textInputClass`, `sourceLine`), the popup look and the
+  monospace token from it, marks the find field through its `validation.mark`, and opens its completion list as a popup the
+  field owns.
+- **Breaking:** plain text and UTF-8 with BOM are words — `UICodeInputStrings.PlainText` (`ui.code.plain-text`) and
+  `UICodeInputStrings.Utf8Bom` (`ui.code.utf8-bom`), English in `CodeInputStrings` — so the pickers show them in the page's
+  language, under key prefixes too. `UICodeLanguages.All`/`UICodeEncodings.All` and their `DisplayName` give the key for those
+  two: show it through the words, as an option's title is. The find switches' marks (`Aa`, `ab`, `.*`) are content, never
+  looked up or reported missing.
+- **The pickers' names are content** — `UTF-8`, `C#`, `LF`, `CRLF`, a registered language's name, and the line-ending placeholder
+  the engine writes: each option is marked content (the framework's `OptionItem.IsContent`) and the placeholder `AsContent`, so
+  none is looked up or reported missing, key prefixes or not. **Breaking** for an application that registered a key as a
+  language's name (`UICodeLanguages.Register("sql", "app.lang.sql")`): the name is shown as written.
+- **The status bar's position switches in place with the page**: written and marked through `WebWords.Write`
+  on the server (no hand-spliced `{line}`/`{column}`) and `strings.write` on the client; the find panel's count is written again
+  when the page's words change.
+- **A read-only code field's box no longer lifts under the pointer**: its root carries the framework's `ui-readonly` mark, which
+  every field's hover now answers.
+- **A read-only field's status bar pickers are read-only selects.** They opened from the keyboard and took a choice back a moment
+  later; now each shows its setting, stays in the Tab order and opens nothing, and nothing lifts under the pointer. Turning the
+  field read-only also lets its extra carets go and closes an open completion list.
+- **A read-only find panel keeps its switches flush** with the find field, rather than indented under the chevron it no longer shows.
+- **A field or a Markdown display with a `Theme` of its own takes that theme's syntax colours.** The palette followed the page's
+  theme, so a dark field on a light page drew black punctuation on its dark ground; each colour is now a light and a dark value,
+  chosen by the colour scheme on the component.
+- **The find panel's fields step off the panel's own ground**, as a popup's do, rather than off the page's under it.
+- **Under forced colours** (Windows' contrast themes) the active suggestion, the find matches and the current one, the extra
+  carets and the extra selections are drawn in the system's colours, where they vanished; the text is drawn once, where the mode
+  painted the textarea's own over the highlighted layer. The active suggestion is dashed `CanvasText`, the framework's mark for
+  a list's current entry, not the solid `Highlight` of a chosen one.
+- **The completion list is a popup the field owns**: it closes when the field turns read-only, disabled or loading or leaves
+  the page, as the framework's own popups do; it fades out as it fades in.
+- **The find panel fades in and out** as every popup does, rather than appearing and vanishing at once.
+- **No keyboard mark on the find panel's buttons after a mouse press**, under the framework's pointer-focus rule; the field one of
+  them hands the focus to (the replace field, the text) shows its edge, as a text field with a caret always does.
+- **A press on the find panel's or the status bar's own ground** — the match count, the caret's position, the air between parts —
+  keeps the focus where it was; it fell to the page, and Ctrl+F then opened the browser's own find.
+- **A part hidden while it holds the focus hands it on**: `Search` turned off with the focus in the panel gives it to the text,
+  and so does `StatusBar` turned off with the focus on one of its pickers; the field turning read-only with the focus in the
+  replace row or on its chevron gives it to the find field.
+- **A completion answer that arrives after the framework closed the list** (a press, the focus leaving, the field turning
+  read-only) no longer opens it again.
+- `UICodeInputStrings.IsWord(name)`: whether a name `UICodeLanguages.All` or `UICodeEncodings.All` lists is one of the package's
+  words, for an application's own list of them.
+- **The find panel fades with the framework's `.ui-popup-fade()`, and a Markdown link is `.ui-inline-link()`**, rather than
+  copies of them.
+- **The demo's own words are `code-demo.` keys**, with a complete zh-Hans table of every word it registers — its own, the
+  framework's and the package's — which `DemoWordsCoverageTests` holds; its status lines count lines and characters with a
+  plural, and its language select marks the names content as the status bar does.
+- **The status bar keeps within a narrow field**: the caret's position gives way first, ellipsised, then the pickers' words,
+  where the position ran under the pickers and the bar ran past the field's edge, cutting the language off.
+- **A Markdown task box wears the framework's read-only mark**, so a click that reaches it — a screen reader's — is refused; it
+  ticked the box.
+- **The completion list stays under the word's start** as the word is typed, rather than stepping right with every letter, and
+  a scroll the typing causes no longer closes it: the list follows the word, and closes once the word leaves the view.
+- **The pointer moves the active suggestion**, as in a native list, and the row Enter takes never reads weaker under the pointer;
+  only one row is lit.
+- **An invalid or warned Ghost field keeps its edge while focused.**
+- **A Markdown link is the framework's inline link**: underlined at rest, brightening under the pointer, as in a description.
+- **A status bar word eases its ink with its ground under the pointer, and a press takes the stronger wash.**
+- **An invalid pattern marks the find field through the framework's validation** (`validation.mark`): the invalid edge and
+  colour and `aria-invalid`, as any refused field, rather than by hand. The mark carries no words — the count line says why — so
+  it raises no message line, and the field no longer moves.
+- **`registerLanguage(id, tokenizer, completions?)`**: a language package ships its completions with its tokenizer in one call;
+  the optional third argument is what `registerCompletions` takes, and an entry queued in `__pendingLanguages` before the package loads
+  may carry `completions` too.
+- **The Markdown display reads in the ink of the ground it stands on.** In a component given a theme `Background` — a filled
+  card — its text, the wash under its code and its muted parts (a sixth-level heading, a quote, struck text) take that colour's
+  on-colour and the framework's muted share of it, where they kept the page's ink. The code field keeps its own ground and inks.
+  A link there is the ground's on-colour too, underlined (the framework's `.ui-inline-link()`), where the brand ink read 1:1 on a
+  Primary card.
+- **The completion list's rows stand 2 px apart** (the framework's `.ui-entry-list()`), so the active row and the pointer's
+  read as two; the list still shows about ten rows before it scrolls.
+
 ## 1.2.0
 
 - **Built on the framework's 1.2.0.** Nothing of this package's own changed; it moves with the framework.

@@ -10,11 +10,8 @@ import type { Edit, SelectionSet } from "./selections.ts";
 import { applyEdits, singleSelection } from "./selections.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { TabSizeVariable } from "./code-editor-dom.ts";
+import { GutterDigitsVariable, LineClass, PositionWord, TabSizeVariable } from "./code-editor-dom.ts";
 import { languages } from "./languages/index.ts";
-
-const GutterDigitsVariable = "--ui-code-gutter-digits";
-const LineClass = "ui-code-input__line";
 
 export type SurfaceParts = {
     readonly root: HTMLElement;
@@ -137,10 +134,9 @@ export class CodeEditorSurface {
         const caret = this.textarea.selectionEnd;
         const lineStart = value.lastIndexOf("\n", caret - 1) + 1;
         const line = this.highlighter.lineAt(lineStart) + 1;
-        const text = this.strings.format("ui.code.position", { line, column: caret - lineStart + 1 + this.selections.virtualColumns() });
 
-        if (this.position.textContent !== text)
-            this.position.textContent = text;
+        // Marked with its figures, as the server first wrote it, so a language switch writes it again in place.
+        this.strings.write(this.position, null, PositionWord, { line, column: caret - lineStart + 1 + this.selections.virtualColumns() });
     }
 
     /** Rebuilds the highlighter for the language `getLanguage` now names, and redraws everything under it. */
@@ -231,11 +227,7 @@ export class CodeEditorSurface {
         this.redraw();
     }
 
-    /**
-     * Puts new text in the textarea via `setRangeText` for a single span, or replaces the whole value otherwise; then the layer,
-     * carets and position follow, and `input` fires as a keystroke's would — as typed text when it was, so text typed at several
-     * carets opens completions as it does at one.
-     */
+    /** Writes the text and raises `input` as a keystroke would — as typed text when it was, so typing at several carets opens completions as at one. */
     private commit(text: string, single: Edit | null, selections: SelectionSet, typed: boolean): void {
         if (single !== null)
             this.textarea.setRangeText(single.text, single.from, single.to);
