@@ -11,6 +11,7 @@ using NE.Standard.UI.Components.Foundation.Inputs;
 using NE.Standard.UI.Primitives.Annotations;
 using NE.Standard.UI.Primitives.Binding;
 using NE.Standard.UI.Primitives.Constants;
+using NE.Standard.UI.Primitives.Localization;
 using NE.Standard.UI.Primitives.Styling;
 
 namespace NE.Standard.UI.CodeInput;
@@ -121,7 +122,7 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// <inheritdoc/>
     [Translatable]
     [UIComponentProperty(Contract = typeof(IPlaceholderInputComponent), DefaultValue = null)]
-    public string? Placeholder { get; set; }
+    public UIPhrase? Placeholder { get; set; }
 
     /// <summary>
     /// Gets or sets the highlighting language, by id — one of <see cref="UICodeLanguages"/> or a registered package id. Two-way: the
