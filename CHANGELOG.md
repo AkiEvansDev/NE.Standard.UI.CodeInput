@@ -4,6 +4,11 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag â€
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.4.0-rc.2
+
+- **Built on the framework's 1.4.0-rc.2.** Nothing of this package's own changed. Its copy of the plugin contract carries the
+  framework's new `Moment` type: `strings.format` takes a moment among its values and writes it in the reader's time zone.
+
 ## 1.4.0-rc.1
 
 - **A long line no longer freezes the Markdown display or the code field.** A heading's closing run, a table's delimiter row and
