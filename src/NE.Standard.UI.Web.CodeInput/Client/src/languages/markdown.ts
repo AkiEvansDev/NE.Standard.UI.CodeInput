@@ -55,7 +55,9 @@ const TaskBox = /\[[ xX]\](?=[ \t]|$)/y;
 const Escapable = /[!-/:-@[-`{-~]/;
 const Entity = /&(?:#\d{1,7}|#[xX][\da-fA-F]{1,6}|[A-Za-z][A-Za-z\d]{1,31});/y;
 const Autolink = /<(?:[A-Za-z][A-Za-z\d+.-]{1,31}:[^<>\s]*|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)>/y;
-const HtmlTag = /<\/?[A-Za-z][\w-]*(?:\s+[^<>]*)?\/?>/y;
+// One blank after the name, not a run: the attributes take any blank that follows, and a run both can take is split every way over
+// before a tag with no end is let go.
+const HtmlTag = /<\/?[A-Za-z][\w-]*(?:\s[^<>]*)?\/?>/y;
 const BareUrl = /(?:https?:\/\/|www\.)[^\s<]*[^\s<?!.,:*_~)]/y;
 
 /** A tokenizer for Markdown whose fenced blocks are read by whatever `resolve` finds for their language. */
@@ -263,6 +265,7 @@ function skipSpaces(line: string, from: number): number {
 function inlineSpans(line: string, from: number, base: TokenKind | null, emit: EmitToken): boolean {
     let plain = from;
     let i = from;
+    const searches: LineSearches = { from, closes: new Map(), pairs: new Map() };
 
     const span = (start: number, end: number, kind: TokenKind): void => {
         if (base !== null && start > plain)
@@ -295,7 +298,7 @@ function inlineSpans(line: string, from: number, base: TokenKind | null, emit: E
         }
 
         if (character === "*" || character === "_" || character === "~") {
-            const end = emphasisEnd(line, i, character);
+            const end = emphasisEnd(line, i, character, searches);
 
             if (end < 0) {
                 i += runLength(line, i, character);
@@ -309,7 +312,7 @@ function inlineSpans(line: string, from: number, base: TokenKind | null, emit: E
         }
 
         if (character === "[" || (character === "!" && line.charAt(i + 1) === "[")) {
-            if (linkSpan(line, i, span))
+            if (linkSpan(line, i, span, searches))
                 continue;
 
             i += character === "!" ? 2 : 1;
@@ -378,6 +381,19 @@ function inlineSpans(line: string, from: number, base: TokenKind | null, emit: E
     return false;
 }
 
+/**
+ * What a search along the rest of a line found, kept for the next opener's: asked opener by opener, a line of openers with no close
+ * is read to its end once per opener, in time quadratic in its length.
+ */
+type LineSearches = {
+    /** Where the line's inline spans start, which is where its brackets are paired from. */
+    readonly from: number;
+    /** The last closing run found for each character and length (`*2`), and where that search started. */
+    readonly closes: Map<string, { readonly from: number; readonly close: number }>;
+    /** Every opening bracket of a kind (`[` or `(`) and the one closing it, paired in one pass the first time the kind is asked about. */
+    readonly pairs: Map<string, ReadonlyMap<number, number>>;
+};
+
 function runLength(line: string, at: number, character: string): number {
     let end = at;
 
@@ -407,7 +423,7 @@ function findRun(line: string, from: number, character: string, length: number):
  * Where a span opened by the run at `at` ends, past its closing run, or -1: the opening run must be followed by text, the closing
  * one preceded by it, and an underscore can't open or close inside a word.
  */
-function emphasisEnd(line: string, at: number, character: string): number {
+function emphasisEnd(line: string, at: number, character: string, searches: LineSearches): number {
     const run = runLength(line, at, character);
     const length = character === "~" ? run : Math.min(run, 3);
 
@@ -422,32 +438,55 @@ function emphasisEnd(line: string, at: number, character: string): number {
     if (character === "_" && at > 0 && /[\p{L}\p{N}]/u.test(line.charAt(at - 1)))
         return -1;
 
-    let search = at + run;
+    const close = closingRun(line, at + run, character, length, searches);
+
+    return close < 0 ? -1 : close + length;
+}
+
+/**
+ * Where the first run that may close a span of `length` of `character` starts at or after `from`, or -1. Whether a run closes
+ * depends on the run and its neighbours alone, never on the opener, so the last search's answer stands for a later one it covers.
+ */
+function closingRun(line: string, from: number, character: string, length: number, searches: LineSearches): number {
+    const key = character + length;
+    const known = searches.closes.get(key);
+
+    if (known !== undefined && known.from <= from && (known.close < 0 || known.close >= from))
+        return known.close;
+
+    let search = from;
+    let close = -1;
 
     for (;;) {
-        const close = line.indexOf(character.repeat(length), search);
+        const at = line.indexOf(character.repeat(length), search);
 
-        if (close < 0)
-            return -1;
+        if (at < 0)
+            break;
 
-        const closeRun = runLength(line, close, character);
-        const flanked = !/\s/.test(line.charAt(close - 1));
-        const inWord = character === "_" && /[\p{L}\p{N}]/u.test(line.charAt(close + closeRun));
+        const closeRun = runLength(line, at, character);
+        const flanked = !/\s/.test(line.charAt(at - 1));
+        const inWord = character === "_" && /[\p{L}\p{N}]/u.test(line.charAt(at + closeRun));
 
         // A run of another length is some other span's (`*a **b** c*`), so the search goes past it.
-        if (flanked && !inWord && closeRun === length)
-            return close + closeRun;
+        if (flanked && !inWord && closeRun === length) {
+            close = at;
+            break;
+        }
 
-        search = close + closeRun;
+        search = at + closeRun;
     }
+
+    searches.closes.set(key, { from, close });
+
+    return close;
 }
 
 type Span = (start: number, end: number, kind: TokenKind) => void;
 
 /** `[text](address "title")`, `![alt](address)` or `[text][label]`: the bracketed part as a link, what follows as its address. */
-function linkSpan(line: string, at: number, span: Span): boolean {
+function linkSpan(line: string, at: number, span: Span, searches: LineSearches): boolean {
     const open = line.charAt(at) === "!" ? at + 1 : at;
-    const close = matching(line, open, "[", "]");
+    const close = matching(line, open, "[", "]", searches);
 
     if (close < 0)
         return false;
@@ -457,7 +496,7 @@ function linkSpan(line: string, at: number, span: Span): boolean {
     if (next !== "(" && next !== "[")
         return false;
 
-    const end = matching(line, close + 1, next, next === "(" ? ")" : "]");
+    const end = matching(line, close + 1, next, next === "(" ? ")" : "]", searches);
 
     if (end < 0)
         return false;
@@ -469,10 +508,27 @@ function linkSpan(line: string, at: number, span: Span): boolean {
 }
 
 /** The index of the bracket closing the one at `at`, nesting and backslash escapes counted; -1 when the line ends first. */
-function matching(line: string, at: number, open: string, close: string): number {
-    let depth = 0;
+function matching(line: string, at: number, open: string, close: string, searches: LineSearches): number {
+    let pairs = searches.pairs.get(open);
 
-    for (let i = at; i < line.length; i++) {
+    if (pairs === undefined) {
+        pairs = pairBrackets(line, searches.from, open, close);
+        searches.pairs.set(open, pairs);
+    }
+
+    return pairs.get(at) ?? -1;
+}
+
+/**
+ * Every opening bracket from `from` on with the one closing it: the innermost open one takes each close, which is where counting
+ * the nesting from the opener comes back to nothing. A backslash takes the character after it, as it does reading from the opener,
+ * since an opener is never the character after one.
+ */
+function pairBrackets(line: string, from: number, open: string, close: string): ReadonlyMap<number, number> {
+    const pairs = new Map<number, number>();
+    const openers: number[] = [];
+
+    for (let i = from; i < line.length; i++) {
         const character = line.charAt(i);
 
         if (character === "\\") {
@@ -481,10 +537,14 @@ function matching(line: string, at: number, open: string, close: string): number
         }
 
         if (character === open)
-            depth++;
-        else if (character === close && --depth === 0)
-            return i;
+            openers.push(i);
+        else if (character === close) {
+            const opener = openers.pop();
+
+            if (opener !== undefined)
+                pairs.set(opener, i);
+        }
     }
 
-    return -1;
+    return pairs;
 }

@@ -20,8 +20,12 @@ export const MaxNesting = 64;
 /** Three or more of one of `-`, `*` and `_`, spaces between them allowed. */
 export const ThematicBreak = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 
-/** A table's delimiter row: cells of hyphens with a colon at either end to align, pipes between and optionally around them. */
-export const TableDelimiter = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+/**
+ * A table's delimiter row: cells of hyphens with a colon at either end to align, pipes between and optionally around them. Every
+ * run of spaces stands on one side of a pipe only: a run that both a cell's end and the row's end can take is split every way over
+ * before a line that is no row is let go, in time quadratic in its length.
+ */
+export const TableDelimiter = /^[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*[ \t]*(?:\|[ \t]*)?$/;
 
 /** The fence a line opens, or null; a backtick fence's info string holds no backtick, since such a line is inline code. */
 export function openFence(line: string): FenceOpening | null {

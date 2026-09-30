@@ -4,6 +4,25 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.4.0-rc.1
+
+- **A long line no longer freezes the Markdown display or the code field.** A heading's closing run, a table's delimiter row and
+  an HTML tag in the field's Markdown were read by patterns that backtracked over a long run of spaces, and the field's emphasis
+  and brackets, and the display's link addresses and titles, were read to the end of the line once per opener — each quadratic
+  in the line's length, so a document of a few dozen kilobytes another viewer wrote held the page for seconds on every push. Every
+  one is linear now. Two CommonMark rules come with it: `### ###` is an empty heading (a closing run may follow the opening's own
+  space), and a link title in parentheses holds another parenthesis only escaped; a link's address nests parentheses at most 32
+  deep, as CommonMark lets an implementation limit it.
+- **A leading control character hides no other host.** Whether a link opens in a new tab was judged on the address with only
+  its tabs and breaks dropped, so `[a](<\u0001//host/x>)` — which the browser reads as `//host/x` — opened another host in
+  place of the application; the address is judged as the browser's URL parser reads it, the controls and spaces at either end
+  stripped as well. The reading is the framework's (`urls.asBrowserReads` on the plugin surface), not a copy of the package's, so
+  the package needs the framework's 1.4.0-rc.1 or later.
+- **The code field's words ship in Russian and Simplified Chinese.** `CodeInputStrings.Translations` carries `ru` and `zh-Hans` for
+  every `ui.code.*` key, the tab stops' "Spaces: N" included, and an application turns them on with the framework's
+  `application.AddFrameworkWords("ru", "zh-Hans")`, ranked below its own words. Both are the framework demo's tables, moved into
+  the package; the demo keeps only its own `code-demo.*` words.
+
 ## 1.3.0
 
 - **Needs the framework's plugin contract 2** (the framework's 1.3.0): the package reads its `ui-readonly` mark, the framework's

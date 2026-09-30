@@ -1,16 +1,23 @@
 // The Markdown the display renders: each block and inline rule on a short document, and what a document cannot smuggle onto the page.
 
 import assert from "node:assert/strict";
+import { dirname, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
+import type { MarkdownUrls } from "../src/markdown-render.ts";
 import { renderMarkdown, safeAddress } from "../src/markdown-render.ts";
 
 // The framework's names as the plugin surface hands them over.
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
 
+// The framework's reading of an address, as the plugin surface hands it over.
+const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
+const urls = await import(pathToFileURL(resolve(repository, "src/Platforms/Web/NE.Standard.UI.Web/Client/src/rendering/url-safety.ts")).href) as MarkdownUrls;
+
 /** The markup without the source lines, which one test below reads on its own. */
 function html(source: string): string {
-    return renderMarkdown(source, () => null, names).replace(/ data-ui-source-line="\d+"/g, "");
+    return renderMarkdown(source, () => null, names, urls).replace(/ data-ui-source-line="\d+"/g, "");
 }
 
 test("headings, paragraphs and rules", () => {
@@ -90,7 +97,7 @@ test("code blocks, fenced and indented, highlighted when a language is known", (
     assert.equal(html("```\n<a> & *b*\n```"), "<pre class=\"ui-markdown__code\"><code>&lt;a&gt; &amp; *b*</code></pre>");
     assert.equal(html("    indented\n\n    more\n\ntext"), "<pre class=\"ui-markdown__code\"><code>indented\n\nmore</code></pre><p>text</p>");
     assert.equal(html("- item\n\n  ```js\n  x\n  ```"), "<ul><li><p>item</p><pre class=\"ui-markdown__code\" data-language=\"js\"><code>x</code></pre></li></ul>");
-    assert.equal(renderMarkdown("~~~cs extra\nvar\n~~~", (text, info) => `[${info}:${text}]`, names), "<pre class=\"ui-markdown__code\" data-language=\"cs\" data-ui-source-line=\"1\"><code>[cs:var]</code></pre>");
+    assert.equal(renderMarkdown("~~~cs extra\nvar\n~~~", (text, info) => `[${info}:${text}]`, names, urls), "<pre class=\"ui-markdown__code\" data-language=\"cs\" data-ui-source-line=\"1\"><code>[cs:var]</code></pre>");
 });
 
 test("tables with alignments, escaped pipes and short rows", () => {
@@ -108,7 +115,7 @@ test("a table whose head has no words starts with its rows, and one word keeps t
 });
 
 test("every block and item says the source line it starts on", () => {
-    const lines = [...renderMarkdown("# A\n\ntext\nmore\n\n> quote\n>\n> inner\n\n- one\n\n  two\n- three\n\n| a |\n|---|\n\n```\nx\n```\n---", () => null, names)
+    const lines = [...renderMarkdown("# A\n\ntext\nmore\n\n> quote\n>\n> inner\n\n- one\n\n  two\n- three\n\n| a |\n|---|\n\n```\nx\n```\n---", () => null, names, urls)
         .matchAll(/<(\w+)[^>]* data-ui-source-line="(\d+)"/g)].map(match => `${match[1]}:${match[2]}`);
 
     assert.deepEqual(lines, ["h1:1", "p:3", "blockquote:6", "p:6", "p:8", "li:10", "p:10", "p:12", "li:13", "p:13", "div:15", "pre:18", "hr:21"]);
@@ -143,4 +150,22 @@ test("quotes and lists nested past the deepest a document can mean read as text 
 
     assert.equal((quotes.match(/<blockquote>/g) ?? []).length, 64);
     assert.equal((items.match(/<ul>/g) ?? []).length, 64);
+});
+
+test("a leading control character or space hides no other host: the address is judged as the browser reads it", () => {
+    const external = "target=\"_blank\" rel=\"noopener noreferrer\"";
+
+    assert.ok(html("[a](<\u0001//evil.dev/x>)").includes(external));
+    assert.ok(html("[a](<\u001f https://evil.dev>)").includes(external));
+    assert.ok(html("[a](</\t/evil.dev>)").includes(external));
+    assert.ok(!html("[a](<\u0001/local/page>)").includes(external));
+});
+
+test("a closing run of hashes goes after the opening's own space too, and a title in parentheses holds none unescaped", () => {
+    assert.equal(html("### ###"), "<h3></h3>");
+    assert.equal(html("# #"), "<h1></h1>");
+    assert.equal(html("# a#"), "<h1>a#</h1>");
+    assert.equal(html("# a \\#"), "<h1>a #</h1>");
+    assert.equal(html("[a](x (b \\( c))"), "<p><a href=\"x\" title=\"b ( c\">a</a></p>");
+    assert.equal(html("[a](x (b (c)))"), "<p>[a](x (b (c)))</p>");
 });

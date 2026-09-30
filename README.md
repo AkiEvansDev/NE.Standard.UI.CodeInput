@@ -135,7 +135,8 @@ Ctrl+F opens the panel, Ctrl+H opens it with the replace row out, and the row st
 openings. Enter and Shift+Enter step through the matches; in the replace field Enter replaces the match the reader is
 on and Ctrl+Enter replaces every one. A read-only field shows neither the replace row nor the chevron that folds it
 out. The panel's words translate through the application's localization source under the `ui.code.*` keys, exactly as
-the framework's own do.
+the framework's own do; the package ships them in Russian and Simplified Chinese too (`CodeInputStrings.Translations`),
+turned on with `application.AddFrameworkWords("ru", "zh-Hans")` and outranked by any word of the application's own.
 
 Whole word counts a word as the editor does — letters of any script, digits and the underscore — so a Cyrillic or accented
 word has its edges. With a regular expression, the replacement's `$` patterns (`$1`, `$<name>`, `$&`, `` $` ``, `$'`, `$$`)
@@ -213,7 +214,9 @@ the browser; a value the server pushes renders again.
 Raw HTML in a document is shown as text, not markup, and a link or an image keeps its address only when it is relative
 or `http`, `https`, `mailto` or `tel` (an image also takes a `data:image/…` address); anything else — `javascript:` among
 them — leaves its words alone. A link off the page opens in a new tab — `//host`, and `\\host` and `/\host` too, which a
-browser reads as another host. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
+browser reads as another host, judged on the address as the browser reads it (a control character or a space at either end
+dropped, a tab or a break inside). Every line is read in time linear in its length, so a long line in a document another
+viewer wrote cannot freeze the page. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
 at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
 tokenizer that fails leaves its block, or its line in the field, plain.
 

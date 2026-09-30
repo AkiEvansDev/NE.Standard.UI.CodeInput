@@ -125,6 +125,11 @@ const UriAutolink = /<([A-Za-z][A-Za-z\d+.-]{1,31}:[^<>\u0000-\u0020]*)>/y;
 const EmailAutolink = /<([A-Za-z\d.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z\d](?:[A-Za-z\d-]{0,61}[A-Za-z\d])?(?:\.[A-Za-z\d](?:[A-Za-z\d-]{0,61}[A-Za-z\d])?)*)>/y;
 const BacktickRun = /`+/g;
 const BareLink = /(?:https?:\/\/|www\.)[^\s<]+/g;
+/**
+ * How deep parentheses nest in a link's address, as CommonMark lets an implementation limit it: unlimited, every `](` of a line of
+ * `[a](` reads the rest of the text for its close, in time quadratic in its length.
+ */
+const MaxAddressNesting = 32;
 
 /** Parses one block's inline text into a tree under a root node. */
 export function parseInlines(text: string, references: ReadonlyMap<string, LinkTarget>): Inline {
@@ -449,8 +454,10 @@ class InlineParser {
                 continue;
             }
 
-            if (character === "(")
-                depth++;
+            if (character === "(") {
+                if (++depth > MaxAddressNesting)
+                    break;
+            }
             else if (character === ")") {
                 if (depth === 0)
                     break;
@@ -487,6 +494,11 @@ class InlineParser {
                 i++;
                 continue;
             }
+
+            // A title in parentheses holds another only escaped, as CommonMark says; read on, a line of `[a](x (` is read to its
+            // end once per link.
+            if (open === "(" && character === "(")
+                return null;
 
             if (character === close) {
                 const title = unescape(this.text.slice(this.position + 1, i));

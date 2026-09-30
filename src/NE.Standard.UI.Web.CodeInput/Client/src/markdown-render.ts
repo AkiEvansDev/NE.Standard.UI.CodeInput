@@ -1,6 +1,7 @@
 // A Markdown document as HTML. Every character is escaped on its way out and an address is kept only for a scheme a reader can
 // safely follow, so the markup is whatever the document says and nothing it could smuggle in.
 
+import type { Urls } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
 import { CoreNames, MarkdownRootClass } from "./code-editor-dom.ts";
 import { escapeHtml } from "./highlighter.ts";
@@ -14,17 +15,21 @@ export type CodeHighlighter = (text: string, info: string) => string | null;
 
 const ClassName = MarkdownRootClass;
 
-/** What every block of one document is drawn against: its link references, the highlighter, and the framework's names. */
+/** The framework's reading of an address, as the plugin surface hands it over. */
+export type MarkdownUrls = Pick<Urls, "asBrowserReads">;
+
+/** What every block of one document is drawn against: its link references, the highlighter, and the framework's names and addresses. */
 type Rendering = {
     readonly references: ReadonlyMap<string, LinkTarget>;
     readonly highlight: CodeHighlighter;
     readonly names: MarkdownNames;
+    readonly urls: MarkdownUrls;
 };
 
-export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames): string {
+export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls): string {
     const document = parseMarkdown(source);
 
-    return renderBlocks(document.blocks, { references: document.references, highlight, names }, false);
+    return renderBlocks(document.blocks, { references: document.references, highlight, names, urls }, false);
 }
 
 function renderBlocks(blocks: readonly Block[], rendering: Rendering, tight: boolean): string {
@@ -42,13 +47,13 @@ function renderBlock(block: Block, rendering: Rendering, tight: boolean): string
 
     switch (block.type) {
         case "paragraph": {
-            const content = renderInline(parseInlines(block.text, references));
+            const content = renderInline(parseInlines(block.text, references), rendering);
 
             // A tight list's item holds its text bare, as the reader would space it by hand; the item carries the line.
             return tight ? content : `<p${line}>${content}</p>`;
         }
         case "heading":
-            return `<h${block.level}${line}>${renderInline(parseInlines(block.text, references))}</h${block.level}>`;
+            return `<h${block.level}${line}>${renderInline(parseInlines(block.text, references), rendering)}</h${block.level}>`;
         case "code": {
             const info = block.info.split(/\s+/, 1)[0];
             const highlighted = info.length > 0 ? highlight(block.text, info) : null;
@@ -101,7 +106,7 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
         const alignment = alignments[column];
         const align = alignment === null || alignment === undefined ? "" : ` class="${ClassName}__cell--${alignment}"`;
 
-        return `<${tag}${align}>${renderInline(parseInlines(text, rendering.references))}</${tag}>`;
+        return `<${tag}${align}>${renderInline(parseInlines(text, rendering.references), rendering)}</${tag}>`;
     };
 
     let html = `<div class="${ClassName}__table"${sourceLine(line, rendering)}><table>`;
@@ -134,7 +139,7 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
     return `${html}</table></div>`;
 }
 
-function renderInline(parent: Inline): string {
+function renderInline(parent: Inline, rendering: Rendering): string {
     let html = "";
 
     for (let node = parent.firstChild; node !== null; node = node.next) {
@@ -150,16 +155,16 @@ function renderInline(parent: Inline): string {
                 html += `<code>${escapeHtml(node.literal)}</code>`;
                 break;
             case "emphasis":
-                html += `<em>${renderInline(node)}</em>`;
+                html += `<em>${renderInline(node, rendering)}</em>`;
                 break;
             case "strong":
-                html += `<strong>${renderInline(node)}</strong>`;
+                html += `<strong>${renderInline(node, rendering)}</strong>`;
                 break;
             case "strikethrough":
-                html += `<del>${renderInline(node)}</del>`;
+                html += `<del>${renderInline(node, rendering)}</del>`;
                 break;
             case "link":
-                html += renderLink(node);
+                html += renderLink(node, rendering);
                 break;
             case "image":
                 html += renderImage(node);
@@ -171,7 +176,7 @@ function renderInline(parent: Inline): string {
                 html += "\n";
                 break;
             default:
-                html += renderInline(node);
+                html += renderInline(node, rendering);
                 break;
         }
     }
@@ -179,8 +184,8 @@ function renderInline(parent: Inline): string {
     return html;
 }
 
-function renderLink(node: Inline): string {
-    const content = renderInline(node);
+function renderLink(node: Inline, rendering: Rendering): string {
+    const content = renderInline(node, rendering);
     const href = safeAddress(node.href, false);
 
     if (href === null)
@@ -188,9 +193,9 @@ function renderLink(node: Inline): string {
 
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";
     // An address off the page opens beside it rather than in place of the application. Any http(s) address counts, since a browser
-    // reads `http:host` without its slashes as another host too; it also reads a backslash as a slash and drops tabs and breaks
-    // inside an address, so `\\host` and `/\host` are other hosts.
-    const external = /^(?:https?:|[\\/]{2})/i.test(href.replace(/[\t\n\r]/g, "")) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
+    // reads `http:host` without its slashes as another host too; it also reads a backslash as a slash, so `\\host` and `/\host`
+    // are other hosts — judged on the address as the browser reads it.
+    const external = /^(?:https?:|[\\/]{2})/i.test(rendering.urls.asBrowserReads(href)) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
 
     return `<a href="${escapeHtml(href)}"${title}${external}>${content}</a>`;
 }

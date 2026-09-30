@@ -8,6 +8,7 @@ import { escapeHtml, renderSegments } from "./highlighter.ts";
 import { languages } from "./languages/index.ts";
 import { fenceLanguageId } from "./languages/markdown.ts";
 import { renderMarkdown } from "./markdown-render.ts";
+import type { MarkdownUrls } from "./markdown-render.ts";
 import type { Token } from "./tokenizer.ts";
 
 const RootSelector = `.${MarkdownRootClass}`;
@@ -15,12 +16,14 @@ const BodySelector = `.${MarkdownBodyClass}`;
 
 export class MarkdownDisplayEngine {
     private readonly names: MarkdownNames;
+    private readonly urls: MarkdownUrls;
     // The source each root was last rendered from: the observer also reports the render's own writes, and those change nothing.
     private readonly rendered = new WeakMap<HTMLElement, string>();
     private readonly live = new Set<HTMLElement>();
 
     public constructor(context: PluginEngineContext) {
         this.names = context.names;
+        this.urls = context.urls;
 
         // Watching first: a document that fails to render must not leave every display on the page without its watch.
         context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute] }, roots => this.renderAll(roots, false));
@@ -44,15 +47,15 @@ export class MarkdownDisplayEngine {
 
             this.rendered.set(root, source);
             this.live.add(root);
-            body.innerHTML = renderSafely(source, this.names);
+            body.innerHTML = renderSafely(source, this.names, this.urls);
         }
     }
 }
 
 /** The document as HTML; one that cannot be rendered is shown as its source, and the displays beside it render as ever. */
-function renderSafely(source: string, names: MarkdownNames): string {
+function renderSafely(source: string, names: MarkdownNames, urls: MarkdownUrls): string {
     try {
-        return renderMarkdown(source, highlightCode, names);
+        return renderMarkdown(source, highlightCode, names, urls);
     }
     catch (error) {
         console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", error);

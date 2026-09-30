@@ -33,7 +33,9 @@ export type MarkdownDocument = {
     readonly references: ReadonlyMap<string, LinkTarget>;
 };
 
-const AtxHeading = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+// A heading's opening alone: the text after it and the closing run are read by hand (`readAtxHeading`), since a pattern for the
+// closing run beside a lazy text backtracks over a long run of spaces in time quadratic in its length.
+const AtxOpening = /^ {0,3}(#{1,6})(?=[ \t]|$)/;
 const ListStart = /^( {0,3})(?:([-*+])|(\d{1,9})([.)]))([ \t]+|$)/;
 const SetextUnderline = /^ {0,3}(=+|-+)[ \t]*$/;
 const TaskBox = /^\[([ xX])\](?:[ \t]+|$)/;
@@ -105,10 +107,10 @@ function readBlock(lines: readonly string[], start: number, firstLine: number, r
     if (fence !== null)
         return readFencedCode(lines, start, at, fence, blocks);
 
-    const heading = AtxHeading.exec(line);
+    const heading = readAtxHeading(line);
 
     if (heading !== null) {
-        blocks.push({ line: at, type: "heading", level: heading[1].length, text: (heading[2] ?? "").trim() });
+        blocks.push({ line: at, type: "heading", level: heading.level, text: heading.text });
 
         return start + 1;
     }
@@ -173,6 +175,35 @@ function readFencedCode(lines: readonly string[], start: number, at: number, fen
     blocks.push({ line: at, type: "code", info: unescape(fence.info.trim()), text: content.join("\n") });
 
     return i;
+}
+
+/**
+ * An ATX heading's level and text, or null for a line that is none. A closing run of `#` goes when a space or a tab stands before
+ * it — the one after the opening included, so `### ###` is an empty heading — and the spaces around the text go with it.
+ */
+function readAtxHeading(line: string): { readonly level: number; readonly text: string } | null {
+    const opening = AtxOpening.exec(line);
+
+    if (opening === null)
+        return null;
+
+    let end = line.length;
+
+    while (end > opening[0].length && isSpaceOrTab(line.charAt(end - 1)))
+        end--;
+
+    let closing = end;
+
+    while (closing > opening[0].length && line.charAt(closing - 1) === "#")
+        closing--;
+
+    const text = closing < end && isSpaceOrTab(line.charAt(closing - 1)) ? line.slice(opening[0].length, closing) : line.slice(opening[0].length, end);
+
+    return { level: opening[1].length, text: text.trim() };
+}
+
+function isSpaceOrTab(character: string): boolean {
+    return character === " " || character === "\t";
 }
 
 /** A quote: its lines less their markers, and the lazy lines that carry on its last paragraph without one. */
@@ -241,7 +272,7 @@ function endsInOpenParagraph(lines: readonly string[], depth: number): boolean {
     for (let marker = ListStart.exec(content); marker !== null && content.length > 0; marker = ListStart.exec(content))
         content = content.slice(marker[0].length);
 
-    return !AtxHeading.test(content) && !ThematicBreak.test(content) && openFence(content) === null;
+    return readAtxHeading(content) === null && !ThematicBreak.test(content) && openFence(content) === null;
 }
 
 /** Whether the lines end inside a fence, or on the line that closes one. */
@@ -495,7 +526,7 @@ function onlyDefinitions(collected: readonly string[]): boolean {
 
 /** What may cut a paragraph short: a heading, a fence, a rule or a quote. List items are judged apart, since only some may. */
 function interruptsParagraph(line: string): boolean {
-    return AtxHeading.test(line) || ThematicBreak.test(line) || QuoteMarker.test(line) || openFence(line) !== null;
+    return readAtxHeading(line) !== null || ThematicBreak.test(line) || QuoteMarker.test(line) || openFence(line) !== null;
 }
 
 /** Whether a line carries an open paragraph on rather than ending it or turning it into a heading or a table's head. */

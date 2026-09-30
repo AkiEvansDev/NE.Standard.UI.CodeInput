@@ -11,7 +11,7 @@ namespace NE.Standard.UI.Web.CodeInput;
 /// The words the code field's chrome writes — the find/replace panel, the status bar — translated by an application exactly as
 /// the framework's <see cref="UIStrings"/> are.
 /// </summary>
-public sealed class CodeInputStrings : IUIStringsSource
+public sealed partial class CodeInputStrings : IUIStringsSource
 {
     /// <summary>The find panel's count: which match of how many.</summary>
     public const string Matches = "ui.code.matches";
