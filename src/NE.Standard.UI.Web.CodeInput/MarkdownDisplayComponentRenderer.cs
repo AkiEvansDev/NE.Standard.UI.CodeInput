@@ -2,6 +2,7 @@ using System;
 using NE.Standard.UI.CodeInput;
 using NE.Standard.UI.Web.Abstractions.Html;
 using NE.Standard.UI.Web.Abstractions.Rendering;
+using NE.Standard.UI.Web.Abstractions.Theming;
 using NE.Standard.UI.Web.Renderers.Foundation;
 
 namespace NE.Standard.UI.Web.CodeInput;
@@ -23,6 +24,9 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(root);
+
+        // A document is read, so its words select as a Text's do.
+        _ = root.Class(WebClassNames.ContentText);
 
         RenderTooltip(context, root);
 

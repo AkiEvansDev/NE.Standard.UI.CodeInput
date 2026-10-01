@@ -446,9 +446,19 @@
     // The bar is a row of pressable words, not fields, so hover lifts to the surface's ink on the hover wash, like the bar's own
     // words — not the ghost field's quiet hover — and a press takes the stronger wash. A read-only field's pickers are read-only
     // selects (the engine keeps them so): its settings are not the reader's to change, and nothing lifts.
-    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:is(:hover, [aria-expanded="true"]) {
+    @ui-code-input-picker-lift: {
         color: var(--ui-color-on-surface);
         background: var(--ui-wash-hover);
+    };
+
+    @media @ui-can-hover {
+        .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:hover {
+            @ui-code-input-picker-lift();
+        }
+    }
+
+    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger[aria-expanded="true"] {
+        @ui-code-input-picker-lift();
     }
 
     .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:active {
@@ -456,14 +466,15 @@
     }
 
 // Ctrl+Space's suggestion list, about ten rows before it scrolls; the engine places it and keeps it while closed, so it fades out.
+// Padded as every popup list is, so its rows' corners run parallel to the popup's.
 .ui-code-input__completions {
     .ui-popup-surface();
     .ui-popup-scroll();
     .ui-popup-open(flex);
     .ui-entry-list();
     min-width: 12rem;
-    max-height: calc(10 * 1.5rem + 9 * @ui-list-entry-gap);
-    padding: 0;
+    max-height: calc(10 * 1.5rem + 9 * @ui-list-entry-gap + 2 * @ui-space-1 + 2 * var(--ui-border-width, 1px));
+    padding: @ui-space-1;
     margin: 0;
     list-style: none;
 }
@@ -479,6 +490,7 @@
     gap: @ui-space-2;
     height: 1.5rem;
     padding: 0 @ui-space-2;
+    border-radius: @ui-list-entry-radius;
     color: var(--ui-color-on-surface);
     font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);

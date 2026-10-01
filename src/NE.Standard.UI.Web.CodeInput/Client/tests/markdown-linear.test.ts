@@ -11,15 +11,18 @@ import { languages } from "../src/languages/index.ts";
 import type { MarkdownUrls } from "../src/markdown-render.ts";
 import { renderMarkdown } from "../src/markdown-render.ts";
 
-// Far under what a quadratic read of these lines takes, far over what a linear one does on a slow machine.
-const Bound = 500;
+// A linear read of a line four times as long takes about four times as long, a quadratic one sixteen: the ratio tells them apart
+// on a machine of any speed and under any load, where a bound in milliseconds failed the build on a busy one.
 const Length = 100000;
+const Quarter = Length / 4;
+const Ratio = 8;
+// Under this the long read is fast whatever its ratio: a ratio of two small times is mostly noise.
+const Quick = 60;
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
 
 // The framework's reading of an address, as the plugin surface hands it over.
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 const urls = await import(pathToFileURL(resolve(repository, "src/Platforms/Web/NE.Standard.UI.Web/Client/src/rendering/url-safety.ts")).href) as MarkdownUrls;
-const spaces = " ".repeat(Length);
 
 function elapsed(read: () => void): number {
     const start = performance.now();
@@ -43,22 +46,31 @@ function readBoth(source: string): number {
     });
 }
 
-const cases: readonly (readonly [string, string])[] = [
-    ["a heading's text followed by a run of spaces", `x\n# a${spaces}b`],
-    ["a table's delimiter row with a run of spaces and no end", `| a |\n|---${spaces}x`],
-    ["a long delimiter cell and a run of spaces", `| a |\n|${"-".repeat(Length)}${spaces}|${spaces}x`],
-    ["a tag with a run of spaces and no end", `<a${spaces}`],
-    ["emphasis openers with no close", "*a ".repeat(Length / 3)],
-    ["underscore openers with no close", "_a ".repeat(Length / 3)],
-    ["brackets with no close", "[".repeat(Length)],
-    ["links with no address's end", "[a](".repeat(Length / 4)],
-    ["links whose title in parentheses has no end", "[a](x (".repeat(Length / 7)]
+const cases: readonly (readonly [string, (length: number) => string])[] = [
+    ["a heading's text followed by a run of spaces", n => `x
+# a${" ".repeat(n)}b`],
+    ["a table's delimiter row with a run of spaces and no end", n => `| a |
+|---${" ".repeat(n)}x`],
+    ["a long delimiter cell and a run of spaces", n => `| a |
+|${"-".repeat(n)}${" ".repeat(n)}|${" ".repeat(n)}x`],
+    ["a tag with a run of spaces and no end", n => `<a${" ".repeat(n)}`],
+    ["emphasis openers with no close", n => "*a ".repeat(n / 3)],
+    ["underscore openers with no close", n => "_a ".repeat(n / 3)],
+    ["brackets with no close", n => "[".repeat(n)],
+    ["links with no address's end", n => "[a](".repeat(n / 4)],
+    ["links whose title in parentheses has no end", n => "[a](x (".repeat(n / 7)]
 ];
 
-for (const [name, source] of cases) {
-    test(`linear: ${name}`, () => {
-        const took = readBoth(source);
+/** The faster of two reads, so a pause the machine takes elsewhere does not count. */
+function fastest(source: string): number {
+    return Math.min(readBoth(source), readBoth(source));
+}
 
-        assert.ok(took < Bound, `${name} took ${Math.round(took)} ms`);
+for (const [name, build] of cases) {
+    test(`linear: ${name}`, () => {
+        const short = fastest(build(Quarter));
+        const long = fastest(build(Length));
+
+        assert.ok(long < Quick || long / Math.max(short, 1) < Ratio, `${name}: ${Math.round(short)} ms at ${Quarter}, ${Math.round(long)} ms at ${Length}`);
     });
 }

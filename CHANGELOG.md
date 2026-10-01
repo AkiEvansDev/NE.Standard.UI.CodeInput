@@ -4,6 +4,19 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.4.0-rc.4
+
+- **The Markdown display's words select as a Text's do.** The framework's pages now select only reading words; the display
+  is one (`ui-content-text` on its root), so its document can still be selected and copied, unless its own or a surrounding
+  component's `TextSelectable` says otherwise.
+- **Ctrl+Space's list is padded as every popup list is.** Its rows take a list entry's corner (`@ui-list-entry-radius`) inside
+  the list's 4 px padding, so they run parallel to the popup's rounder corner, where square rows met it edge to edge.
+- **Built on the framework's 1.4.0-rc.4.** Its copy of the plugin contract carries the
+  framework's action bar — `names.actionBar` and `names.actionBarKey`, and the `actionBar` flag of `ui-context-menu-opening` raised before a bar shows a
+  menu's entries — and its stylesheet's `.ui-popup-scroll()` caps a list at the dynamic viewport's height (`100dvh`), `@ui-popup-radius`
+  and `@ui-list-entry-radius` round a popup and its entries, and `.ui-dialog-look()` is the framework dialog's panel.
+- **The demo:** the options over the editor stand in even columns (`WrapPanelComponent.ItemMinWidth`), the Markdown page stacks the editor over the page on a phone, and the page header is compact there.
+
 ## 1.4.0-rc.3
 
 - **The code field's placeholder takes a phrase**, as every text of the framework's now does. **Breaking:**
