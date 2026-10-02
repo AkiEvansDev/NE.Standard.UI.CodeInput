@@ -16,8 +16,9 @@ import { renderMarkdown } from "../src/markdown-render.ts";
 const Length = 100000;
 const Quarter = Length / 4;
 const Ratio = 8;
-// Under this the long read is fast whatever its ratio: a ratio of two small times is mostly noise.
-const Quick = 60;
+// Under this the long read is fast whatever its ratio: a ratio of two small times is mostly noise (a garbage collection under a
+// busy build doubled one), and a quadratic read of this length takes seconds.
+const Quick = 150;
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
 
 // The framework's reading of an address, as the plugin surface hands it over.
@@ -61,9 +62,9 @@ const cases: readonly (readonly [string, (length: number) => string])[] = [
     ["links whose title in parentheses has no end", n => "[a](x (".repeat(n / 7)]
 ];
 
-/** The faster of two reads, so a pause the machine takes elsewhere does not count. */
+/** The fastest of three reads, so a pause the machine takes elsewhere does not count. */
 function fastest(source: string): number {
-    return Math.min(readBoth(source), readBoth(source));
+    return Math.min(readBoth(source), readBoth(source), readBoth(source));
 }
 
 for (const [name, build] of cases) {

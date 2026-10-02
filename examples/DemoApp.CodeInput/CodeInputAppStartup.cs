@@ -1,9 +1,19 @@
 using System;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DemoApp.CodeInput;
 
 public sealed class CodeInputAppStartup : UIStartupBase
 {
+    protected override void ConfigureServices(IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // The Markdown page's pictures are the one content this demo serves, so its store is the application's provider.
+        _ = services.AddSingleton<MarkdownPictures>();
+        _ = services.AddSingleton<IUIContentProvider>(static provider => provider.GetRequiredService<MarkdownPictures>());
+    }
+
     protected override void ConfigureApplication(UIApplicationBuilder application)
     {
         ArgumentNullException.ThrowIfNull(application);

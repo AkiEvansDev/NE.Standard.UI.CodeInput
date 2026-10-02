@@ -41,8 +41,9 @@ internal static class CodeInputDemoWords
         ["code-demo.appearance.underline"] = "Underline",
 
         ["code-demo.markdown.title"] = "Markdown",
-        ["code-demo.markdown.description"] = "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other.",
+        ["code-demo.markdown.description"] = "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other. Paste or drop a picture into the text: it uploads, and the page answers with where it keeps it.",
         ["code-demo.markdown.document"] = "Document",
+        ["code-demo.markdown.no-picture"] = "Only a PNG, JPEG, GIF or WebP picture can be added.",
 
         ["code-demo.code"] = "Code",
         ["code-demo.copy"] = "Copy"
@@ -75,8 +76,9 @@ internal static class CodeInputDemoWords
         ["code-demo.appearance.underline"] = "下划线",
 
         ["code-demo.markdown.title"] = "Markdown",
-        ["code-demo.markdown.description"] = "一个 Markdown 代码字段和一个绑定到同一文本的 MarkdownDisplay；两者互不知晓。",
+        ["code-demo.markdown.description"] = "一个 Markdown 代码字段和一个绑定到同一文本的 MarkdownDisplay；两者互不知晓。将图片粘贴或拖放到文本中：它会上传，页面会回复保存它的地址。",
         ["code-demo.markdown.document"] = "文档",
+        ["code-demo.markdown.no-picture"] = "只能添加 PNG、JPEG、GIF 或 WebP 图片。",
 
         ["code-demo.code"] = "代码",
         ["code-demo.copy"] = "复制"

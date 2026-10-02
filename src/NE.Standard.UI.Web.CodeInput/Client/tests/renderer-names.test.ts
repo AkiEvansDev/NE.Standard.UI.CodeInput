@@ -24,11 +24,14 @@ function code(text: string): string {
 const renderer = source("../../CodeInputComponentRenderer.cs", "ClassName", names.RootClass);
 const markdown = source("../../MarkdownDisplayComponentRenderer.cs", "ClassName", names.MarkdownRootClass);
 const words = read("../../CodeInputStrings.cs");
+const events = read("../../../NE.Standard.UI.CodeInput/CodeInputComponentExtensions.cs");
+const pictureEffect = read("../../../NE.Standard.UI.CodeInput/InsertPictureEffect.cs");
 
 // The framework's own sources, for the names its plugin surface does not carry.
 const Core = "../../../../../../src/Platforms/Web/";
 const checkbox = source(`${Core}NE.Standard.UI.Web.Renderers/Inputs/CheckboxComponentRenderer.cs`, "classPrefix", names.CoreNames.checkboxClass);
 const classNames = read(`${Core}NE.Standard.UI.Web.Abstractions/Theming/WebClassNames.cs`);
+const coreWords = read("../../../../../../src/Contracts/NE.Standard.UI.Shell/Localization/UIStrings.cs");
 
 function assertWritten(file: string, fileName: string, name: string): void {
     assert.ok(file.includes(`"${name}"`), `${fileName} writes no "${name}", which the client looks for`);
@@ -79,10 +82,18 @@ test("the tab size variable is the one the renderer writes", () => {
 test("every word the client writes is a key CodeInputStrings lists", () => {
     const keys = namesStartingWith("ui.code.");
 
-    assert.equal(keys.length, 5);
+    assert.equal(keys.length, 6);
 
     for (const key of keys)
         assertWritten(words, "CodeInputStrings.cs", key);
+});
+
+test("the picture's event and effect are the ones the server raises and answers with, and the framework's word is its own", () => {
+    assertWritten(events, "CodeInputComponentExtensions.cs", names.PictureUploadEvent);
+    assertWritten(pictureEffect, "InsertPictureEffect.cs", names.InsertPictureEffectKind);
+
+    for (const key of Object.values(names.CoreWords))
+        assertWritten(coreWords, "UIStrings.cs", key);
 });
 
 test("the Markdown display's names are the ones its renderer writes", () => {

@@ -47,6 +47,7 @@ new CodeInputComponent()
 | `Completions` | Whether Ctrl+Space and typing open a completion list — see *Completions* (on by default). |
 | `CompletionsSource` | The URL of a JSON file of completion items and trigger characters the client loads once — see *Completions*. |
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
+| `MaxFileSize`, `Accept` | The largest picture a paste or a drop takes, and its types — see *Pictures in Markdown*. |
 
 `Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon and badge, validation and
 borders come from the framework's field, exactly as a text area's do — except that the editor starts as
@@ -103,6 +104,45 @@ new CodeInputComponent()
 A command that replaces the text on purpose — another file opened, a sample reset — returns
 `DiscardFormEffect("editor")`, and the unsaved edit gives way to the server's value. A large text needs nothing of its
 own: the framework sends a value over 8 KB beside the connection.
+
+## Pictures in Markdown
+
+A Markdown field takes a picture pasted (Ctrl+V) or dropped onto it once the application says where pictures go. The field keeps
+nothing: it sends the file up through the framework's own upload and the application's command keeps it wherever it keeps files,
+answering with the address the picture is shown from.
+
+```csharp
+new CodeInputComponent()
+    .SetLanguage(UICodeLanguages.Markdown)
+    .BindValue(nameof(DocsController.Readme))
+    .OnPictureUpload(nameof(DocsController.AddPictureAsync))
+    .SetMaxFileSize(2 * 1024 * 1024)
+```
+
+```csharp
+[UICommand]
+public async Task<UICommandResult> AddPictureAsync(string selection, CancellationToken cancellationToken)
+{
+    UIUploadSelection chosen = await Context.Uploads.GetSelectionAsync(Context.Handle, selection, cancellationToken);
+    // ...keep chosen.SingleFile where the application keeps files...
+    return UICommandResult.Ok([new InsertPictureEffect(selection, address)]);
+}
+```
+
+While a picture uploads, a placeholder stands at the caret, or where the picture was let go — `![Uploading shot.png…]()`, in the
+reader's language — and the reader goes on editing. The answer's `InsertPictureEffect` turns the placeholder into
+`![shot](address)` wherever the edits have moved it; several pictures at once stand a line each, and each lands at its own
+placeholder whichever answers first. One Ctrl+Z takes a picture that landed straight away back whole, as it would typed text. A
+command that fails takes the placeholder out and says its words on the field's validation line (`UICommandResult.Fail`, a key
+or text); an answer without the effect takes it out quietly, and a placeholder the reader deleted is not put back. The command's
+keys are `CodeInputArguments.Selection` and `CodeInputArguments.FileName` — bound as `selection` and `fileName` by the
+one-argument `OnPictureUpload`.
+
+`MaxFileSize` refuses a larger picture before it is sent, in the framework's own words for a file input's limit, and `Accept`
+narrows the types as a file input's does (`image/png, .jpg`); only a picture is ever taken. Without `OnPictureUpload` a paste is
+text alone, a copy that carries words beside a picture of them pastes the words, and a field in any language but Markdown —
+the one whose text can hold a picture — never takes one. The address is the application's: the effect refuses a `data:` address,
+so the text never carries the picture itself.
 
 ## Several carets
 
@@ -211,11 +251,12 @@ highlighted in the code field's colours as the language its info string names (t
 language a package registered, and the common short names: `cs`, `js`, `ts`, `sh`, `py`, `md`). The rendering happens in
 the browser; a value the server pushes renders again.
 
-Raw HTML in a document is shown as text, not markup, and a link or an image keeps its address only when it is relative
-or `http`, `https`, `mailto` or `tel` (an image also takes a `data:image/…` address); anything else — `javascript:` among
-them — leaves its words alone. A link off the page opens in a new tab — `//host`, and `\\host` and `/\host` too, which a
-browser reads as another host, judged on the address as the browser reads it (a control character or a space at either end
-dropped, a tab or a break inside). Every line is read in time linear in its length, so a long line in a document another
+Raw HTML in a document is shown as text, not markup, and its addresses are judged by the framework's one rule, the one its
+own links and pictures follow (`urls` on the plugin surface): a link keeps an address that is relative or `http`, `https`,
+`mailto` or `tel`, with no space or control character anywhere; an image keeps a path of the site, absolute or relative to the
+page (`img/x.png`, `x.png`), an `http(s)` or a `data:image/…` address, written as the browser reads it; anything else —
+`javascript:` among them — leaves its words alone. A link off the page — a web, mail or phone address, or `//host`, `\\host`
+and `/\host`, which a browser reads as another host — opens in a new tab. Every line is read in time linear in its length, so a long line in a document another
 viewer wrote cannot freeze the page. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
 at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
 tokenizer that fails leaves its block, or its line in the field, plain.

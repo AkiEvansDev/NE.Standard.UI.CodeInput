@@ -1,6 +1,7 @@
 // The carets and selections of one field, and the keys that move them: the textarea shows the primary, the rest are drawn on a
 // layer above the text.
 
+import type { ObserveSize } from "ne-standard-ui";
 import { CaretClass, CaretLayerClass, MultiCaretAttribute, SelectionClass, VirtualClass } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import type { Lines } from "./motion.ts";
@@ -37,7 +38,7 @@ type Rect = {
 };
 
 export class CodeEditorCarets {
-    private readonly resize: ResizeObserver | null;
+    private readonly stopWatchingSize: () => void;
     private readonly root: HTMLElement;
     private readonly textarea: HTMLTextAreaElement;
     private readonly scroller: HTMLElement;
@@ -64,7 +65,7 @@ export class CodeEditorCarets {
     private adding: SelectionSet | null = null;
     private renderQueued = false;
 
-    public constructor(parts: CaretParts, surface: CodeEditorSurface) {
+    public constructor(parts: CaretParts, surface: CodeEditorSurface, observeSize: ObserveSize) {
         this.root = parts.root;
         this.textarea = parts.textarea;
         this.scroller = parts.scroller;
@@ -83,14 +84,13 @@ export class CodeEditorCarets {
         this.content.insertBefore(this.layer, this.textarea);
         this.content.insertBefore(this.probe, this.textarea);
 
-        // Kept, to be disconnected with the editor: an observer left on a field the page dropped keeps the whole editor alive.
-        this.resize = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.queueRender()) : null;
-        this.resize?.observe(this.content);
+        // Kept, to be let go with the editor: a watch left on a field the page dropped keeps the whole editor alive.
+        this.stopWatchingSize = observeSize(this.content, () => this.queueRender());
     }
 
     /** Lets the size watch go; the editor's root has left the page. */
     public dispose(): void {
-        this.resize?.disconnect();
+        this.stopWatchingSize();
     }
 
     private get enabled(): boolean {

@@ -1,3 +1,8 @@
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace DemoApp.CodeInput;
 
 /// <summary>
@@ -7,6 +12,33 @@ internal sealed partial class MarkdownController : UIControllerBase
 {
     [RecursiveMember]
     public partial string Document { get; set; } = Sample;
+
+    /// <summary>
+    /// A picture pasted or dropped into the document has reached the server: kept in the demo's own store, and its address is the
+    /// answer that takes the placeholder's place. Where an application keeps it is its own business; the field keeps nothing.
+    /// </summary>
+    [UICommand]
+    public async Task<UICommandResult> AddPictureAsync(string selection, CancellationToken cancellationToken)
+    {
+        UIUploadSelection chosen = await Context.Uploads.GetSelectionAsync(Context.Handle, selection, cancellationToken).ConfigureAwait(false);
+
+        if (chosen.SingleFile is not UIUploadFile file)
+            return UICommandResult.Fail("code-demo.markdown.no-picture");
+
+        UIUploadedFile opened = await Context.Uploads.OpenAsync(Context.Handle, file.FileId, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        await using (opened.ConfigureAwait(false))
+        {
+            using MemoryStream bytes = new();
+
+            await opened.Content.CopyToAsync(bytes, cancellationToken).ConfigureAwait(false);
+
+            // The bytes decide what the file is, not its name: anything but PNG, JPEG, GIF or WebP is refused, in the page's words.
+            return Context.Services.GetRequiredService<MarkdownPictures>().Keep(bytes.ToArray()) is string address
+                ? UICommandResult.Ok([new InsertPictureEffect(selection, address)])
+                : UICommandResult.Fail("code-demo.markdown.no-picture");
+        }
+    }
 
     /// <summary>An incident report that uses every construction the display renders, so one look shows them all.</summary>
     public const string Sample = """

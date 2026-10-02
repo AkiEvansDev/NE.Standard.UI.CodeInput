@@ -4,6 +4,30 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag �
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.4.0
+
+- **The demos:** the Markdown page sets the editor and its rendering side by side from a wide screen (`xl`) on and stacks them
+  below it, where on a tablet each pane had some 270 px — words broken mid-word and the field's status bar cut to "l Spaces…".
+- **New: a picture pasted or dropped into a Markdown text.** `OnPictureUpload(command)` opts a field in: a picture pasted
+  (Ctrl+V) or dropped — several at once, a line each — stands under a placeholder (`![Uploading name…]()`, in the reader's
+  language) at the caret or where it was let go, goes up through the framework's own upload, and the command runs with its
+  selection and file name (`CodeInputArguments`). The application keeps the file where it likes and answers with
+  `InsertPictureEffect(selection, address)`, which turns the placeholder into `![name](address)` wherever the reader's edits
+  have moved it meanwhile; one undo takes the picture back whole. A failed answer takes the placeholder out and says the
+  command's words on the field's validation line, a failed upload the framework's. `MaxFileSize` (the framework's shared
+  `SetMaxFileSize`) refuses a larger picture before it is sent, in the file inputs' words, and `Accept` narrows the picture
+  types. Without the command a paste is text alone, and a field in any language but Markdown never takes a picture. The field
+  keeps nothing and never writes a `data:` address into the text; the effect refuses one.
+- **Markdown's links and pictures follow the framework's one address rule** (`urls.isSafeLink`, `urls.isExternalLink` and
+  `urls.isImageSource` on the plugin surface), not a copy of their own: a picture relative to the page (`img/x.png`) still shows
+  and an SVG's `data:image/svg+xml` now does; a link with a space or a control character anywhere is no link; a `mailto:` or
+  `tel:` link opens in a new tab, as the framework's own do. Its copy of the plugin contract carries the two new `urls` members.
+- **`CodeInputComponent` takes the framework's `IDebounceInputComponent`;** its `SetDebounceMilliseconds` is the shared one, the
+  fluent chain unchanged.
+- **The carets' size watch is the framework's** (`observeSize` on the plugin surface), let go with the editor as before.
+- **Built on the framework's 1.4.0:** its copy of the plugin contract carries `focus.first(container)`, `uploads.accepts` and
+  `uploads.takeWithinSizeLimit`, and the new tokens and mixins (`@ui-tinted-fill`, `@ui-part-radius`, the `@ui-z-*` ladder, `.ui-picture-glass()`, `.ui-user-select()`).
+
 ## 1.4.0-rc.4
 
 - **The Markdown display's words select as a Text's do.** The framework's pages now select only reading words; the display

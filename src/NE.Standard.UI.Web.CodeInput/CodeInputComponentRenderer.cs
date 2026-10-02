@@ -5,6 +5,7 @@ using NE.Standard.UI.Abstractions.Binding.Properties;
 using NE.Standard.UI.Authoring.BuiltIns;
 using NE.Standard.UI.Authoring.Components;
 using NE.Standard.UI.CodeInput;
+using NE.Standard.UI.Compiled.Models;
 using NE.Standard.UI.Components.BuiltIns.Actions;
 using NE.Standard.UI.Web.Abstractions.Html;
 using NE.Standard.UI.Web.Abstractions.Rendering;
@@ -41,6 +42,12 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
     /// <summary>On the root while the status bar shows.</summary>
     public const string StatusBarAttribute = "data-ui-code-status";
+
+    /// <summary>On the root while an <c>OnPictureUpload</c> command takes the pictures pasted or dropped into a Markdown text.</summary>
+    public const string PicturesAttribute = "data-ui-code-pictures";
+
+    /// <summary>On the root: the picture types a paste or a drop takes, when <c>Accept</c> narrows them.</summary>
+    public const string PictureAcceptAttribute = "data-ui-code-picture-accept";
 
     /// <summary>On the root: the line ending the value arrived with, <c>lf</c> or <c>crlf</c>.</summary>
     public const string DetectedLineEndingAttribute = "data-ui-code-eol";
@@ -95,11 +102,33 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
         _ = root.Attribute(DetectedLineEndingAttribute, DetectLineEnding(context));
 
+        RenderPictures(context, root);
+
         _ = RenderProperty<int?>(context, root, CodeInputComponent.RowsProperty, static (target, value) =>
         {
             if (value is int rows and > 0)
                 _ = target.Style(RowsVariable, rows.ToString(CultureInfo.InvariantCulture));
-        }, [WebDomOperation.Style(RowsVariable)]);
+        }, [WebDomOperation.Style(RowsVariable, converter: WebDomConverters.PositiveCount)]);
+    }
+
+    /// <summary>
+    /// Pictures are taken only where a command answers them: the field keeps none itself. The size limit is the framework's file
+    /// limit, which its upload refuses by in the browser.
+    /// </summary>
+    private static void RenderPictures(WebRenderContext context, IHtmlElementBuilder root)
+    {
+        if (!context.ViewResolution.View.Events.TryGet(new CompiledUIEventAddress(context.Node.ComponentId, CodeInputEvents.PictureUpload), out _))
+            return;
+
+        _ = root.Attribute(PicturesAttribute);
+
+        NativeInputRendererBase.RenderMaxFileSize(context, root, CodeInputComponent.MaxFileSizeProperty);
+
+        _ = RenderProperty<string?>(context, root, CodeInputComponent.AcceptProperty, static (target, value) =>
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                _ = target.Attribute(PictureAcceptAttribute, value.Trim());
+        }, [WebDomOperation.Attribute(PictureAcceptAttribute)]);
     }
 
     /// <summary>The line break the value came with: the browser holds every break as LF, so only the render can tell.</summary>

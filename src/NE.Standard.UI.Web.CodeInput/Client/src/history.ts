@@ -53,6 +53,46 @@ export class EditHistory {
         this.open = true;
     }
 
+    /**
+     * Records a change made on behalf of an earlier one — a picture's address in place of its placeholder: it joins the step `anchor`
+     * was recorded in while that step is the last one done, so one undo takes both back, as it would text typed whole; otherwise
+     * the change is a step of its own.
+     */
+    public recordFor(change: Change, anchor: Change): void {
+        const last = this.done.at(-1);
+
+        if (last === undefined || !last.changes.includes(anchor)) {
+            this.record(change, "other");
+            return;
+        }
+
+        this.undone.length = 0;
+        last.changes.push(change);
+        this.open = false;
+    }
+
+    /**
+     * Forgets `anchor` when it is all the last step holds and `change` takes exactly it back — a placeholder taken out again — so no
+     * step is left that undoes nothing; false otherwise, and the change is the caller's to record.
+     */
+    public retract(change: Change, anchor: Change): boolean {
+        const last = this.done.at(-1);
+
+        if (last === undefined || last.changes.length !== 1 || last.changes[0] !== anchor || anchor.edits.length !== 1 || change.edits.length !== 1)
+            return false;
+
+        const inserted = anchor.edits[0];
+        const removal = change.edits[0];
+
+        if (removal.from !== inserted.from || removal.to !== inserted.from + inserted.text.length || removal.text !== anchor.removed[0])
+            return false;
+
+        this.done.pop();
+        this.undone.length = 0;
+        this.open = false;
+        return true;
+    }
+
     /** Takes the last step back out of `text`, or null when there is none. */
     public undo(text: string): Restore | null {
         const step = this.done.pop();

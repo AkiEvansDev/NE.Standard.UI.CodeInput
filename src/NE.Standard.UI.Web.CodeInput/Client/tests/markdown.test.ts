@@ -6,12 +6,12 @@ import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type { MarkdownUrls } from "../src/markdown-render.ts";
-import { renderMarkdown, safeAddress } from "../src/markdown-render.ts";
+import { renderMarkdown } from "../src/markdown-render.ts";
 
 // The framework's names as the plugin surface hands them over.
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
 
-// The framework's reading of an address, as the plugin surface hands it over.
+// The framework's one address rule, as the plugin surface hands it over.
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 const urls = await import(pathToFileURL(resolve(repository, "src/Platforms/Web/NE.Standard.UI.Web/Client/src/rendering/url-safety.ts")).href) as MarkdownUrls;
 
@@ -47,7 +47,7 @@ test("links and images, inline and by reference", () => {
         "<a href=\"https://ne.dev\" title=\"Title\" target=\"_blank\" rel=\"noopener noreferrer\">ref</a></p>");
     assert.equal(html("[missing] [a [b](/c)](/d)"), "<p>[missing] [a <a href=\"/c\">b</a>](/d)</p>");
     assert.equal(html("<https://ne.dev> <me@ne.dev> see https://ne.dev/a_(b). www.ne.dev"),
-        "<p><a href=\"https://ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">https://ne.dev</a> <a href=\"mailto:me@ne.dev\">me@ne.dev</a> " +
+        "<p><a href=\"https://ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">https://ne.dev</a> <a href=\"mailto:me@ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">me@ne.dev</a> " +
         "see <a href=\"https://ne.dev/a_(b)\" target=\"_blank\" rel=\"noopener noreferrer\">https://ne.dev/a_(b)</a>. " +
         "<a href=\"http://www.ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">www.ne.dev</a></p>");
 });
@@ -56,9 +56,14 @@ test("a document cannot put markup or script on the page", () => {
     assert.equal(html("<script>alert(1)</script> <b onclick=\"x\">"), "<p>&lt;script&gt;alert(1)&lt;/script&gt; &lt;b onclick=&quot;x&quot;&gt;</p>");
     assert.equal(html("[x](javascript:alert(1)) [y](<JAVA\tSCRIPT:alert(1)>) ![z](data:text/html,x)"), "<p>x y z</p>");
     assert.equal(html("[q](/a\"onmouseover=\"x)"), "<p><a href=\"/a&quot;onmouseover=&quot;x\">q</a></p>");
-    assert.equal(safeAddress("data:image/png;base64,AAA", true), "data:image/png;base64,AAA");
-    assert.equal(safeAddress("data:image/png;base64,AAA", false), null);
-    assert.equal(safeAddress(" vbscript:x", false), null);
+    assert.equal(html("![p](data:image/png;base64,AAA) [l](data:image/png;base64,AAA) [v](vbscript:x)"), "<p><img src=\"data:image/png;base64,AAA\" alt=\"p\" loading=\"lazy\"> l v</p>");
+    assert.equal(html("![h](//evil.test/a.png) ![b](/\\evil.test/a.png) [h](//evil.test/a)"), "<p>h b <a href=\"//evil.test/a\" target=\"_blank\" rel=\"noopener noreferrer\">h</a></p>");
+});
+
+// One rule with the framework's: a picture beside the page or in a folder of it, a phone's link opening beside the page as a mail's.
+test("a document's addresses are the framework's to judge", () => {
+    assert.equal(html("![a](img/x.png) ![b](./x.png)"), "<p><img src=\"img/x.png\" alt=\"a\" loading=\"lazy\"> <img src=\"./x.png\" alt=\"b\" loading=\"lazy\"></p>");
+    assert.equal(html("[call](tel:+100)"), "<p><a href=\"tel:+100\" target=\"_blank\" rel=\"noopener noreferrer\">call</a></p>");
 });
 
 test("quotes carry lazy lines and nest", () => {
@@ -152,13 +157,9 @@ test("quotes and lists nested past the deepest a document can mean read as text 
     assert.equal((items.match(/<ul>/g) ?? []).length, 64);
 });
 
-test("a leading control character or space hides no other host: the address is judged as the browser reads it", () => {
-    const external = "target=\"_blank\" rel=\"noopener noreferrer\"";
-
-    assert.ok(html("[a](<\u0001//evil.dev/x>)").includes(external));
-    assert.ok(html("[a](<\u001f https://evil.dev>)").includes(external));
-    assert.ok(html("[a](</\t/evil.dev>)").includes(external));
-    assert.ok(!html("[a](<\u0001/local/page>)").includes(external));
+// The framework's link rule refuses a control character or a space anywhere, so none can hide another host behind it.
+test("an address with a control character or a space in it is no link", () => {
+    assert.equal(html("[a](<\u0001//evil.dev/x>) [b](<\u001f https://evil.dev>) [c](</\t/evil.dev>) [d](<\u0001/local/page>)"), "<p>a b c d</p>");
 });
 
 test("a closing run of hashes goes after the opening's own space too, and a title in parentheses holds none unescaped", () => {

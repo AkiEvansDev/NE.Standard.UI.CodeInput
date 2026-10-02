@@ -7,7 +7,7 @@ import type { Change, EditKind, Restore } from "./history.ts";
 import { EditHistory, diffText } from "./history.ts";
 import type { Lines } from "./motion.ts";
 import type { Edit, SelectionSet } from "./selections.ts";
-import { applyEdits, singleSelection } from "./selections.ts";
+import { applyEdits, mapPosition, singleSelection } from "./selections.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import type { Strings } from "./code-editor-dom.ts";
 import { GutterDigitsVariable, LineClass, PositionWord, TabSizeVariable } from "./code-editor-dom.ts";
@@ -198,23 +198,47 @@ export class CodeEditorSurface {
         return true;
     }
 
-    /** Makes sorted, non-overlapping edits as one step of the history and puts the carets where `after` says. */
-    public apply(edits: readonly Edit[], after: SelectionSet, kind: EditKind): void {
+    /** Makes sorted, non-overlapping edits as one step of the history and puts the carets where `after` says; answers the change recorded. */
+    public apply(edits: readonly Edit[], after: SelectionSet, kind: EditKind): Change | null {
         if (this.textarea.readOnly)
-            return;
+            return null;
 
         this.adoptOutsideValue();
 
         if (edits.length === 0) {
             this.selections.write(after, true);
             this.writePosition();
-            return;
+            return null;
         }
 
         const value = this.textarea.value;
+        const change: Change = { edits, removed: edits.map(edit => value.slice(edit.from, edit.to)), before: this.selections.read(), after };
 
-        this.history.record({ edits, removed: edits.map(edit => value.slice(edit.from, edit.to)), before: this.selections.read(), after }, kind);
-        this.commit(applyEdits(value, edits), edits.length === 1 ? edits[0] : null, after, kind === "typing");
+        this.history.record(change, kind);
+        this.commit(applyEdits(value, edits), edits.length === 1 ? edits[0] : null, after, kind === "typing", true);
+        return change;
+    }
+
+    /**
+     * An edit made later on behalf of `anchor` — a picture's address in its placeholder's place, or the placeholder taken out: one
+     * undo takes it back with `anchor` while nothing came between (`EditHistory.recordFor`), and a removal that leaves nothing to undo
+     * is no step at all. The carets stay where the reader has them, moved along by the edit, and the view stays where it is.
+     */
+    public applyFor(anchor: Change, edit: Edit): void {
+        if (this.textarea.readOnly)
+            return;
+
+        this.adoptOutsideValue();
+
+        const value = this.textarea.value;
+        const before = this.selections.read();
+        const after: SelectionSet = { ranges: before.ranges.map(range => ({ anchor: mapPosition(range.anchor, [edit]), head: mapPosition(range.head, [edit]) })), primary: before.primary };
+        const change: Change = { edits: [edit], removed: [value.slice(edit.from, edit.to)], before, after };
+
+        if (!this.history.retract(change, anchor))
+            this.history.recordFor(change, anchor);
+
+        this.commit(applyEdits(value, [edit]), edit, after, false, false);
     }
 
     /** A value that changed with no edit and no push — a form reset — leaves the history nothing it can still undo. */
@@ -228,7 +252,7 @@ export class CodeEditorSurface {
     }
 
     /** Writes the text and raises `input` as a keystroke would — as typed text when it was, so typing at several carets opens completions as at one. */
-    private commit(text: string, single: Edit | null, selections: SelectionSet, typed: boolean): void {
+    private commit(text: string, single: Edit | null, selections: SelectionSet, typed: boolean, reveal: boolean): void {
         if (single !== null)
             this.textarea.setRangeText(single.text, single.from, single.to);
         else
@@ -237,7 +261,7 @@ export class CodeEditorSurface {
         this.lastValue = text;
         this.pendingBefore = null;
         this.redraw();
-        this.selections.write(selections, true);
+        this.selections.write(selections, reveal);
         this.writePosition();
         this.notifyTextChanged(false);
         this.textarea.dispatchEvent(typed ? new InputEvent("input", { bubbles: true, inputType: "insertText" }) : new Event("input", { bubbles: true }));
@@ -270,7 +294,7 @@ export class CodeEditorSurface {
         const restored = take(this.textarea.value);
 
         if (restored !== null)
-            this.commit(restored.text, null, restored.selections, false);
+            this.commit(restored.text, null, restored.selections, false, true);
     }
 
     /** The text's lines as the highlighter holds them. */

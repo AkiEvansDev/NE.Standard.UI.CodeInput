@@ -23,6 +23,8 @@ export const CompletionsAttribute = "data-ui-code-completions";
 export const CompletionsSourceAttribute = "data-ui-code-completions-source";
 export const StatusBarAttribute = "data-ui-code-status";
 export const DetectedLineEndingAttribute = "data-ui-code-eol";
+export const PicturesAttribute = "data-ui-code-pictures";
+export const PictureAcceptAttribute = "data-ui-code-picture-accept";
 export const TabSizeVariable = "--ui-code-tab-size";
 
 // Drawn by the renderer: the status bar's position and the hidden carriers of its four pickers.
@@ -56,6 +58,11 @@ export const MatchesWord = "ui.code.matches";
 export const NoMatchesWord = "ui.code.no-matches";
 export const InvalidPatternWord = "ui.code.invalid-pattern";
 export const SuggestionsWord = "ui.code.suggestions";
+export const PictureUploadingWord = "ui.code.picture-uploading";
+
+// The picture's round trip, by the names CodeInputEvents and InsertPictureEffect give it on the server.
+export const PictureUploadEvent = "picture-upload";
+export const InsertPictureEffectKind = "codeinput.insert-picture";
 
 /** The framework's names the plugin surface's `names` does not carry, held by the test to their C# sources. */
 export const CoreNames = {
@@ -63,6 +70,11 @@ export const CoreNames = {
     checkboxInputClass: "ui-checkbox__input",
     checkboxBoxClass: "ui-checkbox__box",
     smallInputClass: "ui-input--small"
+} as const;
+
+/** The framework's words the client says itself, by their UIStrings keys, held by the test to their C# source. */
+export const CoreWords = {
+    fileFailed: "ui.file.failed"
 } as const;
 
 // Drawn by this client, for its stylesheet.
@@ -73,6 +85,7 @@ export const CaretLayerClass = "ui-code-input__carets";
 export const CaretClass = "ui-code-input__caret";
 export const SelectionClass = "ui-code-input__selection";
 export const VirtualClass = "ui-code-input--virtual";
+export const PictureOverClass = "ui-code-input--picture-over";
 export const MatchClass = "ui-code-match";
 export const CurrentMatchClass = "ui-code-match--current";
 export const CompletionListClass = "ui-code-input__completions";

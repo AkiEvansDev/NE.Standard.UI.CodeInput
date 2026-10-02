@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EditKind } from "../src/history.ts";
+import type { Change, EditKind } from "../src/history.ts";
 import { EditHistory, diffText } from "../src/history.ts";
 import type { Edit, SelectionSet } from "../src/selections.ts";
 import { applyEdits, singleSelection } from "../src/selections.ts";
@@ -106,4 +106,69 @@ test("a diff ends where the caret stands when the text around it repeats", () =>
     assert.deepEqual(diffText("aa", "aaa", 2), { from: 1, to: 1, text: "a" });
     assert.deepEqual(diffText("aaa", "aa", 1), { from: 1, to: 2, text: "" });
     assert.deepEqual(diffText("abc", "aXYc", 3), { from: 1, to: 2, text: "XY" });
+});
+
+/** A placeholder pasted as one step, and the change that later stands for it — an address, or nothing — made the way the surface makes it. */
+function pastePlaceholder(session: Session, placeholder: string): Change {
+    const at = session.selections.ranges[0].head;
+    const change: Change = { edits: [{ from: at, to: at, text: placeholder }], removed: [""], before: session.selections, after: singleSelection(at + placeholder.length) };
+
+    session.history.record(change, "other");
+    session.text = applyEdits(session.text, change.edits);
+    session.selections = change.after;
+    return change;
+}
+
+function replaceFor(session: Session, anchor: Change, needle: string, text: string): void {
+    const from = session.text.indexOf(needle);
+    const change: Change = { edits: [{ from, to: from + needle.length, text }], removed: [needle], before: session.selections, after: session.selections };
+
+    if (!session.history.retract(change, anchor))
+        session.history.recordFor(change, anchor);
+
+    session.text = applyEdits(session.text, change.edits);
+}
+
+test("a picture's address joins its placeholder's step, so one undo takes the picture back whole", () => {
+    const session = new Session("Intro ", 6);
+    const anchor = pastePlaceholder(session, "![Uploading a.png…]()");
+
+    replaceFor(session, anchor, "![Uploading a.png…]()", "![a](/a.png)");
+    assert.equal(session.text, "Intro ![a](/a.png)");
+
+    session.undo();
+    assert.equal(session.text, "Intro ");
+
+    session.redo();
+    assert.equal(session.text, "Intro ![a](/a.png)");
+});
+
+test("an address that arrives after the reader typed on is a step of its own, and the typing stays", () => {
+    const session = new Session("", 0);
+    const anchor = pastePlaceholder(session, "![Uploading a.png…]()");
+
+    session.type(" more");
+    replaceFor(session, anchor, "![Uploading a.png…]()", "![a](/a.png)");
+    assert.equal(session.text, "![a](/a.png) more");
+
+    session.undo();
+    assert.equal(session.text, "![Uploading a.png…]() more");
+
+    session.undo();
+    session.undo();
+    assert.equal(session.text, "");
+});
+
+test("a placeholder taken out again leaves no step behind that undoes nothing", () => {
+    const session = new Session("Text", 4);
+
+    session.type("!");
+
+    const anchor = pastePlaceholder(session, "![Uploading a.png…]()");
+
+    replaceFor(session, anchor, "![Uploading a.png…]()", "");
+    assert.equal(session.text, "Text!");
+
+    session.undo();
+    assert.equal(session.text, "Text");
 });

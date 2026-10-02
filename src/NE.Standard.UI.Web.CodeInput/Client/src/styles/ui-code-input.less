@@ -294,6 +294,12 @@
         background: transparent;
     }
 
+// A picture over a Markdown field that takes it: a dashed edge inside the box, as the framework marks a drop target.
+.ui-code-input--picture-over > .ui-code-input__field {
+    outline: 2px dashed var(--ui-color-primary);
+    outline-offset: -2px;
+}
+
 // The find and replace panel, over the field's top right corner. Every field, button and switch in it is a framework component in
 // a named part; the panel lays them out and sets only the fields' width.
 @ui-code-search-field-width: 11rem;

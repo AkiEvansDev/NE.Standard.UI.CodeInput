@@ -34,7 +34,8 @@ public sealed partial class CodeInputStrings
             [NoMatches] = "Нет совпадений",
             [InvalidPattern] = "Недопустимый шаблон",
             [Position] = "Стр. {line}, стлб. {column}",
-            [Suggestions] = "Предложения"
+            [Suggestions] = "Предложения",
+            [PictureUploading] = "Загрузка {name}…"
         }, "Пробелы: ", ""),
         ["zh-Hans"] = WithSpaces(new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -59,7 +60,8 @@ public sealed partial class CodeInputStrings
             [NoMatches] = "无匹配",
             [InvalidPattern] = "无效的模式",
             [Position] = "行 {line}，列 {column}",
-            [Suggestions] = "建议"
+            [Suggestions] = "建议",
+            [PictureUploading] = "正在上传 {name}…"
         }, "", " 个空格")
     }.ToFrozenDictionary(StringComparer.Ordinal);
 

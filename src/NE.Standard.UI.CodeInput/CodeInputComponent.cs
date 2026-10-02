@@ -19,7 +19,7 @@ namespace NE.Standard.UI.CodeInput;
 /// <summary>
 /// A code editor: a monospaced multi-line field with syntax highlighting, line numbers, and find and replace in the browser.
 /// </summary>
-public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent
+public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
     private readonly Dictionary<string, IVisualComponent> _regions;
@@ -226,6 +226,20 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     public int? DebounceMilliseconds { get; set; }
 
     /// <summary>
+    /// Gets or sets the picture types a paste or a drop takes, as a file input's <c>Accept</c> lists them — MIME types, families
+    /// (<c>image/png</c>, <c>image/*</c>) or extensions; unset, any picture. Only a field with an <c>OnPictureUpload</c> command takes one.
+    /// </summary>
+    [UIComponentProperty(DefaultValue = null)]
+    public string? Accept { get; set; }
+
+    /// <summary>
+    /// Gets or sets the largest picture a paste or a drop takes, in bytes; the client refuses a larger one before uploading it and
+    /// says so on the field's validation line.
+    /// </summary>
+    [UIComponentProperty(DefaultValue = null, GenerateSetter = false)]
+    public long? MaxFileSize { get; set; }
+
+    /// <summary>
     /// Sets how many spaces a tab stop is, from one to eight.
     /// </summary>
     public T SetTabSize(int tabSize)
@@ -245,17 +259,6 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rows);
 
         Rows = rows;
-        return Self;
-    }
-
-    /// <summary>
-    /// Commits the value as the viewer types, this long after they pause.
-    /// </summary>
-    public T SetDebounceMilliseconds(int debounceMilliseconds)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(debounceMilliseconds);
-
-        DebounceMilliseconds = debounceMilliseconds;
         return Self;
     }
 

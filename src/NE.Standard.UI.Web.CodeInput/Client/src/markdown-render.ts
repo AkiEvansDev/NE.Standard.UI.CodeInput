@@ -1,5 +1,5 @@
-// A Markdown document as HTML. Every character is escaped on its way out and an address is kept only for a scheme a reader can
-// safely follow, so the markup is whatever the document says and nothing it could smuggle in.
+// A Markdown document as HTML. Every character is escaped on its way out and an address is kept only where the framework's one
+// address rule takes it, so the markup is whatever the document says and nothing it could smuggle in.
 
 import type { Urls } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
@@ -15,8 +15,8 @@ export type CodeHighlighter = (text: string, info: string) => string | null;
 
 const ClassName = MarkdownRootClass;
 
-/** The framework's reading of an address, as the plugin surface hands it over. */
-export type MarkdownUrls = Pick<Urls, "asBrowserReads">;
+/** The framework's address rule, as the plugin surface hands it over: a link's and a picture's, and whether a link leaves the page. */
+export type MarkdownUrls = Pick<Urls, "isSafeLink" | "isExternalLink" | "isImageSource" | "asBrowserReads">;
 
 /** What every block of one document is drawn against: its link references, the highlighter, and the framework's names and addresses. */
 type Rendering = {
@@ -167,7 +167,7 @@ function renderInline(parent: Inline, rendering: Rendering): string {
                 html += renderLink(node, rendering);
                 break;
             case "image":
-                html += renderImage(node);
+                html += renderImage(node, rendering);
                 break;
             case "hardbreak":
                 html += "<br>";
@@ -186,26 +186,27 @@ function renderInline(parent: Inline, rendering: Rendering): string {
 
 function renderLink(node: Inline, rendering: Rendering): string {
     const content = renderInline(node, rendering);
-    const href = safeAddress(node.href, false);
+    const href = node.href.trim();
 
-    if (href === null)
+    if (!rendering.urls.isSafeLink(href))
         return content;
 
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";
-    // An address off the page opens beside it rather than in place of the application. Any http(s) address counts, since a browser
-    // reads `http:host` without its slashes as another host too; it also reads a backslash as a slash, so `\\host` and `/\host`
-    // are other hosts — judged on the address as the browser reads it.
-    const external = /^(?:https?:|[\\/]{2})/i.test(rendering.urls.asBrowserReads(href)) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
+    // An address off the page — a web, mail or phone address, or another host as the browser reads it — opens beside it rather than
+    // in place of the application, as the framework's own links do.
+    const external = rendering.urls.isExternalLink(href) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
 
     return `<a href="${escapeHtml(href)}"${title}${external}>${content}</a>`;
 }
 
-function renderImage(node: Inline): string {
+function renderImage(node: Inline, rendering: Rendering): string {
     const alt = escapeHtml(plainText(node));
-    const src = safeAddress(node.href, true);
 
-    if (src === null)
+    if (!rendering.urls.isImageSource(node.href))
         return alt;
+
+    // Written as the browser reads it, as the framework writes a picture it takes.
+    const src = rendering.urls.asBrowserReads(node.href);
 
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";
 
@@ -226,26 +227,4 @@ function plainText(parent: Inline): string {
     }
 
     return text;
-}
-
-const SafeSchemes = new Set(["http", "https", "mailto", "tel"]);
-
-/**
- * The address when it's relative or names a safe scheme — never `javascript:` or `vbscript:` even behind stripped spaces or
- * control characters — plus a picture's data address for an image.
- */
-export function safeAddress(address: string, image: boolean): string | null {
-    // oxlint-disable-next-line no-control-regex -- the control characters are what it strips
-    const compact = address.replace(/[\s\x00-\x1f\x7f]/g, "");
-    const scheme = /^([A-Za-z][A-Za-z\d+.-]*):/.exec(compact);
-
-    if (scheme === null)
-        return address.trim();
-
-    const name = scheme[1].toLowerCase();
-
-    if (SafeSchemes.has(name))
-        return address.trim();
-
-    return image && name === "data" && /^data:image\/(?:png|gif|jpe?g|webp|avif|bmp);/i.test(compact) ? compact : null;
 }

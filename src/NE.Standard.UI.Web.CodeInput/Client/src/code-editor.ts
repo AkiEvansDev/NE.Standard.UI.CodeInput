@@ -8,6 +8,7 @@ import type { Strings } from "./code-editor-dom.ts";
 import { CloseAttribute, ContentClass, CountAttribute, CrLf, DetectedLineEndingAttribute, EncodingAttribute, FindAttribute, HighlightClass, LanguageAttribute, LineEndingAttribute, MatchCaseAttribute, NextAttribute, PositionAttribute, PreviousAttribute, RegexAttribute, ReplaceAllAttribute, ReplaceAttribute, ReplaceOneAttribute, ReplaceRowClass, ScrollerClass, SearchAttribute, SearchPanelClass, SearchPartClass, StatusBarAttribute, StatusBarClass, StatusPickerClass, TabSizeAttribute, TextClass, ToggleReplaceAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
 import { CodeEditorEditing } from "./code-editor-editing.ts";
 import { CodeEditorFindReplace } from "./code-editor-find-replace.ts";
+import { CodeEditorPictures } from "./code-editor-pictures.ts";
 import { CodeEditorStatusBar } from "./code-editor-status-bar.ts";
 import type { StatusPicker } from "./code-editor-status-bar.ts";
 import { CodeEditorSurface } from "./code-editor-surface.ts";
@@ -47,6 +48,7 @@ export class CodeEditor {
     private readonly carets: CodeEditorCarets;
     private readonly editing: CodeEditorEditing;
     private readonly completions: CodeEditorCompletions;
+    private readonly pictures: CodeEditorPictures;
     private readonly findReplace: CodeEditorFindReplace | null;
     private readonly statusBar: CodeEditorStatusBar;
     private readonly readOnlyClass: string;
@@ -72,7 +74,7 @@ export class CodeEditor {
         );
         this.surface.renderAll();
 
-        this.carets = new CodeEditorCarets({ root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content }, this.surface);
+        this.carets = new CodeEditorCarets({ root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content }, this.surface, context.observeSize);
         this.editing = new CodeEditorEditing(parts.textarea, this.surface, this.carets, () => this.language);
         this.completions = new CodeEditorCompletions(
             { root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content },
@@ -82,6 +84,8 @@ export class CodeEditor {
             this.carets,
             () => this.language
         );
+
+        this.pictures = new CodeEditorPictures({ root, textarea: parts.textarea }, context, this.surface, this.carets, () => this.language);
 
         this.findReplace = parts.search === null
             ? null
@@ -129,12 +133,22 @@ export class CodeEditor {
         textarea.addEventListener("compositionstart", () => this.editing.compositionStart());
         textarea.addEventListener("copy", domEvent => this.editing.copy(domEvent));
         textarea.addEventListener("cut", domEvent => this.editing.cut(domEvent));
-        textarea.addEventListener("paste", domEvent => this.editing.paste(domEvent));
+        // A picture in a Markdown text goes up and comes back as an address; anything else is pasted as text.
+        textarea.addEventListener("paste", domEvent => {
+            if (!this.pictures.paste(domEvent))
+                this.editing.paste(domEvent);
+        });
         textarea.addEventListener("input", domEvent => this.completions.textChanged(domEvent));
         textarea.addEventListener("blur", () => this.completions.close());
         scroller.addEventListener("scroll", () => this.carets.queueRender(), { passive: true });
         scroller.addEventListener("scroll", () => this.completions.scrolled(), { passive: true });
         root.addEventListener("keydown", domEvent => this.rootKey(domEvent));
+
+        // Over the whole field, so a picture let go on the gutter or the bar still lands, at the caret.
+        root.addEventListener("dragenter", domEvent => this.pictures.dragOver(domEvent));
+        root.addEventListener("dragover", domEvent => this.pictures.dragOver(domEvent));
+        root.addEventListener("dragleave", domEvent => this.pictures.dragLeave(domEvent));
+        root.addEventListener("drop", domEvent => this.pictures.drop(domEvent));
 
         // A press on the panel's or the bar's own ground (the count, the position, the air between parts) would drop the focus to
         // the page, and Ctrl+F with it.

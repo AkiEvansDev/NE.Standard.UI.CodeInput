@@ -28,6 +28,9 @@ public sealed partial class CodeInputStrings : IUIStringsSource
     /// <summary>The completion list's own accessible name.</summary>
     public const string Suggestions = "ui.code.suggestions";
 
+    /// <summary>The placeholder a picture stands under in a Markdown text while it uploads: its file's <c>{name}</c>.</summary>
+    public const string PictureUploading = "ui.code.picture-uploading";
+
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> English { get; } = CreateEnglish();
 
@@ -56,7 +59,8 @@ public sealed partial class CodeInputStrings : IUIStringsSource
             [NoMatches] = "No matches",
             [InvalidPattern] = "Invalid pattern",
             [Position] = "Ln {line}, Col {column}",
-            [Suggestions] = "Suggestions"
+            [Suggestions] = "Suggestions",
+            [PictureUploading] = "Uploading {name}…"
         };
 
         for (var size = 1; size <= UICodeInputStrings.MaxTabSize; size++)
