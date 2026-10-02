@@ -4,6 +4,10 @@ One section per release of this slice, headed `## X.Y.Z` and named by the tag â€
 workflow cuts the matching section out to become the body of the GitHub release, and a tag with no section
 fails the release before anything is published.
 
+## 1.4.1
+
+- **Built on the framework's 1.4.1.** Nothing of this package's own changed; it moves with the framework.
+
 ## 1.4.0
 
 - **The demos:** the Markdown page sets the editor and its rendering side by side from a wide screen (`xl`) on and stacks them
