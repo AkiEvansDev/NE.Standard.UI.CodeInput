@@ -43,6 +43,9 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     /// <summary>On the root while the status bar shows.</summary>
     public const string StatusBarAttribute = "data-ui-code-status";
 
+    /// <summary>On the root while a Markdown field offers its format bar and keys.</summary>
+    public const string FormatBarAttribute = "data-ui-code-format-bar";
+
     /// <summary>On the root while an <c>OnPictureUpload</c> command takes the pictures pasted or dropped into a Markdown text.</summary>
     public const string PicturesAttribute = "data-ui-code-pictures";
 
@@ -91,6 +94,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         RenderFlagAttribute(context, root, CodeInputComponent.MultiCaretProperty, MultiCaretAttribute);
         RenderFlagAttribute(context, root, CodeInputComponent.CompletionsProperty, CompletionsAttribute);
         RenderFlagAttribute(context, root, CodeInputComponent.StatusBarProperty, StatusBarAttribute);
+        RenderFlagAttribute(context, root, CodeInputComponent.FormatBarProperty, FormatBarAttribute);
 
         // The URL a completion list loads its words from, lazily and only once it is needed; unset, the list still offers the
         // language's keywords and the document's own words.

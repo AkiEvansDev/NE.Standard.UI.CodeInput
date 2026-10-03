@@ -27,6 +27,11 @@ public sealed class CodeInputAppStartup : UIStartupBase
         // missing-word report in Development names only words the demo has not translated.
         _ = application.ConfigureLocalization(options => options.KeyPrefixes.Add(CodeInputDemoWords.KeyPrefix));
 
+        // The focus ring in the brand's ink, as on every demo: the framework's default purple read 2.3:1 on the dark page.
+        _ = application.ConfigureTheme(theme => theme
+            .ConfigureLightPalette(static palette => palette with { FocusRing = palette.PrimaryInk })
+            .ConfigureDarkPalette(static palette => palette with { FocusRing = palette.PrimaryInk }));
+
         _ = application.Route<EditorView, CodeInputController>(CodeInputDemoView.EditorRoute);
         _ = application.Route<MarkdownView, MarkdownController>(CodeInputDemoView.MarkdownRoute);
     }

@@ -37,11 +37,12 @@ internal static class CodeInputDemoWords
 
         ["code-demo.appearance.ghost"] = "Ghost",
         ["code-demo.appearance.filled"] = "Filled",
+        ["code-demo.appearance.tonal"] = "Tonal",
         ["code-demo.appearance.outline"] = "Outline",
         ["code-demo.appearance.underline"] = "Underline",
 
         ["code-demo.markdown.title"] = "Markdown",
-        ["code-demo.markdown.description"] = "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other. Paste or drop a picture into the text: it uploads, and the page answers with where it keeps it.",
+        ["code-demo.markdown.description"] = "A code field in Markdown and a MarkdownDisplay bound to the same text; neither knows about the other. Paste or drop a picture into the text: it uploads, and the page answers with where it keeps it. Select words with the mouse: the bar over them makes them bold, italic, struck through, code or a link, or their lines a heading or a list, and takes it off again; Ctrl+B, Ctrl+I and Ctrl+K do the same, and Alt+F10 takes the keyboard to the bar.",
         ["code-demo.markdown.document"] = "Document",
         ["code-demo.markdown.no-picture"] = "Only a PNG, JPEG, GIF or WebP picture can be added.",
 
@@ -72,11 +73,12 @@ internal static class CodeInputDemoWords
 
         ["code-demo.appearance.ghost"] = "幽灵",
         ["code-demo.appearance.filled"] = "填充",
+        ["code-demo.appearance.tonal"] = "色调",
         ["code-demo.appearance.outline"] = "描边",
         ["code-demo.appearance.underline"] = "下划线",
 
         ["code-demo.markdown.title"] = "Markdown",
-        ["code-demo.markdown.description"] = "一个 Markdown 代码字段和一个绑定到同一文本的 MarkdownDisplay；两者互不知晓。将图片粘贴或拖放到文本中：它会上传，页面会回复保存它的地址。",
+        ["code-demo.markdown.description"] = "一个 Markdown 代码字段和一个绑定到同一文本的 MarkdownDisplay；两者互不知晓。将图片粘贴或拖放到文本中：它会上传，页面会回复保存它的地址。用鼠标选中文字：上方的格式栏可将其设为粗体、斜体、删除线、代码或链接，或把所在行设为标题或列表，再按一次即可取消；Ctrl+B、Ctrl+I 和 Ctrl+K 效果相同，Alt+F10 可用键盘进入格式栏。",
         ["code-demo.markdown.document"] = "文档",
         ["code-demo.markdown.no-picture"] = "只能添加 PNG、JPEG、GIF 或 WebP 图片。",
 

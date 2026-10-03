@@ -22,6 +22,7 @@ export const MultiCaretAttribute = "data-ui-code-multi-caret";
 export const CompletionsAttribute = "data-ui-code-completions";
 export const CompletionsSourceAttribute = "data-ui-code-completions-source";
 export const StatusBarAttribute = "data-ui-code-status";
+export const FormatBarAttribute = "data-ui-code-format-bar";
 export const DetectedLineEndingAttribute = "data-ui-code-eol";
 export const PicturesAttribute = "data-ui-code-pictures";
 export const PictureAcceptAttribute = "data-ui-code-picture-accept";
@@ -59,6 +60,15 @@ export const NoMatchesWord = "ui.code.no-matches";
 export const InvalidPatternWord = "ui.code.invalid-pattern";
 export const SuggestionsWord = "ui.code.suggestions";
 export const PictureUploadingWord = "ui.code.picture-uploading";
+export const FormatBarWord = "ui.code.format-bar";
+export const BoldWord = "ui.code.format-bold";
+export const ItalicWord = "ui.code.format-italic";
+export const StrikethroughWord = "ui.code.format-strikethrough";
+export const InlineCodeWord = "ui.code.format-code";
+export const LinkWord = "ui.code.format-link";
+export const HeadingWord = "ui.code.format-heading";
+export const HeadingLevelWord = "ui.code.format-heading-level";
+export const ListWord = "ui.code.format-list";
 
 // The picture's round trip, by the names CodeInputEvents and InsertPictureEffect give it on the server.
 export const PictureUploadEvent = "picture-upload";
@@ -69,7 +79,20 @@ export const CoreNames = {
     checkboxClass: "ui-checkbox",
     checkboxInputClass: "ui-checkbox__input",
     checkboxBoxClass: "ui-checkbox__box",
-    smallInputClass: "ui-input--small"
+    smallInputClass: "ui-input--small",
+    ghostButtonClass: "ui-button--ghost",
+    smallButtonClass: "ui-button--small"
+} as const;
+
+/** The framework's glyphs the format bar's buttons wear, by their UIGlyphs names, held by the test to their C# source. */
+export const CoreGlyphs = {
+    bold: "ne-bold",
+    italic: "ne-italic",
+    strikethrough: "ne-strikethrough",
+    code: "ne-code",
+    link: "ne-link",
+    heading: "ne-heading",
+    list: "ne-list-bulleted"
 } as const;
 
 /** The framework's words the client says itself, by their UIStrings keys, held by the test to their C# source. */
@@ -92,6 +115,10 @@ export const CompletionListClass = "ui-code-input__completions";
 export const CompletionRowClass = "ui-code-input__completion";
 export const ActiveCompletionClass = "ui-code-input__completion--active";
 export const CompletionAnchorClass = "ui-code-input__completions-anchor";
+export const FormatBarClass = "ui-code-input__format-bar";
+export const FormatButtonClass = "ui-code-input__format-button";
+export const FormatAnchorClass = "ui-code-input__format-anchor";
+export const HeadingMenuClass = "ui-code-input__heading-menu";
 
 export const CrLf = "crlf";
 

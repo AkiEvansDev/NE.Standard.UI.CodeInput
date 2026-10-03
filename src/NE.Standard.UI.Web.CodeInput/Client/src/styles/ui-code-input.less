@@ -71,7 +71,7 @@
     --ui-code-ground: var(--ui-field-fill);
     // An editor is not a row of a list that lifts under the pointer: its hover is its rest, whatever the appearance.
     --ui-field-hover: var(--ui-field-rest);
-    --ui-field-hover-accent: var(--ui-color-border);
+    --ui-field-hover-accent: var(--ui-color-mark);
 }
 
     // The half padding Ghost and Underline give a row's field is a row's; the box has its air inside the scroller.
@@ -538,6 +538,47 @@
     height: 0;
 }
 
+// Markdown's format bar over a selection: the framework's strip of icons, the action bar's look. A format the selection already
+// wears is pressed, as a toggle button is.
+.ui-code-input__format-bar {
+    .ui-icon-bar-surface();
+}
+
+    .ui-code-input__format-button {
+        .ui-icon-bar-button();
+
+        &[aria-pressed="true"] {
+            .ui-selected-ground();
+            .ui-selected-ink();
+            .ui-reveal-hover-off({ .ui-selected-ground(); });
+        }
+    }
+
+// The heading button's six levels: a popup menu of the framework's own entries (`ui-menu-item`, a check on the lines' level), placed
+// under the button; created on each opening, so it fades in and is gone at once as the bar is.
+.ui-code-input__heading-menu {
+    .ui-popup-surface();
+    .ui-popup-scroll();
+    .ui-entry-list();
+    .ui-entry-quiet(~".ui-menu-item"; @ui-button-live; ~".ui-menu-item--checked");
+    display: flex;
+    min-width: 10rem;
+    padding: @ui-space-1;
+    opacity: 1;
+
+    @starting-style {
+        opacity: 0;
+    }
+}
+
+// What the bar is placed against: a box from the selection's first line to its last, zero wide at the selection's start; the engine
+// sets it.
+.ui-code-input__format-anchor {
+    position: absolute;
+    width: 0;
+    pointer-events: none;
+}
+
 // Forced colours take every ground and shadow away, and these states are drawn with nothing else, so each is drawn again in the
 // system's colours. The textarea keeps its text transparent: forced, it is painted over the highlighted layer and the text shows
 // twice.
@@ -576,6 +617,12 @@
     // The row Enter takes is the list's current one, not a chosen one: dashed, as the framework draws a select's.
     .ui-code-input__completion--active {
         outline: 2px dashed CanvasText;
+        outline-offset: -2px;
+    }
+
+    // A format the selection wears, outlined as the framework's pressed toggle is.
+    .ui-code-input__format-button[aria-pressed="true"] {
+        outline: 2px solid Highlight;
         outline-offset: -2px;
     }
 }

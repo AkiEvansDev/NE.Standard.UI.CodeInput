@@ -31,6 +31,21 @@ public sealed partial class CodeInputStrings : IUIStringsSource
     /// <summary>The placeholder a picture stands under in a Markdown text while it uploads: its file's <c>{name}</c>.</summary>
     public const string PictureUploading = "ui.code.picture-uploading";
 
+    /// <summary>The Markdown format bar's own accessible name.</summary>
+    public const string FormatBar = "ui.code.format-bar";
+
+    /// <summary>The format bar's buttons, each its name and tooltip: bold, italic, strikethrough, code, a link, a heading, a list.</summary>
+    public const string FormatBold = "ui.code.format-bold";
+    public const string FormatItalic = "ui.code.format-italic";
+    public const string FormatStrikethrough = "ui.code.format-strikethrough";
+    public const string FormatCode = "ui.code.format-code";
+    public const string FormatLink = "ui.code.format-link";
+    public const string FormatHeading = "ui.code.format-heading";
+    public const string FormatList = "ui.code.format-list";
+
+    /** An entry of the heading button's menu: its <c>{level}</c>, one to six. */
+    public const string FormatHeadingLevel = "ui.code.format-heading-level";
+
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> English { get; } = CreateEnglish();
 
@@ -60,7 +75,16 @@ public sealed partial class CodeInputStrings : IUIStringsSource
             [InvalidPattern] = "Invalid pattern",
             [Position] = "Ln {line}, Col {column}",
             [Suggestions] = "Suggestions",
-            [PictureUploading] = "Uploading {name}…"
+            [PictureUploading] = "Uploading {name}…",
+            [FormatBar] = "Formatting",
+            [FormatBold] = "Bold",
+            [FormatItalic] = "Italic",
+            [FormatStrikethrough] = "Strikethrough",
+            [FormatCode] = "Code",
+            [FormatLink] = "Link",
+            [FormatHeading] = "Heading",
+            [FormatList] = "Bulleted list",
+            [FormatHeadingLevel] = "Heading {level}"
         };
 
         for (var size = 1; size <= UICodeInputStrings.MaxTabSize; size++)

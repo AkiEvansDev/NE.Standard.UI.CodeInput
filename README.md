@@ -46,6 +46,7 @@ new CodeInputComponent()
 | `MultiCaret` | Whether the field takes more than one caret — see *Several carets* (on by default). |
 | `Completions` | Whether Ctrl+Space and typing open a completion list — see *Completions* (on by default). |
 | `CompletionsSource` | The URL of a JSON file of completion items and trigger characters the client loads once — see *Completions*. |
+| `FormatBar` | Whether a Markdown field offers its format bar and keys — see *Formatting Markdown* (on by default). |
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
 | `MaxFileSize`, `Accept` | The largest picture a paste or a drop takes, and its types — see *Pictures in Markdown*. |
 
@@ -59,7 +60,7 @@ do everywhere else — with the highlighted text drawn underneath it. Undo and r
 field's own, since the browser's cannot hold an edit made at several carets: typing is taken back a word at a time, and the
 carets come back with the text. A value the server pushes that differs from the text starts the history afresh. Tab inserts
 spaces at the caret, or indents every selected line, and Shift+Tab takes the indent back; Enter keeps the line's indentation,
-Escape closes the panel. With nothing of the field's own open — the panel, the list, extra carets — Escape leaves the field, and
+Escape closes the panel. With nothing of the field's own open — the panel, the list, the format bar, extra carets — Escape leaves the field, and
 the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. **Ctrl+S** commits the value at once, ahead of any debounce, and
 raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out. **Ctrl+U** turns the
 selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
@@ -104,6 +105,27 @@ new CodeInputComponent()
 A command that replaces the text on purpose — another file opened, a sample reset — returns
 `DiscardFormEffect("editor")`, and the unsaved edit gives way to the server's value. A large text needs nothing of its
 own: the framework sends a value over 8 KB beside the connection.
+
+## Formatting Markdown
+
+A Markdown field is a note editor too. Select words with the mouse, and a bar of icons stands over them — the framework's action
+bar look — with bold `**`, italic `*`, strikethrough `~~`, inline code `` ` ``, a link, a heading `#` and a bulleted list `-`:
+
+- Each is a toggle. Words already wrapped — the marks selected with them, or just outside the selection — are unwrapped, and a
+  pressed button says so. The space a double click takes after a word stays outside the marks; code holding a backtick is
+  fenced by a longer run.
+- A link takes the words as its text and leaves the caret between the parentheses for the address; an address selected becomes
+  the address, the caret left where the words go.
+- The list acts on every selected line: put on the lines without one, or taken off when every line has one. The heading button
+  opens a menu of the six levels, the lines' own level checked: a level makes every selected line a heading of it, in place of
+  another, and the checked one takes the heading off (arrows, Enter, Escape back to the bar; ArrowDown on the button opens it).
+- **Ctrl+B**, **Ctrl+I** and **Ctrl+K** (⌘ on a Mac) do the same with the keyboard; with nothing selected they write the pair and
+  put the caret between. **Alt+F10** takes the keyboard to the bar (arrows along it, Escape back to the text).
+
+Every press is one edit: one Ctrl+Z takes it back, and the value commits as typing does. The bar goes as the reader types, presses
+elsewhere, scrolls the selection out of view or presses Escape. A selection a finger makes shows no bar — the phone's own menu
+stands over it — and a read-only or disabled field, or one in another language, has none. `SetFormatBar(false)` turns the bar and
+its keys off.
 
 ## Pictures in Markdown
 

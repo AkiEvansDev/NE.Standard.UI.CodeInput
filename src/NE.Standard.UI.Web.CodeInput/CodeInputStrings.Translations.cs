@@ -35,7 +35,16 @@ public sealed partial class CodeInputStrings
             [InvalidPattern] = "Недопустимый шаблон",
             [Position] = "Стр. {line}, стлб. {column}",
             [Suggestions] = "Предложения",
-            [PictureUploading] = "Загрузка {name}…"
+            [PictureUploading] = "Загрузка {name}…",
+            [FormatBar] = "Форматирование",
+            [FormatBold] = "Полужирный",
+            [FormatItalic] = "Курсив",
+            [FormatStrikethrough] = "Зачёркнутый",
+            [FormatCode] = "Код",
+            [FormatLink] = "Ссылка",
+            [FormatHeading] = "Заголовок",
+            [FormatList] = "Маркированный список",
+            [FormatHeadingLevel] = "Заголовок {level}"
         }, "Пробелы: ", ""),
         ["zh-Hans"] = WithSpaces(new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -61,7 +70,16 @@ public sealed partial class CodeInputStrings
             [InvalidPattern] = "无效的模式",
             [Position] = "行 {line}，列 {column}",
             [Suggestions] = "建议",
-            [PictureUploading] = "正在上传 {name}…"
+            [PictureUploading] = "正在上传 {name}…",
+            [FormatBar] = "格式",
+            [FormatBold] = "粗体",
+            [FormatItalic] = "斜体",
+            [FormatStrikethrough] = "删除线",
+            [FormatCode] = "代码",
+            [FormatLink] = "链接",
+            [FormatHeading] = "标题",
+            [FormatList] = "项目符号列表",
+            [FormatHeadingLevel] = "{level} 级标题"
         }, "", " 个空格")
     }.ToFrozenDictionary(StringComparer.Ordinal);
 

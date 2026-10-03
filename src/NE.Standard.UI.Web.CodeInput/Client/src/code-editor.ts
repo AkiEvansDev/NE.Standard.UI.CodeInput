@@ -1,5 +1,6 @@
 // The coordinator for one code field: resolves the DOM once, wires every listener to the concern that owns it, and holds those
-// concerns — the editing surface, the carets, the editing keys, the find/replace panel, and the status bar's pickers.
+// concerns — the editing surface, the carets, the editing keys, the find/replace panel, the status bar's pickers, and Markdown's
+// format bar.
 
 import type { DomNames, PluginEngineContext } from "ne-standard-ui";
 import { CodeEditorCarets } from "./code-editor-carets.ts";
@@ -8,6 +9,7 @@ import type { Strings } from "./code-editor-dom.ts";
 import { CloseAttribute, ContentClass, CountAttribute, CrLf, DetectedLineEndingAttribute, EncodingAttribute, FindAttribute, HighlightClass, LanguageAttribute, LineEndingAttribute, MatchCaseAttribute, NextAttribute, PositionAttribute, PreviousAttribute, RegexAttribute, ReplaceAllAttribute, ReplaceAttribute, ReplaceOneAttribute, ReplaceRowClass, ScrollerClass, SearchAttribute, SearchPanelClass, SearchPartClass, StatusBarAttribute, StatusBarClass, StatusPickerClass, TabSizeAttribute, TextClass, ToggleReplaceAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
 import { CodeEditorEditing } from "./code-editor-editing.ts";
 import { CodeEditorFindReplace } from "./code-editor-find-replace.ts";
+import { CodeEditorFormatBar } from "./code-editor-format-bar.ts";
 import { CodeEditorPictures } from "./code-editor-pictures.ts";
 import { CodeEditorStatusBar } from "./code-editor-status-bar.ts";
 import type { StatusPicker } from "./code-editor-status-bar.ts";
@@ -49,6 +51,7 @@ export class CodeEditor {
     private readonly editing: CodeEditorEditing;
     private readonly completions: CodeEditorCompletions;
     private readonly pictures: CodeEditorPictures;
+    private readonly formatBar: CodeEditorFormatBar;
     private readonly findReplace: CodeEditorFindReplace | null;
     private readonly statusBar: CodeEditorStatusBar;
     private readonly readOnlyClass: string;
@@ -86,6 +89,7 @@ export class CodeEditor {
         );
 
         this.pictures = new CodeEditorPictures({ root, textarea: parts.textarea }, context, this.surface, this.carets, () => this.language);
+        this.formatBar = new CodeEditorFormatBar({ root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content }, context, this.surface, this.carets, () => this.language);
 
         this.findReplace = parts.search === null
             ? null
@@ -125,11 +129,13 @@ export class CodeEditor {
         textarea.addEventListener("keydown", domEvent => {
             this.completions.key(domEvent);
             this.carets.key(domEvent);
+            this.formatBar.key(domEvent);
             this.editing.key(domEvent);
         });
         textarea.addEventListener("keyup", () => this.surface.writePosition());
         textarea.addEventListener("click", () => this.surface.writePosition());
         textarea.addEventListener("mousedown", domEvent => this.carets.pointerDown(domEvent));
+        textarea.addEventListener("pointerdown", domEvent => this.formatBar.pointerDown(domEvent));
         textarea.addEventListener("compositionstart", () => this.editing.compositionStart());
         textarea.addEventListener("copy", domEvent => this.editing.copy(domEvent));
         textarea.addEventListener("cut", domEvent => this.editing.cut(domEvent));
@@ -139,9 +145,11 @@ export class CodeEditor {
                 this.editing.paste(domEvent);
         });
         textarea.addEventListener("input", domEvent => this.completions.textChanged(domEvent));
+        textarea.addEventListener("input", () => this.formatBar.textChanged());
         textarea.addEventListener("blur", () => this.completions.close());
         scroller.addEventListener("scroll", () => this.carets.queueRender(), { passive: true });
         scroller.addEventListener("scroll", () => this.completions.scrolled(), { passive: true });
+        scroller.addEventListener("scroll", () => this.formatBar.scrolled(), { passive: true });
         root.addEventListener("keydown", domEvent => this.rootKey(domEvent));
 
         // Over the whole field, so a picture let go on the gutter or the bar still lands, at the caret.
@@ -222,6 +230,7 @@ export class CodeEditor {
     /** The page's words changed: what the editor wrote itself, unmarked, is written again. */
     public wordsChanged(): void {
         this.findReplace?.wordsChanged();
+        this.formatBar.wordsChanged();
     }
 
     /** Lets go of what would outlive the root: the watches on it. Called once the root has left the page. */
@@ -235,12 +244,13 @@ export class CodeEditor {
         this.carets.queueRender();
     }
 
-    /** The document's selection moved: the position follows it, carets the textarea moved away from are let go, and a completion
-     *  list the caret moved out from under closes. */
+    /** The document's selection moved: the position follows it, carets the textarea moved away from are let go, a completion
+     *  list the caret moved out from under closes, and the format bar follows the words selected. */
     public selectionChanged(): void {
         this.carets.selectionChanged();
         this.surface.writePosition();
         this.completions.selectionChanged();
+        this.formatBar.selectionChanged();
     }
 
     /** The root's read-only mark flipped: the pickers, the extra carets and the replace row's keyboard follow; an open list is the framework's to close. */
@@ -275,11 +285,13 @@ export class CodeEditor {
         if (!this.root.hasAttribute(StatusBarAttribute))
             this.statusBar.barHidden();
 
-        if (language === this.language)
-            return;
+        if (language !== this.language) {
+            this.language = language;
+            this.reload();
+        }
 
-        this.language = language;
-        this.reload();
+        // After the language: a field that left Markdown, or turned the bar off, takes it away.
+        this.formatBar.settingsChanged();
     }
 
     /** Reads the whole text again under the language the id now names; the words completions offered were the old language's. */
@@ -302,6 +314,7 @@ export class CodeEditor {
         }
 
         this.completions.close();
+        this.formatBar.close();
 
         // Carets stand in the text they were placed in; another text lets them go.
         if (this.surface.textPushed())

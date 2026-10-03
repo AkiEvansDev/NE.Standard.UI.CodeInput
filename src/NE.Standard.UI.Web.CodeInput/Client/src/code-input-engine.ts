@@ -3,7 +3,7 @@
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import { CodeEditor } from "./code-editor.ts";
-import { CompletionsAttribute, CrLf, DetectedLineEndingAttribute, LanguageAttribute, LineEndingAttribute, MultiCaretAttribute, RootClass, SearchAttribute, StatusBarAttribute } from "./code-editor-dom.ts";
+import { CompletionsAttribute, CrLf, DetectedLineEndingAttribute, FormatBarAttribute, LanguageAttribute, LineEndingAttribute, MultiCaretAttribute, RootClass, SearchAttribute, StatusBarAttribute } from "./code-editor-dom.ts";
 import { languages } from "./languages/index.ts";
 
 const RootSelector = `.${RootClass}`;
@@ -41,8 +41,8 @@ export class CodeInputEngine {
         this.context = context;
 
         this.attach(context.root.querySelectorAll<HTMLElement>(RootSelector));
-        // The language, and the switches that take away what an open panel, the extra carets, an open list or the bar stand on.
-        const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute, CompletionsAttribute, StatusBarAttribute];
+        // The language, and the switches that take away what an open panel, the extra carets, an open list or a bar stand on.
+        const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute, CompletionsAttribute, StatusBarAttribute, FormatBarAttribute];
 
         context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter }, roots => this.attach(roots));
 

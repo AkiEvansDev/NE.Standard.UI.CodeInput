@@ -32,6 +32,7 @@ const Core = "../../../../../../src/Platforms/Web/";
 const checkbox = source(`${Core}NE.Standard.UI.Web.Renderers/Inputs/CheckboxComponentRenderer.cs`, "classPrefix", names.CoreNames.checkboxClass);
 const classNames = read(`${Core}NE.Standard.UI.Web.Abstractions/Theming/WebClassNames.cs`);
 const coreWords = read("../../../../../../src/Contracts/NE.Standard.UI.Shell/Localization/UIStrings.cs");
+const glyphs = read("../../../../../../src/Contracts/NE.Standard.UI.Primitives/Constants/UIGlyphs.cs");
 
 function assertWritten(file: string, fileName: string, name: string): void {
     assert.ok(file.includes(`"${name}"`), `${fileName} writes no "${name}", which the client looks for`);
@@ -82,7 +83,7 @@ test("the tab size variable is the one the renderer writes", () => {
 test("every word the client writes is a key CodeInputStrings lists", () => {
     const keys = namesStartingWith("ui.code.");
 
-    assert.equal(keys.length, 6);
+    assert.equal(keys.length, 15);
 
     for (const key of keys)
         assertWritten(words, "CodeInputStrings.cs", key);
@@ -106,4 +107,12 @@ test("the checkbox a task item draws by hand wears the framework checkbox's clas
         assertWritten(checkbox, "CheckboxComponentRenderer.cs", name);
 
     assertWritten(classNames, "WebClassNames.cs", names.CoreNames.smallInputClass);
+});
+
+test("the format bar's buttons wear the framework's small ghost button and its glyphs", () => {
+    for (const name of [names.CoreNames.ghostButtonClass, names.CoreNames.smallButtonClass])
+        assertWritten(classNames, "WebClassNames.cs", name);
+
+    for (const glyph of Object.values(names.CoreGlyphs))
+        assertWritten(glyphs, "UIGlyphs.cs", glyph);
 });

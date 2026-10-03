@@ -13,6 +13,7 @@ internal sealed partial class CodeInputController : UIControllerBase
     [
         (UIInputAppearance.Ghost, "code-demo.appearance.ghost"),
         (UIInputAppearance.Filled, "code-demo.appearance.filled"),
+        (UIInputAppearance.Tonal, "code-demo.appearance.tonal"),
         (UIInputAppearance.Outline, "code-demo.appearance.outline"),
         (UIInputAppearance.Underline, "code-demo.appearance.underline")
     ];

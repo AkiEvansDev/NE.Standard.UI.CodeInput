@@ -98,8 +98,9 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
             .SetOptions(options)
             .SetTooltip(tooltip);
 
+    // Tonal: the find panel frames its fields, and a Filled field's line would only add weight to it.
     private static TextInputComponent SearchField(string placeholder)
-        => new TextInputComponent().SetSize(UIInputSize.Small).SetPlaceholder(placeholder);
+        => new TextInputComponent().SetSize(UIInputSize.Small).SetAppearance(UIInputAppearance.Tonal).SetPlaceholder(placeholder);
 
     private static ButtonComponent SearchButton(string icon, string tooltip)
         => new ButtonComponent()
@@ -191,6 +192,14 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// </summary>
     [UIComponentProperty(DefaultValue = true)]
     public bool? StatusBar { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether a Markdown field offers its format bar — bold, italic, strikethrough, code, a link, a heading, a list —
+    /// over a selection the mouse makes, and the keys that do the same (Ctrl+B, Ctrl+I, Ctrl+K, Alt+F10 to the bar).
+    /// </summary>
+    /// <remarks>Only a Markdown field that takes edits has one: another language, a read-only or a disabled field never shows it.</remarks>
+    [UIComponentProperty(DefaultValue = true)]
+    public bool? FormatBar { get; set; }
 
     /// <summary>
     /// Gets or sets the encoding the application writes the text out as — one of <see cref="UICodeEncodings"/>.
