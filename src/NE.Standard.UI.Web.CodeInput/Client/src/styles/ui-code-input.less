@@ -4,9 +4,9 @@
 
 @import (reference) "../../plugin/ne-standard-ui.less";
 
-// One selection colour for the textarea's own and the extra ranges the layer draws, so the two read as one selection.
-// Translucent, or an opaque selection would hide the highlighted text under it.
-@ui-code-selection: color-mix(in srgb, var(--ui-color-primary) 30%, transparent);
+// One selection colour for the textarea's own and the extra ranges the layer draws, so the two read as one selection — the page's
+// own. Translucent, or an opaque selection would hide the highlighted text under it.
+@ui-code-selection: @ui-text-selection;
 
 .ui-code-input {
     // Same header/field/message shell as the text area.
