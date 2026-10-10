@@ -1,7 +1,7 @@
 // Find and replace: the panel's fields and toggles, stepping among matches and rewriting the text, over `search.ts`'s pure text
 // operations. Marking and scrolling to a match reaches into the editor surface, which owns the highlighted lines.
 
-import type { DomNames, FieldValidation } from "ne-standard-ui";
+import type { DomNames, FieldValidation, ShortcutWords } from "ne-standard-ui";
 import { diffText } from "./history.ts";
 import type { SearchMatch, SearchOptions, SearchQuery } from "./search.ts";
 import { compileQuery, expandReplacement, findMatches, nextMatchFrom, previousMatchFrom, replaceAll } from "./search.ts";
@@ -38,13 +38,14 @@ export class CodeEditorFindReplace {
     private readonly strings: Strings;
     private readonly names: DomNames;
     private readonly validation: FieldValidation;
+    private readonly shortcuts: ShortcutWords;
     private readonly surface: CodeEditorSurface;
     private matches: SearchMatch[] = [];
     private current = -1;
     private query: SearchQuery = null;
     private invalid = false;
 
-    public constructor(parts: FindReplaceParts, strings: Strings, names: DomNames, validation: FieldValidation, surface: CodeEditorSurface) {
+    public constructor(parts: FindReplaceParts, strings: Strings, names: DomNames, validation: FieldValidation, shortcuts: ShortcutWords, surface: CodeEditorSurface) {
         this.textarea = parts.textarea;
         this.scroller = parts.scroller;
         this.panel = parts.panel;
@@ -59,6 +60,7 @@ export class CodeEditorFindReplace {
         this.strings = strings;
         this.names = names;
         this.validation = validation;
+        this.shortcuts = shortcuts;
         this.surface = surface;
     }
 
@@ -238,7 +240,7 @@ export class CodeEditorFindReplace {
     }
 
     public findFieldKey(domEvent: KeyboardEvent): void {
-        if (domEvent.key === "Enter" && !domEvent.isComposing) {
+        if (domEvent.key === "Enter" && !this.shortcuts.isComposing(domEvent)) {
             domEvent.preventDefault();
             this.step(domEvent.shiftKey ? -1 : 1);
         }
@@ -262,10 +264,10 @@ export class CodeEditorFindReplace {
     }
 
     public replaceFieldKey(domEvent: KeyboardEvent): void {
-        if (domEvent.key === "Enter" && !domEvent.isComposing) {
+        if (domEvent.key === "Enter" && !this.shortcuts.isComposing(domEvent)) {
             domEvent.preventDefault();
 
-            if (domEvent.ctrlKey || domEvent.metaKey)
+            if (this.shortcuts.matches(domEvent, "Ctrl+Enter"))
                 this.replaceEvery();
             else
                 this.replaceOne();

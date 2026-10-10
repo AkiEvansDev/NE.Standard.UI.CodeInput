@@ -1,6 +1,7 @@
 // The keys and events that change the text: Tab and Shift+Tab, Enter's indent, undo and redo, and — with several carets — typing,
 // deleting and the clipboard at every one. With one caret the browser types, deletes and pastes itself, and the surface records it.
 
+import type { ShortcutWords } from "ne-standard-ui";
 import { caseChangeEdits } from "./case-change.ts";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
@@ -15,45 +16,43 @@ export class CodeEditorEditing {
     private readonly textarea: HTMLTextAreaElement;
     private readonly surface: CodeEditorSurface;
     private readonly carets: CodeEditorCarets;
+    private readonly shortcuts: ShortcutWords;
     private readonly getLanguage: () => string;
 
     /** What the last copy from several ranges held, piece by piece, so a paste into as many carets deals it back out. */
     private copied: readonly string[] | null = null;
 
-    public constructor(textarea: HTMLTextAreaElement, surface: CodeEditorSurface, carets: CodeEditorCarets, getLanguage: () => string) {
+    public constructor(textarea: HTMLTextAreaElement, surface: CodeEditorSurface, carets: CodeEditorCarets, shortcuts: ShortcutWords, getLanguage: () => string) {
         this.textarea = textarea;
         this.surface = surface;
         this.carets = carets;
+        this.shortcuts = shortcuts;
         this.getLanguage = getLanguage;
     }
 
     public key(domEvent: KeyboardEvent): void {
-        if (domEvent.defaultPrevented || domEvent.isComposing)
+        if (domEvent.defaultPrevented || this.shortcuts.isComposing(domEvent))
             return;
 
-        const command = domEvent.ctrlKey || domEvent.metaKey;
+        // As the editor's other shortcuts, matched as the framework matches a chord.
+        const chord = (shortcut: string): boolean => this.shortcuts.matches(domEvent, shortcut);
 
-        // By the key's position, as the editor's other shortcuts.
-        if (command && !domEvent.altKey && domEvent.code === "KeyZ") {
+        if (chord("Ctrl+Z")) {
             domEvent.preventDefault();
-
-            if (domEvent.shiftKey)
-                this.surface.redo();
-            else
-                this.surface.undo();
+            this.surface.undo();
         }
-        else if (command && !domEvent.altKey && !domEvent.shiftKey && domEvent.code === "KeyY") {
+        else if (chord("Ctrl+Shift+Z") || chord("Ctrl+Y")) {
             domEvent.preventDefault();
             this.surface.redo();
         }
-        else if (command && !domEvent.altKey && domEvent.code === "KeyU") {
+        else if (chord("Ctrl+U") || chord("Ctrl+Shift+U")) {
             // Chrome opens view-source on Ctrl+U; prevented whatever the field holds, a read-only field just changes nothing.
             domEvent.preventDefault();
 
             if (!this.textarea.readOnly)
                 this.changeCase(domEvent.shiftKey);
         }
-        else if (command || domEvent.altKey || this.textarea.readOnly)
+        else if (!this.shortcuts.isPlainKey(domEvent, { shift: true }) || this.textarea.readOnly)
             return;
         else if (domEvent.key === "Tab") {
             domEvent.preventDefault();

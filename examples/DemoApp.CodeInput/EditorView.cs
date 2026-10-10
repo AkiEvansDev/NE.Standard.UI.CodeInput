@@ -33,6 +33,8 @@ internal sealed class EditorView : CodeInputDemoView, IUIViewDefinition
                     .SetOptions([.. UICodeLanguages.All.Select(language => new OptionItem { Id = language.Key, Title = language.Value, IsContent = !UICodeInputStrings.IsWord(language.Value) })])
                     .BindValue(nameof(CodeInputController.Language))
                     .OnChange(nameof(CodeInputController.ChangeLanguage))
+                    // A toolbar over the field it configures.
+                    .SetAppearance(UIInputAppearance.Tonal)
                     .SetVerticalAlignment(UIAlignment.Center)
                 )
                 .AddChild(new SwitchComponent()
@@ -70,11 +72,19 @@ internal sealed class EditorView : CodeInputDemoView, IUIViewDefinition
                     .BindValue(nameof(CodeInputController.Completions))
                     .SetVerticalAlignment(UIAlignment.Center)
                 )
-                .AddChild(new ButtonComponent()
-                    .BindTitle(nameof(CodeInputController.AppearanceCaption))
-                    .SetType(UIButtonType.Outline)
-                    .OnClick(nameof(CodeInputController.CycleAppearance))
-                    .SetHorizontalAlignment(UIAlignment.Start)
+                // The field's five looks, named inside the box by a short word so the longest still fits a phone's half-width column.
+                .AddChild(new SelectComponent()
+                    .SetOptions([
+                        new OptionItem { Id = nameof(UIInputAppearance.Ghost), Title = "code-demo.appearance.ghost" },
+                        new OptionItem { Id = nameof(UIInputAppearance.Filled), Title = "code-demo.appearance.filled" },
+                        new OptionItem { Id = nameof(UIInputAppearance.Tonal), Title = "code-demo.appearance.tonal" },
+                        new OptionItem { Id = nameof(UIInputAppearance.Outline), Title = "code-demo.appearance.outline" },
+                        new OptionItem { Id = nameof(UIInputAppearance.Underline), Title = "code-demo.appearance.underline" }
+                    ])
+                    .SetTitle("code-demo.editor.appearance")
+                    .SetTitlePlacement(UIInputTitlePlacement.Inside)
+                    .BindValue(nameof(CodeInputController.Appearance))
+                    .SetAppearance(UIInputAppearance.Tonal)
                     .SetVerticalAlignment(UIAlignment.Center)
                 )
                 .AddChild(new ButtonComponent()

@@ -61,7 +61,9 @@ field's own, since the browser's cannot hold an edit made at several carets: typ
 carets come back with the text. A value the server pushes that differs from the text starts the history afresh. Tab inserts
 spaces at the caret, or indents every selected line, and Shift+Tab takes the indent back; Enter keeps the line's indentation,
 Escape closes the panel. With nothing of the field's own open — the panel, the list, the format bar, extra carets — Escape leaves the field, and
-the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. **Ctrl+S** commits the value at once, ahead of any debounce, and
+the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. In a dialog or a drawer the
+field's Escape is its own too, so the dialog closes only on the one after it. Every Ctrl chord below is ⌘ on macOS, matched by the
+key's place whatever the layout types there. **Ctrl+S** commits the value at once, ahead of any debounce, and
 raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out. **Ctrl+U** turns the
 selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
 selection stays selected and a caret keeps its place in the word.
@@ -118,7 +120,8 @@ bar look — with bold `**`, italic `*`, strikethrough `~~`, inline code `` ` ``
   the address, the caret left where the words go.
 - The list acts on every selected line: put on the lines without one, or taken off when every line has one. The heading button
   opens a menu of the six levels, the lines' own level checked: a level makes every selected line a heading of it, in place of
-  another, and the checked one takes the heading off (arrows, Enter, Escape back to the bar; ArrowDown on the button opens it).
+  another, and the checked one takes the heading off (the arrows round its ends, a level's first letter, Enter; Escape or Tab
+  closes it; ArrowDown on the button opens it on the checked level).
 - **Ctrl+B**, **Ctrl+I** and **Ctrl+K** (⌘ on a Mac) do the same with the keyboard; with nothing selected they write the pair and
   put the caret between. **Alt+F10** takes the keyboard to the bar (arrows along it, Escape back to the text).
 

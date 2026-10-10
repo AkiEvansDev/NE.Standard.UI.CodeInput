@@ -228,6 +228,7 @@ var We = class {
 	layer;
 	probe;
 	surface;
+	shortcuts;
 	ranges = null;
 	primary = 0;
 	goals = null;
@@ -236,8 +237,8 @@ var We = class {
 	pads = null;
 	adding = null;
 	renderQueued = !1;
-	constructor(e, t, n) {
-		this.root = e.root, this.textarea = e.textarea, this.scroller = e.scroller, this.content = e.content, this.surface = t, this.layer = document.createElement("div"), this.layer.className = ie, this.layer.setAttribute("aria-hidden", "true"), this.layer.hidden = !0, this.probe = document.createElement("span"), this.probe.className = `${ie}-probe`, this.probe.textContent = "0", this.content.insertBefore(this.layer, this.textarea), this.content.insertBefore(this.probe, this.textarea), this.stopWatchingSize = n(this.content, () => this.queueRender());
+	constructor(e, t, n, r) {
+		this.root = e.root, this.shortcuts = r, this.textarea = e.textarea, this.scroller = e.scroller, this.content = e.content, this.surface = t, this.layer = document.createElement("div"), this.layer.className = ie, this.layer.setAttribute("aria-hidden", "true"), this.layer.hidden = !0, this.probe = document.createElement("span"), this.probe.className = `${ie}-probe`, this.probe.textContent = "0", this.content.insertBefore(this.layer, this.textarea), this.content.insertBefore(this.probe, this.textarea), this.stopWatchingSize = n(this.content, () => this.queueRender());
 	}
 	dispose() {
 		this.stopWatchingSize();
@@ -466,13 +467,13 @@ var We = class {
 		this.write(w([...e.ranges, i], e.ranges.length), !1);
 	}
 	key(e) {
-		if (e.defaultPrevented || e.isComposing) return;
-		let t = e.ctrlKey || e.metaKey;
-		if (this.enabled && e.shiftKey && e.altKey && !t && this.boxOrOccurrence(e.code)) {
+		if (e.defaultPrevented || this.shortcuts.isComposing(e)) return;
+		let t = this.shortcuts.matches(e, `Ctrl+${e.shiftKey ? "Shift+" : ""}${e.code}`);
+		if (this.enabled && e.shiftKey && e.altKey && this.boxOrOccurrence(e)) {
 			e.preventDefault();
 			return;
 		}
-		if (this.ranges === null || e.altKey) return;
+		if (this.ranges === null || !t && !this.shortcuts.isPlainKey(e, { shift: !0 })) return;
 		let n = this.textarea.value, r = this.surface.lines, i = e.shiftKey, a = !0;
 		switch (e.key) {
 			case "Escape":
@@ -503,15 +504,15 @@ var We = class {
 		a && e.preventDefault();
 	}
 	boxOrOccurrence(e) {
-		switch (e) {
-			case "Period": return this.addNextOccurrence(), !0;
-			case "Semicolon": return this.selectAllOccurrences(), !0;
-			case "ArrowUp": return this.extendBox(-1, 0), !0;
-			case "ArrowDown": return this.extendBox(1, 0), !0;
-			case "ArrowLeft": return this.extendBox(0, -1), !0;
-			case "ArrowRight": return this.extendBox(0, 1), !0;
-			default: return !1;
-		}
+		let t = (t) => this.shortcuts.matches(e, `Shift+Alt+${t}`);
+		if (t(".")) this.addNextOccurrence();
+		else if (t(";")) this.selectAllOccurrences();
+		else if (t("Up")) this.extendBox(-1, 0);
+		else if (t("Down")) this.extendBox(1, 0);
+		else if (t("Left")) this.extendBox(0, -1);
+		else if (t("Right")) this.extendBox(0, 1);
+		else return !1;
+		return !0;
 	}
 	addNextOccurrence() {
 		let e = this.textarea.value, t = this.read(), n = t.ranges[t.primary];
@@ -1692,8 +1693,8 @@ var Lr = class {
 		this.root.hasAttribute("data-ui-code-completions") || this.close();
 	}
 	key(e) {
-		if (!(e.defaultPrevented || e.isComposing)) {
-			if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === "Space") {
+		if (!(e.defaultPrevented || this.context.shortcuts.isComposing(e))) {
+			if (this.context.shortcuts.matches(e, "Ctrl+Space")) {
 				this.enabled && (e.preventDefault(), this.openExplicit());
 				return;
 			}
@@ -1955,18 +1956,19 @@ var Ur = class {
 	textarea;
 	surface;
 	carets;
+	shortcuts;
 	getLanguage;
 	copied = null;
-	constructor(e, t, n, r) {
-		this.textarea = e, this.surface = t, this.carets = n, this.getLanguage = r;
+	constructor(e, t, n, r, i) {
+		this.textarea = e, this.surface = t, this.carets = n, this.shortcuts = r, this.getLanguage = i;
 	}
 	key(e) {
-		if (e.defaultPrevented || e.isComposing) return;
-		let t = e.ctrlKey || e.metaKey;
-		if (t && !e.altKey && e.code === "KeyZ") e.preventDefault(), e.shiftKey ? this.surface.redo() : this.surface.undo();
-		else if (t && !e.altKey && !e.shiftKey && e.code === "KeyY") e.preventDefault(), this.surface.redo();
-		else if (t && !e.altKey && e.code === "KeyU") e.preventDefault(), this.textarea.readOnly || this.changeCase(e.shiftKey);
-		else if (t || e.altKey || this.textarea.readOnly) return;
+		if (e.defaultPrevented || this.shortcuts.isComposing(e)) return;
+		let t = (t) => this.shortcuts.matches(e, t);
+		if (t("Ctrl+Z")) e.preventDefault(), this.surface.undo();
+		else if (t("Ctrl+Shift+Z") || t("Ctrl+Y")) e.preventDefault(), this.surface.redo();
+		else if (t("Ctrl+U") || t("Ctrl+Shift+U")) e.preventDefault(), this.textarea.readOnly || this.changeCase(e.shiftKey);
+		else if (!this.shortcuts.isPlainKey(e, { shift: !0 }) || this.textarea.readOnly) return;
 		else e.key === "Tab" ? (e.preventDefault(), this.tab(e.shiftKey)) : e.key === "Enter" && !e.shiftKey && (e.preventDefault(), this.newLine());
 	}
 	changeCase(e) {
@@ -2276,13 +2278,14 @@ var ii = class {
 	strings;
 	names;
 	validation;
+	shortcuts;
 	surface;
 	matches = [];
 	current = -1;
 	query = null;
 	invalid = !1;
-	constructor(e, t, n, r, i) {
-		this.textarea = e.textarea, this.scroller = e.scroller, this.panel = e.panel, this.findField = e.findField, this.replaceField = e.replaceField, this.replaceRow = e.replaceRow, this.expand = e.expand, this.count = e.count, this.matchCase = e.matchCase, this.wholeWord = e.wholeWord, this.regex = e.regex, this.strings = t, this.names = n, this.validation = r, this.surface = i;
+	constructor(e, t, n, r, i, a) {
+		this.textarea = e.textarea, this.scroller = e.scroller, this.panel = e.panel, this.findField = e.findField, this.replaceField = e.replaceField, this.replaceRow = e.replaceRow, this.expand = e.expand, this.count = e.count, this.matchCase = e.matchCase, this.wholeWord = e.wholeWord, this.regex = e.regex, this.strings = t, this.names = n, this.validation = r, this.shortcuts = i, this.surface = a;
 	}
 	get isOpen() {
 		return !this.panel.hidden;
@@ -2362,7 +2365,7 @@ var ii = class {
 		this.writeCount();
 	}
 	findFieldKey(e) {
-		e.key === "Enter" && !e.isComposing && (e.preventDefault(), this.step(e.shiftKey ? -1 : 1));
+		e.key === "Enter" && !this.shortcuts.isComposing(e) && (e.preventDefault(), this.step(e.shiftKey ? -1 : 1));
 	}
 	step(e) {
 		if (this.panel.hidden) {
@@ -2377,7 +2380,7 @@ var ii = class {
 		this.goTo(n, !0);
 	}
 	replaceFieldKey(e) {
-		e.key === "Enter" && !e.isComposing && (e.preventDefault(), e.ctrlKey || e.metaKey ? this.replaceEvery() : this.replaceOne());
+		e.key === "Enter" && !this.shortcuts.isComposing(e) && (e.preventDefault(), this.shortcuts.matches(e, "Ctrl+Enter") ? this.replaceEvery() : this.replaceOne());
 	}
 	replaceOne() {
 		if (this.textarea.readOnly) return;
@@ -2681,9 +2684,9 @@ var Li = "markdown", Ri = 6, zi = {
 	heading: f,
 	list: p
 }, Bi = {
-	bold: "KeyB",
-	italic: "KeyI",
-	link: "KeyK"
+	bold: "Ctrl+B",
+	italic: "Ctrl+I",
+	link: "Ctrl+K"
 };
 function Vi(e) {
 	return e.enabled && e.markdown && e.editable;
@@ -2694,13 +2697,12 @@ function Hi(e, t) {
 function Ui(e) {
 	return e.selected && Vi(e);
 }
-function Wi(e) {
-	if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return null;
-	for (let t of oi) if (t !== "heading" && Bi[t] === e.code) return t;
+function Wi(e, t) {
+	for (let n of oi) if (n !== "heading" && t.matches(e, Bi[n] ?? "")) return n;
 	return null;
 }
-function Gi(e) {
-	return e.key === "F10" && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+function Gi(e, t) {
+	return t.matches(e, "Alt+F10");
 }
 var Ki = class {
 	root;
@@ -2742,8 +2744,12 @@ var Ki = class {
 		}, 0);
 	}
 	key(e) {
-		if (e.defaultPrevented || e.isComposing) return;
-		let t = Gi(e), n = t ? null : Wi(e);
+		if (e.defaultPrevented || this.context.shortcuts.isComposing(e)) return;
+		if (e.key === "Escape" && this.bar !== null && this.context.shortcuts.isPlainKey(e)) {
+			e.preventDefault(), this.close();
+			return;
+		}
+		let t = Gi(e, this.context.shortcuts), n = t ? null : Wi(e, this.context.shortcuts);
 		(t || n !== null) && Vi(this.state) && (e.preventDefault(), n === null ? this.open(!0) : this.apply(n));
 	}
 	textChanged() {
@@ -2795,8 +2801,8 @@ var Ki = class {
 		let n = oi.map((t) => {
 			let n = document.createElement("button"), r = document.createElement("span");
 			n.type = "button", n.className = `${ge} ${e.buttonClass} ${g.ghostButtonClass} ${g.smallButtonClass}`, n.dataset.format = t, r.setAttribute("aria-hidden", "true"), this.context.icons.apply(r, ee[t]), n.append(r);
-			let i = t === "heading" ? void 0 : Bi[t]?.slice(3);
-			return t === "heading" && (n.setAttribute("aria-haspopup", "menu"), n.setAttribute("aria-expanded", "false")), i !== void 0 && n.setAttribute("aria-keyshortcuts", `Control+${i} Meta+${i}`), n.addEventListener("click", () => this.pressed(t, n)), n;
+			let i = t === "heading" ? void 0 : Bi[t]?.slice(5);
+			return t === "heading" && (n.setAttribute("aria-haspopup", "menu"), n.setAttribute("aria-expanded", "false")), i !== void 0 && n.setAttribute("aria-keyshortcuts", `Control+${i}`), n.addEventListener("click", () => this.pressed(t, n)), n;
 		});
 		return t.append(...n), this.context.roving.applyTabIndex(n, n[0] ?? null), this.writeWords(t), t;
 	}
@@ -2810,7 +2816,7 @@ var Ki = class {
 		for (let n of this.buttons()) n.setAttribute("aria-pressed", bi(e, t, n.dataset.format) ? "true" : "false");
 	}
 	barKey(e) {
-		if (e.ctrlKey || e.altKey || e.metaKey || !(e.target instanceof HTMLElement) || this.levels?.contains(e.target) === !0) return;
+		if (!this.context.shortcuts.isPlainKey(e) || !(e.target instanceof HTMLElement) || this.levels?.contains(e.target) === !0) return;
 		if (e.key === "ArrowDown" && e.target.dataset.format === "heading") {
 			e.preventDefault(), this.openLevels(e.target, !0);
 			return;
@@ -2833,29 +2839,23 @@ var Ki = class {
 	openLevels(e, t) {
 		if (this.bar === null || this.levels !== null) return;
 		let { names: n, strings: r, dom: i } = this.context, a = _i(this.textarea.value, this.carets.read()), o = document.createElement("div"), s = [];
-		o.className = ve, o.setAttribute("role", "menu"), o.setAttribute("aria-label", r.text(f)), o.addEventListener("keydown", (e) => this.levelsKey(e, s));
+		o.className = ve, o.setAttribute("role", "menu"), o.setAttribute("aria-label", r.text(f)), o.addEventListener("keydown", (e) => this.context.popups.listKey(e, s)), o.addEventListener("pointermove", (e) => {
+			let t = e.target instanceof Element ? e.target.closest(`.${n.menuItemClass}`) : null;
+			t !== null && o.contains(document.activeElement) && this.context.popups.followPointer(t, s);
+		});
 		for (let { level: e, checked: t } of vi(a)) {
 			let i = document.createElement("button"), a = document.createElement("span");
 			i.type = "button", i.className = `${n.menuItemClass} ${n.buttonClass} ${g.ghostButtonClass}`, i.setAttribute("role", "menuitemradio"), i.setAttribute(n.menuItemKind, "check"), i.setAttribute("aria-checked", t ? "true" : "false"), i.classList.toggle(n.menuItemCheckedClass, t), a.textContent = r.format("ui.code.format-heading-level", { level: e }), i.append(a), i.addEventListener("click", () => this.chooseLevel(e)), s.push(i);
 		}
-		o.append(...s), this.bar.append(o), this.levels = o, e.setAttribute("aria-expanded", "true"), e.setAttribute("aria-controls", i.ensureId(o, "code-heading-levels"));
-		let c = s[a - 1] ?? s[0];
-		this.context.roving.applyTabIndex(s, c), this.levelsHandle = this.context.popups.open(e, o, {
+		o.append(...s), this.bar.append(o), this.levels = o, e.setAttribute("aria-expanded", "true"), e.setAttribute("aria-controls", i.ensureId(o, "code-heading-levels")), this.levelsHandle = this.context.popups.openList(e, o, {
 			placement: "bottom-start",
 			surface: this.bar,
 			owner: e,
+			entries: s,
+			checked: s[a - 1] ?? null,
+			focus: t,
 			onDismiss: () => this.levelsClosed()
-		}), t && c.focus();
-	}
-	levelsKey(e, t) {
-		if (e.ctrlKey || e.altKey || e.metaKey || !(e.target instanceof HTMLElement)) return;
-		let n = this.context.roving.target({
-			key: e.key,
-			items: t,
-			current: e.target,
-			axis: "vertical"
 		});
-		n !== null && (e.preventDefault(), this.context.roving.applyTabIndex(t, n), n.focus());
 	}
 	chooseLevel(e) {
 		let t = gi(this.textarea.value, this.carets.read(), e);
@@ -3428,10 +3428,11 @@ var ya = class e {
 	findReplace;
 	statusBar;
 	readOnlyClass;
+	shortcuts;
 	language;
 	readOnly;
 	constructor(e, n, r) {
-		this.root = e, this.language = jr.normalize(e.getAttribute(t)), this.readOnlyClass = n.names.readOnlyClass, this.readOnly = e.classList.contains(this.readOnlyClass);
+		this.root = e, this.language = jr.normalize(e.getAttribute(t)), this.readOnlyClass = n.names.readOnlyClass, this.shortcuts = n.shortcuts, this.readOnly = e.classList.contains(this.readOnlyClass);
 		let i = n.strings;
 		this.surface = new _a({
 			root: e,
@@ -3447,7 +3448,7 @@ var ya = class e {
 			textarea: r.textarea,
 			scroller: r.scroller,
 			content: r.content
-		}, this.surface, n.observeSize), this.editing = new Ur(r.textarea, this.surface, this.carets, () => this.language), this.completions = new Lr({
+		}, this.surface, n.observeSize, n.shortcuts), this.editing = new Ur(r.textarea, this.surface, this.carets, n.shortcuts, () => this.language), this.completions = new Lr({
 			root: e,
 			textarea: r.textarea,
 			scroller: r.scroller,
@@ -3464,7 +3465,7 @@ var ya = class e {
 			textarea: r.textarea,
 			scroller: r.scroller,
 			...r.search
-		}, i, n.names, n.validation, this.surface), this.statusBar = new aa({
+		}, i, n.names, n.validation, n.shortcuts, this.surface), this.statusBar = new aa({
 			root: e,
 			textarea: r.textarea,
 			bar: r.statusBar,
@@ -3476,7 +3477,7 @@ var ya = class e {
 			this.settingsChanged(), this.carets.queueRender();
 		}), this.readOnly && this.statusBar.syncReadOnly(!0), this.surface.writePosition();
 		let { textarea: a, scroller: o } = r;
-		a.addEventListener("beforeinput", (e) => this.editing.beforeInput(e)), a.addEventListener("input", (e) => this.surface.nativeInput(e)), a.addEventListener("keydown", (e) => {
+		o.setAttribute(n.names.ownsKeys, ""), r.search?.panel.setAttribute(n.names.ownsKeys, ""), a.addEventListener("beforeinput", (e) => this.editing.beforeInput(e)), a.addEventListener("input", (e) => this.surface.nativeInput(e)), a.addEventListener("keydown", (e) => {
 			this.completions.key(e), this.carets.key(e), this.formatBar.key(e), this.editing.key(e);
 		}), a.addEventListener("keyup", () => this.surface.writePosition()), a.addEventListener("click", () => this.surface.writePosition()), a.addEventListener("mousedown", (e) => this.carets.pointerDown(e)), a.addEventListener("pointerdown", (e) => this.formatBar.pointerDown(e)), a.addEventListener("compositionstart", () => this.editing.compositionStart()), a.addEventListener("copy", (e) => this.editing.copy(e)), a.addEventListener("cut", (e) => this.editing.cut(e)), a.addEventListener("paste", (e) => {
 			this.pictures.paste(e) || this.editing.paste(e);
@@ -3553,9 +3554,9 @@ var ya = class e {
 		return this.root.hasAttribute(n);
 	}
 	rootKey(e) {
-		if (e.defaultPrevented || e.isComposing) return;
-		let t = e.ctrlKey || e.metaKey, n = this.findReplace;
-		t && !e.altKey && e.code === "KeyF" && this.searchEnabled && n !== null ? (e.preventDefault(), n.open(!1)) : t && !e.altKey && e.code === "KeyH" && this.searchEnabled && n !== null ? (e.preventDefault(), n.open(!0)) : t && !e.altKey && e.code === "KeyS" ? (e.preventDefault(), this.surface.save()) : e.key === "Escape" && n?.isOpen === !0 ? (e.preventDefault(), n.close(!0)) : e.code === "F3" && n?.isOpen === !0 && (e.preventDefault(), n.step(e.shiftKey ? -1 : 1));
+		if (e.defaultPrevented || this.shortcuts.isComposing(e)) return;
+		let t = this.findReplace, n = (t) => this.shortcuts.matches(e, t);
+		n("Ctrl+F") && this.searchEnabled && t !== null ? (e.preventDefault(), t.open(!1)) : n("Ctrl+H") && this.searchEnabled && t !== null ? (e.preventDefault(), t.open(!0)) : n("Ctrl+S") ? (e.preventDefault(), this.surface.save()) : e.key === "Escape" && t?.isOpen === !0 ? (e.preventDefault(), t.close(!0)) : (n("F3") || n("Shift+F3")) && t?.isOpen === !0 && (e.preventDefault(), t.step(e.shiftKey ? -1 : 1));
 	}
 };
 function ba(e, t) {
@@ -3648,7 +3649,7 @@ var Ea = class {
 			} else e.settingsChanged();
 		}
 	}
-}, Da = 2;
+}, Da = 4;
 function Oa() {
 	let e = window.NEStandardUI;
 	if (e === void 0 || typeof e.registerEngine != "function") throw Error("NE.Standard.UI.Web.CodeInput needs the framework's client (ui.js) on the page before it.");

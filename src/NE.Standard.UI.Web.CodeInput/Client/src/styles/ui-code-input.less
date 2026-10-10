@@ -13,7 +13,7 @@
     display: flex;
     flex-direction: column;
     gap: @ui-space-1;
-    max-width: var(--ui-max-width, 100%);
+    .ui-responsive-property(max-width, --ui-max-width, 100%);
     font: inherit;
 
     --ui-code-font-size: 0.875rem;
@@ -142,7 +142,7 @@
         text-align: right;
         color: var(--ui-text-muted);
         background: var(--ui-code-ground);
-        user-select: none;
+        .ui-user-select(none);
     }
 
     .ui-code-input:not([data-ui-code-line-numbers]) .ui-code-input__line::before {
@@ -296,8 +296,7 @@
 
 // A picture over a Markdown field that takes it: a dashed edge inside the box, as the framework marks a drop target.
 .ui-code-input--picture-over > .ui-code-input__field {
-    outline: 2px dashed var(--ui-color-primary);
-    outline-offset: -2px;
+    .ui-drop-edge();
 }
 
 // The find and replace panel, over the field's top right corner. Every field, button and switch in it is a framework component in
@@ -404,7 +403,7 @@
     font-family: inherit;
     font-size: var(--ui-text-caption-font-size);
     line-height: 1;
-    user-select: none;
+    .ui-user-select(none);
 }
 
     .ui-code-input[data-ui-code-status] .ui-code-input__status {
@@ -457,7 +456,7 @@
         background: var(--ui-wash-hover);
     };
 
-    @media @ui-can-hover {
+    @media @{ui-can-hover} {
         .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:hover {
             @ui-code-input-picker-lift();
         }

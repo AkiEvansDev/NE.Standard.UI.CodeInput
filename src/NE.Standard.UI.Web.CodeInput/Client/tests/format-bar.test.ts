@@ -6,9 +6,21 @@ import { formatKey, formats, isBarKey, showsAfterPress, staysWith } from "../src
 
 const ready: FormatBarState = { enabled: true, markdown: true, editable: true, selected: true };
 
-function key(code: string, modifiers: { ctrl?: boolean; meta?: boolean; alt?: boolean; shift?: boolean } = {}): { code: string; key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean } {
-    return { code, key: code, ctrlKey: modifiers.ctrl ?? false, metaKey: modifiers.meta ?? false, altKey: modifiers.alt ?? false, shiftKey: modifiers.shift ?? false };
+function key(code: string, modifiers: { ctrl?: boolean; meta?: boolean; alt?: boolean; shift?: boolean } = {}): KeyboardEvent {
+    return { code, key: code, ctrlKey: modifiers.ctrl ?? false, metaKey: modifiers.meta ?? false, altKey: modifiers.alt ?? false, shiftKey: modifiers.shift ?? false } as KeyboardEvent;
 }
+
+// The framework's chord match as a Mac reads it — by the key's place, every modifier exact, Ctrl answering ⌘ — for the chords named here.
+const shortcuts = {
+    matches(event: KeyboardEvent, chord: string): boolean {
+        const parts = chord.split("+");
+        const name = parts[parts.length - 1];
+        const code = name.length === 1 ? `Key${name}` : name;
+        const ctrl = parts.includes("Ctrl");
+
+        return event.code === code && event.altKey === parts.includes("Alt") && event.shiftKey === parts.includes("Shift") && (ctrl ? event.ctrlKey !== event.metaKey : !event.ctrlKey && !event.metaKey);
+    }
+};
 
 test("a mouse's or a pen's selection shows the bar; a finger's never does", () => {
     assert.equal(showsAfterPress(ready, "mouse"), true);
@@ -36,17 +48,17 @@ test("the bar goes once the selection is a caret alone, or the field stops forma
 });
 
 test("Ctrl or ⌘ with B, I or K presses bold, italic or link; another modifier with them is not theirs", () => {
-    assert.equal(formatKey(key("KeyB", { ctrl: true })), "bold");
-    assert.equal(formatKey(key("KeyI", { meta: true })), "italic");
-    assert.equal(formatKey(key("KeyK", { ctrl: true })), "link");
-    assert.equal(formatKey(key("KeyB")), null);
-    assert.equal(formatKey(key("KeyB", { ctrl: true, shift: true })), null);
-    assert.equal(formatKey(key("KeyB", { ctrl: true, alt: true })), null);
-    assert.equal(formatKey(key("KeyU", { ctrl: true })), null);
+    assert.equal(formatKey(key("KeyB", { ctrl: true }), shortcuts), "bold");
+    assert.equal(formatKey(key("KeyI", { meta: true }), shortcuts), "italic");
+    assert.equal(formatKey(key("KeyK", { ctrl: true }), shortcuts), "link");
+    assert.equal(formatKey(key("KeyB"), shortcuts), null);
+    assert.equal(formatKey(key("KeyB", { ctrl: true, shift: true }), shortcuts), null);
+    assert.equal(formatKey(key("KeyB", { ctrl: true, alt: true }), shortcuts), null);
+    assert.equal(formatKey(key("KeyU", { ctrl: true }), shortcuts), null);
 });
 
 test("Alt+F10 takes the keyboard to the bar, and only Alt+F10", () => {
-    assert.equal(isBarKey(key("F10", { alt: true })), true);
-    assert.equal(isBarKey(key("F10")), false);
-    assert.equal(isBarKey(key("F10", { alt: true, shift: true })), false);
+    assert.equal(isBarKey(key("F10", { alt: true }), shortcuts), true);
+    assert.equal(isBarKey(key("F10"), shortcuts), false);
+    assert.equal(isBarKey(key("F10", { alt: true, shift: true }), shortcuts), false);
 });

@@ -19,7 +19,7 @@ namespace NE.Standard.UI.CodeInput;
 /// <summary>
 /// A code editor: a monospaced multi-line field with syntax highlighting, line numbers, and find and replace in the browser.
 /// </summary>
-public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent
+public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent, IFormSubmittingComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
     private readonly Dictionary<string, IVisualComponent> _regions;
@@ -276,6 +276,10 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// </summary>
     public T SetWrapLines()
         => SetWrapLines(true);
+
+    /// <summary>Its save submits its form, so an <c>OnSubmit</c> value goes before the command (<c>code-input.ts</c> registers it so).</summary>
+    public bool SubmitsForm(string eventName)
+        => eventName == CodeInputEvents.Save;
 }
 
 /// <summary>

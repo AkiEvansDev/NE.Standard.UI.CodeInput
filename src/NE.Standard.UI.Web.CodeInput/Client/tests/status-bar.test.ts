@@ -11,7 +11,7 @@ function setUp(focusInBar: boolean): { readonly bar: CodeEditorStatusBar; readon
     let focused = false;
     const textarea = { focus: () => { focused = true; } };
     const root = { getAttribute: () => null };
-    const values: ValueReading = { read: () => null, hold: () => {}, release: () => {}, write: () => false };
+    const values: ValueReading = { read: () => null, hold: () => {}, release: () => {}, write: () => false, whenSettled: () => Promise.resolve() };
     const properties: PropertyWriting = { set: () => true };
 
     Object.defineProperty(globalThis, "document", { value: { activeElement: focusInBar ? picker : null }, configurable: true });

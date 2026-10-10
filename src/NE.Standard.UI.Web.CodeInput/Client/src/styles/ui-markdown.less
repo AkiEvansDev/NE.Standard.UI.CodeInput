@@ -9,8 +9,8 @@
 
 .ui-markdown {
     display: block;
-    min-width: 0;
-    max-width: var(--ui-max-width, 100%);
+    .ui-responsive-property(min-width, --ui-min-width, 0);
+    .ui-responsive-property(max-width, --ui-max-width, 100%);
     // The ground's ink, not the page's: a document in a filled card reads in that card's on-colour, its muted words with it.
     color: @ui-text-ink;
     font-size: var(--ui-text-body-font-size);

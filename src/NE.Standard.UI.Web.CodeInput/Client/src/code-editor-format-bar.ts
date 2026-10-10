@@ -4,7 +4,7 @@
 // The same edits answer Ctrl/⌘+B, I and K while the field has the keyboard, and Alt+F10 takes the keyboard to the bar. Every edit
 // goes through the surface, so it is one undo step and commits as typing does.
 
-import type { PluginEngineContext, PopupHandle } from "ne-standard-ui";
+import type { PluginEngineContext, PopupHandle, ShortcutWords } from "ne-standard-ui";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import { BoldWord, CoreGlyphs, CoreNames, FormatAnchorClass, FormatBarAttribute, FormatBarClass, FormatBarWord, FormatButtonClass, HeadingLevelWord, HeadingMenuClass, HeadingWord, InlineCodeWord, ItalicWord, LinkWord, ListWord, StrikethroughWord } from "./code-editor-dom.ts";
@@ -27,11 +27,11 @@ const Words: Readonly<Record<FormatAction, string>> = {
     list: ListWord
 };
 
-// The keys that press a button while the field has the keyboard, by the key's position as the editor's other keys.
-const KeyCodes: Readonly<Partial<Record<EditAction, string>>> = {
-    bold: "KeyB",
-    italic: "KeyI",
-    link: "KeyK"
+// The chords that press a button while the field has the keyboard, matched as the framework's: by the key's place, Ctrl answering ⌘ on macOS.
+const Chords: Readonly<Partial<Record<EditAction, string>>> = {
+    bold: "Ctrl+B",
+    italic: "Ctrl+I",
+    link: "Ctrl+K"
 };
 
 /** What the bar answers to in a field, read as it is asked. */
@@ -63,13 +63,10 @@ export function staysWith(state: FormatBarState): boolean {
     return state.selected && formats(state);
 }
 
-/** The action a key presses, or null: Ctrl or ⌘ with B, I or K, and nothing else held. */
-export function formatKey(domEvent: Pick<KeyboardEvent, "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">): EditAction | null {
-    if (!(domEvent.ctrlKey || domEvent.metaKey) || domEvent.altKey || domEvent.shiftKey)
-        return null;
-
+/** The action a key presses, or null: Ctrl (⌘ on macOS) with B, I or K, and nothing else held. */
+export function formatKey(domEvent: KeyboardEvent, shortcuts: Pick<ShortcutWords, "matches">): EditAction | null {
     for (const action of FormatActions) {
-        if (action !== "heading" && KeyCodes[action] === domEvent.code)
+        if (action !== "heading" && shortcuts.matches(domEvent, Chords[action] ?? ""))
             return action;
     }
 
@@ -77,8 +74,8 @@ export function formatKey(domEvent: Pick<KeyboardEvent, "code" | "ctrlKey" | "me
 }
 
 /** Alt+F10, the key many editors take to their toolbar. */
-export function isBarKey(domEvent: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">): boolean {
-    return domEvent.key === "F10" && domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey && !domEvent.shiftKey;
+export function isBarKey(domEvent: KeyboardEvent, shortcuts: Pick<ShortcutWords, "matches">): boolean {
+    return shortcuts.matches(domEvent, "Alt+F10");
 }
 
 export type FormatBarParts = {
@@ -163,12 +160,19 @@ export class CodeEditorFormatBar {
 
     /** The textarea's `keydown`: Ctrl/⌘+B, I and K at every caret, and Alt+F10 to the bar; nothing while the field does not format. */
     public key(domEvent: KeyboardEvent): void {
-        if (domEvent.defaultPrevented || domEvent.isComposing)
+        if (domEvent.defaultPrevented || this.context.shortcuts.isComposing(domEvent))
             return;
 
+        // The bar is the field's own: its Escape takes the bar away, ahead of the field's leave.
+        if (domEvent.key === "Escape" && this.bar !== null && this.context.shortcuts.isPlainKey(domEvent)) {
+            domEvent.preventDefault();
+            this.close();
+            return;
+        }
+
         // The key first: the field's state is read only for one of the bar's own, not on every keystroke.
-        const toBar = isBarKey(domEvent);
-        const action = toBar ? null : formatKey(domEvent);
+        const toBar = isBarKey(domEvent, this.context.shortcuts);
+        const action = toBar ? null : formatKey(domEvent, this.context.shortcuts);
 
         if ((!toBar && action === null) || !formats(this.state))
             return;
@@ -300,16 +304,16 @@ export class CodeEditorFormatBar {
             this.context.icons.apply(glyph, CoreGlyphs[action]);
             button.append(glyph);
 
-            const key = action === "heading" ? undefined : KeyCodes[action]?.slice("Key".length);
+            const key = action === "heading" ? undefined : Chords[action]?.slice("Ctrl+".length);
 
             if (action === "heading") {
                 button.setAttribute("aria-haspopup", "menu");
                 button.setAttribute("aria-expanded", "false");
             }
 
-            // Either modifier presses it, as every key of the editor's.
+            // Control presses it on every platform, ⌘ too on macOS.
             if (key !== undefined)
-                button.setAttribute("aria-keyshortcuts", `Control+${key} Meta+${key}`);
+                button.setAttribute("aria-keyshortcuts", `Control+${key}`);
 
             button.addEventListener("click", () => this.pressed(action, button));
 
@@ -347,7 +351,7 @@ export class CodeEditorFormatBar {
      * keyboard back to the text. The menu's own keys are its own.
      */
     private barKey(domEvent: KeyboardEvent): void {
-        if (domEvent.ctrlKey || domEvent.altKey || domEvent.metaKey || !(domEvent.target instanceof HTMLElement) || this.levels?.contains(domEvent.target) === true)
+        if (!this.context.shortcuts.isPlainKey(domEvent) || !(domEvent.target instanceof HTMLElement) || this.levels?.contains(domEvent.target) === true)
             return;
 
         if (domEvent.key === "ArrowDown" && domEvent.target.dataset.format === "heading") {
@@ -389,8 +393,8 @@ export class CodeEditorFormatBar {
     }
 
     /**
-     * The six levels under the heading button, as the framework's menu entries with a check on the level every selected line is; the
-     * keyboard, where it pressed, goes to that entry. Escape closes it to the button.
+     * The six levels under the heading button, as the framework's menu entries with a check on the level every selected line is, opened
+     * as the framework's lists of choices: the keyboard, where it pressed, goes to that entry; Escape or Tab closes it to the button.
      */
     private openLevels(button: HTMLElement, focus: boolean): void {
         if (this.bar === null || this.levels !== null)
@@ -404,7 +408,14 @@ export class CodeEditorFormatBar {
         menu.className = HeadingMenuClass;
         menu.setAttribute("role", "menu");
         menu.setAttribute("aria-label", strings.text(HeadingWord));
-        menu.addEventListener("keydown", domEvent => this.levelsKey(domEvent, entries));
+        menu.addEventListener("keydown", domEvent => this.context.popups.listKey(domEvent, entries));
+        // The pointer leads the keyboard only where the keyboard is in the list: one opened by a press leaves it in the text.
+        menu.addEventListener("pointermove", domEvent => {
+            const entry = domEvent.target instanceof Element ? domEvent.target.closest<HTMLElement>(`.${names.menuItemClass}`) : null;
+
+            if (entry !== null && menu.contains(document.activeElement))
+                this.context.popups.followPointer(entry, entries);
+        });
 
         for (const { level, checked } of headingChoices(current)) {
             const entry = document.createElement("button");
@@ -428,35 +439,18 @@ export class CodeEditorFormatBar {
         button.setAttribute("aria-expanded", "true");
         button.setAttribute("aria-controls", dom.ensureId(menu, "code-heading-levels"));
 
-        const start = entries[current - 1] ?? entries[0];
-
-        this.context.roving.applyTabIndex(entries, start);
-        // The button owns it, so the bar's own popup stays; the framework closes it on a press outside, Escape or the keyboard leaving.
-        this.levelsHandle = this.context.popups.open(button, menu, {
+        // The button owns it, so the bar's own popup stays; the framework closes it on a press outside, Escape, Tab or the keyboard
+        // leaving.
+        this.levelsHandle = this.context.popups.openList(button, menu, {
             placement: "bottom-start",
             // The framework's gap, kept off the bar rather than the button inside it, as a row's action bar keeps its menu.
             surface: this.bar,
             owner: button,
+            entries,
+            checked: entries[current - 1] ?? null,
+            focus,
             onDismiss: () => this.levelsClosed()
         });
-
-        if (focus)
-            start.focus();
-    }
-
-    /** Up and down the levels, Home and End; Enter and Space are the entries' own presses. */
-    private levelsKey(domEvent: KeyboardEvent, entries: readonly HTMLElement[]): void {
-        if (domEvent.ctrlKey || domEvent.altKey || domEvent.metaKey || !(domEvent.target instanceof HTMLElement))
-            return;
-
-        const next = this.context.roving.target({ key: domEvent.key, items: entries, current: domEvent.target, axis: "vertical" });
-
-        if (next === null)
-            return;
-
-        domEvent.preventDefault();
-        this.context.roving.applyTabIndex(entries, next);
-        next.focus();
     }
 
     /** A level chosen: the selected lines become headings of it — or none, where it was the checked one — and the menu closes. */

@@ -9,15 +9,6 @@ namespace DemoApp.CodeInput;
 /// </summary>
 internal sealed partial class CodeInputController : UIControllerBase
 {
-    private static readonly (UIInputAppearance Appearance, string Name)[] Appearances =
-    [
-        (UIInputAppearance.Ghost, "code-demo.appearance.ghost"),
-        (UIInputAppearance.Filled, "code-demo.appearance.filled"),
-        (UIInputAppearance.Tonal, "code-demo.appearance.tonal"),
-        (UIInputAppearance.Outline, "code-demo.appearance.outline"),
-        (UIInputAppearance.Underline, "code-demo.appearance.underline")
-    ];
-
     [RecursiveMember]
     public partial string Language { get; set; } = UICodeLanguages.CSharp;
 
@@ -59,9 +50,6 @@ internal sealed partial class CodeInputController : UIControllerBase
     public partial UIInputAppearance Appearance { get; set; } = UIInputAppearance.Ghost;
 
     [RecursiveMember]
-    public partial UIPhrase? AppearanceCaption { get; set; } = Caption(0);
-
-    [RecursiveMember]
     public partial UIPhrase? Status { get; set; } = Describe(Samples[UICodeLanguages.CSharp], UICodeEncodings.Utf8, null);
 
     /// <summary>The form the editor's text is held in until it is saved.</summary>
@@ -84,18 +72,6 @@ internal sealed partial class CodeInputController : UIControllerBase
     [UICommand]
     public void Save()
         => Status = UIPhrase.Of("code-demo.editor.saved", ("time", DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)), ("status", Describe(Code, Encoding, LineEnding)));
-
-    [UICommand]
-    public void CycleAppearance()
-    {
-        var next = (Array.FindIndex(Appearances, entry => entry.Appearance == Appearance) + 1) % Appearances.Length;
-
-        Appearance = Appearances[next].Appearance;
-        AppearanceCaption = Caption(next);
-    }
-
-    private static UIPhrase Caption(int appearance)
-        => UIPhrase.Of("code-demo.editor.appearance", ("appearance", new UIPhrase(Appearances[appearance].Name)));
 
     /// <summary>Puts the language's sample back, from the server: what a value pushed onto a live editor looks like.</summary>
     [UICommand]

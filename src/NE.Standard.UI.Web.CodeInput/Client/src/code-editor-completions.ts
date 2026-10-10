@@ -103,12 +103,10 @@ export class CodeEditorCompletions {
 
     /** The textarea's `keydown`, ahead of the carets and the editing keys: Ctrl+Space, and every key the open list answers to itself. */
     public key(domEvent: KeyboardEvent): void {
-        if (domEvent.defaultPrevented || domEvent.isComposing)
+        if (domEvent.defaultPrevented || this.context.shortcuts.isComposing(domEvent))
             return;
 
-        const command = domEvent.ctrlKey || domEvent.metaKey;
-
-        if (command && !domEvent.altKey && !domEvent.shiftKey && domEvent.code === "Space") {
+        if (this.context.shortcuts.matches(domEvent, "Ctrl+Space")) {
             if (this.enabled) {
                 domEvent.preventDefault();
                 this.openExplicit();

@@ -2,7 +2,7 @@
 // concerns — the editing surface, the carets, the editing keys, the find/replace panel, the status bar's pickers, and Markdown's
 // format bar.
 
-import type { DomNames, PluginEngineContext } from "ne-standard-ui";
+import type { DomNames, PluginEngineContext, ShortcutWords } from "ne-standard-ui";
 import { CodeEditorCarets } from "./code-editor-carets.ts";
 import { CodeEditorCompletions } from "./code-editor-completions.ts";
 import type { Strings } from "./code-editor-dom.ts";
@@ -55,6 +55,7 @@ export class CodeEditor {
     private readonly findReplace: CodeEditorFindReplace | null;
     private readonly statusBar: CodeEditorStatusBar;
     private readonly readOnlyClass: string;
+    private readonly shortcuts: ShortcutWords;
     private language: string;
 
     /** Whether the root wore the framework's read-only mark when last looked at; the mark is what the editor follows. */
@@ -64,6 +65,7 @@ export class CodeEditor {
         this.root = root;
         this.language = LanguageRegistry.normalize(root.getAttribute(LanguageAttribute));
         this.readOnlyClass = context.names.readOnlyClass;
+        this.shortcuts = context.shortcuts;
         this.readOnly = root.classList.contains(this.readOnlyClass);
 
         const strings: Strings = context.strings;
@@ -77,8 +79,8 @@ export class CodeEditor {
         );
         this.surface.renderAll();
 
-        this.carets = new CodeEditorCarets({ root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content }, this.surface, context.observeSize);
-        this.editing = new CodeEditorEditing(parts.textarea, this.surface, this.carets, () => this.language);
+        this.carets = new CodeEditorCarets({ root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content }, this.surface, context.observeSize, context.shortcuts);
+        this.editing = new CodeEditorEditing(parts.textarea, this.surface, this.carets, context.shortcuts, () => this.language);
         this.completions = new CodeEditorCompletions(
             { root, textarea: parts.textarea, scroller: parts.scroller, content: parts.content },
             context,
@@ -93,7 +95,7 @@ export class CodeEditor {
 
         this.findReplace = parts.search === null
             ? null
-            : new CodeEditorFindReplace({ textarea: parts.textarea, scroller: parts.scroller, ...parts.search }, strings, context.names, context.validation, this.surface);
+            : new CodeEditorFindReplace({ textarea: parts.textarea, scroller: parts.scroller, ...parts.search }, strings, context.names, context.validation, context.shortcuts, this.surface);
 
         this.statusBar = new CodeEditorStatusBar(
             {
@@ -122,6 +124,11 @@ export class CodeEditor {
         this.surface.writePosition();
 
         const { textarea, scroller } = parts;
+
+        // The text's keys are its own, Escape among them: it takes away what of the field's own is open, else leaves the text — the
+        // keyboard's way out, as Tab indents inside — so a dialog or a drawer around the field never closes on it. So is the find panel's.
+        scroller.setAttribute(context.names.ownsKeys, "");
+        parts.search?.panel.setAttribute(context.names.ownsKeys, "");
 
         textarea.addEventListener("beforeinput", domEvent => this.editing.beforeInput(domEvent));
         textarea.addEventListener("input", domEvent => this.surface.nativeInput(domEvent));
@@ -326,22 +333,23 @@ export class CodeEditor {
     }
 
     private rootKey(domEvent: KeyboardEvent): void {
-        if (domEvent.defaultPrevented || domEvent.isComposing)
+        if (domEvent.defaultPrevented || this.shortcuts.isComposing(domEvent))
             return;
 
-        const command = domEvent.ctrlKey || domEvent.metaKey;
         const findReplace = this.findReplace;
+        // As the framework matches a chord: by the key's place, not its letter — under another layout Ctrl+F arrives as the letter that
+        // layout puts there — every modifier exact, Ctrl answering ⌘ on macOS.
+        const chord = (shortcut: string): boolean => this.shortcuts.matches(domEvent, shortcut);
 
-        // By the key's position, not its letter: under another layout Ctrl+F arrives as the letter that layout puts there.
-        if (command && !domEvent.altKey && domEvent.code === "KeyF" && this.searchEnabled && findReplace !== null) {
+        if (chord("Ctrl+F") && this.searchEnabled && findReplace !== null) {
             domEvent.preventDefault();
             findReplace.open(false);
         }
-        else if (command && !domEvent.altKey && domEvent.code === "KeyH" && this.searchEnabled && findReplace !== null) {
+        else if (chord("Ctrl+H") && this.searchEnabled && findReplace !== null) {
             domEvent.preventDefault();
             findReplace.open(true);
         }
-        else if (command && !domEvent.altKey && domEvent.code === "KeyS") {
+        else if (chord("Ctrl+S")) {
             domEvent.preventDefault();
             this.surface.save();
         }
@@ -349,7 +357,7 @@ export class CodeEditor {
             domEvent.preventDefault();
             findReplace.close(true);
         }
-        else if (domEvent.code === "F3" && findReplace?.isOpen === true) {
+        else if ((chord("F3") || chord("Shift+F3")) && findReplace?.isOpen === true) {
             domEvent.preventDefault();
             findReplace.step(domEvent.shiftKey ? -1 : 1);
         }

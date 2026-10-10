@@ -1,7 +1,7 @@
 // The carets and selections of one field, and the keys that move them: the textarea shows the primary, the rest are drawn on a
 // layer above the text.
 
-import type { ObserveSize } from "ne-standard-ui";
+import type { ObserveSize, ShortcutWords } from "ne-standard-ui";
 import { CaretClass, CaretLayerClass, MultiCaretAttribute, SelectionClass, VirtualClass } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import type { Lines } from "./motion.ts";
@@ -46,6 +46,7 @@ export class CodeEditorCarets {
     private readonly layer: HTMLElement;
     private readonly probe: HTMLElement;
     private readonly surface: CodeEditorSurface;
+    private readonly shortcuts: ShortcutWords;
 
     /** Every range while there is more than one; null while the textarea's own selection is the only one. */
     private ranges: readonly Selection[] | null = null;
@@ -65,8 +66,9 @@ export class CodeEditorCarets {
     private adding: SelectionSet | null = null;
     private renderQueued = false;
 
-    public constructor(parts: CaretParts, surface: CodeEditorSurface, observeSize: ObserveSize) {
+    public constructor(parts: CaretParts, surface: CodeEditorSurface, observeSize: ObserveSize, shortcuts: ShortcutWords) {
         this.root = parts.root;
+        this.shortcuts = shortcuts;
         this.textarea = parts.textarea;
         this.scroller = parts.scroller;
         this.content = parts.content;
@@ -462,6 +464,7 @@ export class CodeEditorCarets {
         if (domEvent.button !== 0)
             return;
 
+        // A press's modifiers by hand: `shortcuts.matches` reads a key's chord, and the plugin surface has none for a pointer.
         if (!this.enabled || !(domEvent.ctrlKey || domEvent.metaKey) || !domEvent.altKey || domEvent.shiftKey) {
             this.collapse();
             return;
@@ -497,18 +500,19 @@ export class CodeEditorCarets {
 
     /** The textarea's `keydown`, ahead of the editing keys: the multi-caret commands, and every caret's moves while there are several. */
     public key(domEvent: KeyboardEvent): void {
-        if (domEvent.defaultPrevented || domEvent.isComposing)
+        if (domEvent.defaultPrevented || this.shortcuts.isComposing(domEvent))
             return;
 
-        const command = domEvent.ctrlKey || domEvent.metaKey;
+        // The command key as the framework reads a chord: Ctrl, or ⌘ on macOS, never the Windows key; Shift extends either way.
+        const command = this.shortcuts.matches(domEvent, `Ctrl+${domEvent.shiftKey ? "Shift+" : ""}${domEvent.code}`);
 
-        // By the key's position, as the editor's other shortcuts: under another layout the letter differs, the place does not.
-        if (this.enabled && domEvent.shiftKey && domEvent.altKey && !command && this.boxOrOccurrence(domEvent.code)) {
+        // Matched as the framework matches a chord, by the key's place: under another layout the letter differs, the place does not.
+        if (this.enabled && domEvent.shiftKey && domEvent.altKey && this.boxOrOccurrence(domEvent)) {
             domEvent.preventDefault();
             return;
         }
 
-        if (this.ranges === null || domEvent.altKey)
+        if (this.ranges === null || (!command && !this.shortcuts.isPlainKey(domEvent, { shift: true })))
             return;
 
         const text = this.textarea.value;
@@ -554,29 +558,25 @@ export class CodeEditorCarets {
             domEvent.preventDefault();
     }
 
-    private boxOrOccurrence(code: string): boolean {
-        switch (code) {
-            case "Period":
-                this.addNextOccurrence();
-                return true;
-            case "Semicolon":
-                this.selectAllOccurrences();
-                return true;
-            case "ArrowUp":
-                this.extendBox(-1, 0);
-                return true;
-            case "ArrowDown":
-                this.extendBox(1, 0);
-                return true;
-            case "ArrowLeft":
-                this.extendBox(0, -1);
-                return true;
-            case "ArrowRight":
-                this.extendBox(0, 1);
-                return true;
-            default:
-                return false;
-        }
+    private boxOrOccurrence(domEvent: KeyboardEvent): boolean {
+        const chord = (key: string): boolean => this.shortcuts.matches(domEvent, `Shift+Alt+${key}`);
+
+        if (chord("."))
+            this.addNextOccurrence();
+        else if (chord(";"))
+            this.selectAllOccurrences();
+        else if (chord("Up"))
+            this.extendBox(-1, 0);
+        else if (chord("Down"))
+            this.extendBox(1, 0);
+        else if (chord("Left"))
+            this.extendBox(0, -1);
+        else if (chord("Right"))
+            this.extendBox(0, 1);
+        else
+            return false;
+
+        return true;
     }
 
     /** Shift+Alt+.: a caret selects the word it touches; a selection adds the next place its text occurs, which becomes the primary. */
