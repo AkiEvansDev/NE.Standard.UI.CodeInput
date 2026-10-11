@@ -67,11 +67,22 @@ test("a line of unclosed marks is read in linear time", () => {
 });
 
 test("a paragraph of many closed runs is read in linear time, beside a mark it never closes", () => {
-    const root = parseInlines(`«${"\"a\" ".repeat(200000)}`, new Map());
-    const started = performance.now();
+    // Measured as growth, not against a clock a busy build slows: four times the runs take about four times as long, where a rescan
+    // of the rest after each run took sixteen.
+    const timed = (runs: number): number => {
+        const root = parseInlines(`«${"\"a\" ".repeat(runs)}`, new Map());
+        const started = performance.now();
 
-    markSpans(root, quotes.spans);
-    assert.ok(performance.now() - started < 1000, "two hundred thousand quoted runs take under a second, not one rescan of the rest each");
+        markSpans(root, quotes.spans);
+
+        return performance.now() - started;
+    };
+
+    timed(5000);
+
+    const growth = timed(160000) / Math.max(timed(40000), 1);
+
+    assert.ok(growth < 10, `four times the runs took ${growth.toFixed(1)} times as long`);
 });
 
 test("runs that close in a later node go on in the text after the close", () => {
