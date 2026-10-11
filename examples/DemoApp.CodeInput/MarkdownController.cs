@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,8 +12,65 @@ namespace DemoApp.CodeInput;
 /// </summary>
 internal sealed partial class MarkdownController : UIControllerBase
 {
+    // Slow enough to select words in the rendering while the reply is still arriving.
+    private static readonly TimeSpan WordDelay = TimeSpan.FromMilliseconds(150);
+
     [RecursiveMember]
     public partial string Document { get; set; } = Sample;
+
+    /// <summary>Whether a reply may be streamed: off while one is arriving.</summary>
+    [RecursiveMember]
+    public partial bool CanStream { get; set; } = true;
+
+    /// <summary>
+    /// Appends a follow-up to the document a word at a time, as a model's reply arrives: the display redraws the paragraph that grows
+    /// and keeps what the reader selected above it. A job the runtime owns, so a page that reloads meanwhile finds it still writing.
+    /// </summary>
+    [UICommand]
+    public void StreamReply()
+    {
+        if (!CanStream)
+            return;
+
+        CanStream = false;
+        Context.Runtime.Start(StreamAsync);
+    }
+
+    private async Task StreamAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var word in Words(Reply))
+            {
+                await Task.Delay(WordDelay, cancellationToken).ConfigureAwait(false);
+                _ = await Context.Runtime.InvokeAsync(() => Document += word, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            // A reply that failed half-way may be streamed again; not once the page is going, where no one is left to press it.
+            if (!cancellationToken.IsCancellationRequested)
+                _ = await Context.Runtime.InvokeAsync(() => CanStream = true, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The text cut after each space and line break, as a model's tokens arrive.</summary>
+    private static IEnumerable<string> Words(string text)
+    {
+        var start = 0;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] is not (' ' or '\n'))
+                continue;
+
+            yield return text[start..(i + 1)];
+            start = i + 1;
+        }
+
+        if (start < text.Length)
+            yield return text[start..];
+    }
 
     /// <summary>
     /// A picture pasted or dropped into the document has reached the server: kept in the demo's own store, and its address is the
@@ -82,6 +141,9 @@ internal sealed partial class MarkdownController : UIControllerBase
 
         ## Notes and figures
 
+        The on-call engineer wrote: "the cache refused writes, so the backups went first" — a quote this display draws in a style of
+        its own, as it does **strong** words.
+
         > A report is shown as it was written: <b>raw HTML</b> stays text,
         > and a [javascript: link](javascript:alert(1)) is only its words.
 
@@ -95,5 +157,16 @@ internal sealed partial class MarkdownController : UIControllerBase
         See the [runbook][runbook] for the rest.
 
         [runbook]: https://docs.orvane.example/runbooks/disk "The disk runbook"
+        """;
+
+    /// <summary>The follow-up the stream button writes at the end of the document, a quote and strong words among it.</summary>
+    private const string Reply = """
+
+
+        ## Follow-up
+
+        Asked what to watch next, the on-call engineer answered: "disk first, then the cache, and the backups never on the same
+        volume again". **The second database server** is planned for next week, and the alert at 80% disk has fired once since,
+        on a test volume, as it should.
         """;
 }

@@ -3663,6 +3663,7 @@ var G = class {
 	literal;
 	href = "";
 	title = "";
+	rule = -1;
 	parent = null;
 	firstChild = null;
 	lastChild = null;
@@ -4027,7 +4028,7 @@ function Qa(e, t, n, r, i) {
 	let a = [], o = !1, s = 0;
 	for (; s < e.length;) {
 		let c = e[s];
-		if (X(c)) {
+		if (Y(c)) {
 			o = a.length > 0, s++;
 			continue;
 		}
@@ -4037,7 +4038,7 @@ function Qa(e, t, n, r, i) {
 }
 function $a(e, t, n, r, i, a) {
 	let o = e[t], s = n + t;
-	if (yo(o) >= 4) return eo(e, t, s, i);
+	if (bo(o) >= 4) return eo(e, t, s, i);
 	let c = F(o);
 	if (c !== null) return to(e, t, s, c, i);
 	let l = no(o);
@@ -4054,18 +4055,18 @@ function $a(e, t, n, r, i, a) {
 	let u = a < 64;
 	if (u && N.test(o)) return io(e, t, s, r, i, a);
 	let d = u ? q.exec(o) : null;
-	return d === null ? uo(e, t) ? fo(e, t, s, i) : mo(e, t, s, r, i) : co(e, t, s, d, r, i, a);
+	return d === null ? uo(e, t) ? fo(e, t, s, i) : ho(e, t, s, r, i) : co(e, t, s, d, r, i, a);
 }
 function eo(e, t, n, r) {
 	let i = t;
-	for (; i < e.length && (X(e[i]) || yo(e[i]) >= 4);) i++;
+	for (; i < e.length && (Y(e[i]) || bo(e[i]) >= 4);) i++;
 	let a = i;
-	for (; a > t && X(e[a - 1]);) a--;
+	for (; a > t && Y(e[a - 1]);) a--;
 	return r.push({
 		line: n,
 		type: "code",
 		info: "",
-		text: e.slice(t, a).map((e) => e.slice(Math.min(4, yo(e)))).join("\n")
+		text: e.slice(t, a).map((e) => e.slice(Math.min(4, bo(e)))).join("\n")
 	}), a;
 }
 function to(e, t, n, r, i) {
@@ -4075,7 +4076,7 @@ function to(e, t, n, r, i) {
 			c++;
 			break;
 		}
-		s.push(e[c].slice(Math.min(a, yo(e[c]))));
+		s.push(e[c].slice(Math.min(a, bo(e[c]))));
 	}
 	return i.push({
 		line: n,
@@ -4106,10 +4107,10 @@ function io(e, t, n, r, i, a) {
 		let t = e[c], n = N.exec(t);
 		if (n !== null) {
 			let e = t.slice(n[0].length);
-			o.push(e), s = s === !0 && _o(e) ? !0 : null;
+			o.push(e), s = s === !0 && vo(e) ? !0 : null;
 			continue;
 		}
-		if (X(t) || Y(t) || vo(t) || (s ??= ao(o, a + 1), !s)) break;
+		if (Y(t) || J(t) || yo(t) || (s ??= ao(o, a + 1), !s)) break;
 		o.push(t);
 	}
 	return i.push({
@@ -4120,13 +4121,13 @@ function io(e, t, n, r, i, a) {
 }
 function ao(e, t) {
 	let n = e.at(-1);
-	if (n === void 0 || X(n) || oo(e)) return !1;
+	if (n === void 0 || Y(n) || oo(e)) return !1;
 	if (t < 64 && N.test(n)) {
 		let n = e.length - 1;
 		for (; n > 0 && N.test(e[n - 1]);) n--;
 		return ao(e.slice(n).map((e) => e.replace(N, "")), t + 1);
 	}
-	if (so(e) || e.length > 1 && !X(e[e.length - 2]) && qa.test(n)) return !1;
+	if (so(e) || e.length > 1 && !Y(e[e.length - 2]) && qa.test(n)) return !1;
 	let r = n;
 	for (let e = q.exec(r); e !== null && r.length > 0; e = q.exec(r)) r = r.slice(e[0].length);
 	return no(r) === null && !P.test(r) && F(r) === null;
@@ -4137,9 +4138,9 @@ function oo(e) {
 	return t !== null || n;
 }
 function so(e) {
-	for (let t = e.length - 1; t >= 0 && !X(e[t]); t--) {
+	for (let t = e.length - 1; t >= 0 && !Y(e[t]); t--) {
 		if (uo(e, t)) return !0;
-		if (Y(e[t])) return !1;
+		if (J(e[t])) return !1;
 	}
 	return !1;
 }
@@ -4151,23 +4152,23 @@ function co(e, t, n, r, i, a, o) {
 		let a = r[1].length + (s ? r[3].length + 1 : 1), f = r[5].length, p = a + (f === 0 || f > 4 ? 1 : f), m = n + (d - t), h = [e[d].slice(Math.min(p, e[d].length))], g = null;
 		for (d++; d < e.length;) {
 			let t = e[d];
-			if (X(t)) {
+			if (Y(t)) {
 				h.push(""), g = null, d++;
 				continue;
 			}
-			if (yo(t) >= p) {
+			if (bo(t) >= p) {
 				let e = t.slice(p);
-				h.push(e), g = g === !0 && _o(e) ? !0 : null, d++;
+				h.push(e), g = g === !0 && vo(e) ? !0 : null, d++;
 				continue;
 			}
-			if (!Y(t) && !q.test(t) && (g ??= ao(h, o + 1))) {
+			if (!J(t) && !q.test(t) && (g ??= ao(h, o + 1))) {
 				h.push(t.trimStart()), d++;
 				continue;
 			}
 			break;
 		}
 		let ee = 0;
-		for (; h.length > 1 && X(h[h.length - 1]);) h.pop(), ee++;
+		for (; h.length > 1 && Y(h[h.length - 1]);) h.pop(), ee++;
 		let te = { separated: !1 };
 		l.push(lo(h, m, i, o + 1, te)), te.separated && (u = !1);
 		let _ = q.exec(e[d] ?? ""), ne = _ !== null && !P.test(e[d]) && _[3] !== void 0 === s && (s ? _[4] : _[2]) === c;
@@ -4200,12 +4201,12 @@ function lo(e, t, n, r, i) {
 }
 function uo(e, t) {
 	let n = e[t + 1];
-	return e[t].includes("|") && n !== void 0 && n.includes("-") && Un.test(n) && J(e[t]).length === J(n).length;
+	return e[t].includes("|") && n !== void 0 && n.includes("-") && Un.test(n) && mo(e[t]).length === mo(n).length;
 }
 function fo(e, t, n, r) {
-	let i = J(e[t]), a = J(e[t + 1]).map(po), o = [], s = t + 2;
-	for (; s < e.length && !X(e[s]) && !Y(e[s]); s++) {
-		let t = J(e[s]);
+	let i = mo(e[t]), a = mo(e[t + 1]).map(po), o = [], s = t + 2;
+	for (; s < e.length && !Y(e[s]) && !J(e[s]); s++) {
+		let t = mo(e[s]);
 		o.push(i.map((e, n) => t[n] ?? ""));
 	}
 	return r.push({
@@ -4220,7 +4221,7 @@ function po(e) {
 	let t = e.startsWith(":"), n = e.endsWith(":");
 	return t && n ? "center" : n ? "right" : t ? "left" : null;
 }
-function J(e) {
+function mo(e) {
 	let t = e.trim();
 	t.startsWith("|") && (t = t.slice(1)), t.endsWith("|") && !t.endsWith("\\|") && (t = t.slice(0, -1));
 	let n = [], r = "";
@@ -4230,27 +4231,27 @@ function J(e) {
 	}
 	return n.push(r.trim()), n;
 }
-function mo(e, t, n, r, i) {
+function ho(e, t, n, r, i) {
 	let a = [e[t].trimStart()], o = t + 1;
 	for (; o < e.length; o++) {
 		let t = e[o], r = qa.exec(t);
-		if (r !== null && !go(a)) return i.push({
+		if (r !== null && !_o(a)) return i.push({
 			line: n,
 			type: "heading",
 			level: r[1].startsWith("=") ? 1 : 2,
 			text: a.join("\n").trim()
 		}), o + 1;
-		if (X(t) || Y(t) || vo(t) || uo(e, o)) break;
+		if (Y(t) || J(t) || yo(t) || uo(e, o)) break;
 		a.push(t.trimStart());
 	}
-	let s = ho(a, r);
+	let s = go(a, r);
 	return s.length > 0 && i.push({
 		line: n,
 		type: "paragraph",
 		text: s
 	}), o;
 }
-function ho(e, t) {
+function go(e, t) {
 	let n = 0;
 	for (; n < e.length; n++) {
 		let r = Ya.exec(e[n].trimEnd());
@@ -4263,83 +4264,152 @@ function ho(e, t) {
 	}
 	return e.slice(n).join("\n").trimEnd();
 }
-function go(e) {
+function _o(e) {
 	return e.every((e) => Ya.test(e.trimEnd()));
 }
-function Y(e) {
+function J(e) {
 	return no(e) !== null || P.test(e) || N.test(e) || F(e) !== null;
 }
-function _o(e) {
-	return !X(e) && !Y(e) && !vo(e) && !qa.test(e) && !Un.test(e);
-}
 function vo(e) {
-	let t = q.exec(e);
-	return t !== null && t[5].length > 0 && !X(e.slice(t[0].length)) && (t[3] === void 0 || t[3] === "1");
-}
-function X(e) {
-	return e.trim().length === 0;
+	return !Y(e) && !J(e) && !yo(e) && !qa.test(e) && !Un.test(e);
 }
 function yo(e) {
+	let t = q.exec(e);
+	return t !== null && t[5].length > 0 && !Y(e.slice(t[0].length)) && (t[3] === void 0 || t[3] === "1");
+}
+function Y(e) {
+	return e.trim().length === 0;
+}
+function bo(e) {
 	let t = 0;
 	for (; e.charAt(t) === " ";) t++;
 	return t;
 }
 //#endregion
-//#region src/markdown-render.ts
-var Z = a;
-function bo(e, t, n, r) {
-	let i = Xa(e);
-	return xo(i.blocks, {
-		references: i.references,
-		highlight: t,
-		names: n,
-		urls: r
-	}, !1);
-}
-function xo(e, t, n) {
-	let r = "";
-	for (let i of e) r += So(i, t, n);
-	return r;
+//#region src/markdown-spans.ts
+function xo(e, t) {
+	Ua(e);
+	let n = /* @__PURE__ */ new Set();
+	for (let r = e.firstChild; r !== null; r = r.next) r.type === "text" ? r = So(r, t, n) : r.type !== "code" && r.type !== "image" && r.type !== "span" && r.firstChild !== null && xo(r, t);
 }
 function So(e, t, n) {
-	let { references: r, highlight: i } = t, a = Co(e.line, t);
-	switch (e.type) {
-		case "paragraph": {
-			let i = Q(Ba(e.text, r), t);
-			return n ? i : `<p${a}>${i}</p>`;
+	let r = t.map((t, r) => n.has(r) ? -1 : e.literal.indexOf(t.open)), i = e;
+	for (;;) {
+		let e = Co(r, t);
+		if (e < 0) return i;
+		let a = wo(i, r[e], e, t);
+		if (a === null) {
+			n.add(e), r[e] = -1;
+			continue;
 		}
-		case "heading": return `<h${e.level}${a}>${Q(Ba(e.text, r), t)}</h${e.level}>`;
-		case "code": {
-			let t = e.info.split(/\s+/, 1)[0], n = t.length > 0 ? i(e.text, t) : null;
-			return `<pre class="${Z}__code"${t.length > 0 ? ` data-language="${H(t)}"` : ""}${a}><code>${n ?? H(e.text)}</code></pre>`;
-		}
-		case "quote": return `<blockquote${a}>${xo(e.children, t, !1)}</blockquote>`;
-		case "list": return wo(e.ordered, e.start, e.tight, e.items, t);
-		case "table": return To(e.line, e.alignments, e.head, e.rows, t);
-		case "rule": return `<hr${a}>`;
+		if (a.after === null) return a.span;
+		To(r, a.after, a.cut, t, n), i = a.after;
 	}
 }
 function Co(e, t) {
+	let n = -1;
+	for (let r = 0; r < e.length; r++) {
+		let i = e[r];
+		i < 0 || (n < 0 || i < e[n] || i === e[n] && t[r].open.length > t[n].open.length) && (n = r);
+	}
+	return n;
+}
+function wo(e, t, n, r) {
+	let i = r[n], a = t + i.open.length, o = null, s = e.literal.indexOf(i.close, a);
+	if (s >= 0) o = e;
+	else for (let t = e.next; t !== null; t = t.next) if (t.type === "text" && (s = t.literal.indexOf(i.close), s >= 0)) {
+		o = t;
+		break;
+	}
+	if (o === null) return null;
+	let c = new G("root");
+	if (o === e) c.appendChild(new G("text", e.literal.slice(a, s)));
+	else {
+		for (c.appendChild(new G("text", e.literal.slice(a))); e.next !== o;) c.appendChild(e.next);
+		c.appendChild(new G("text", o.literal.slice(0, s)));
+	}
+	let l = s + i.close.length, u = o.literal.slice(l), d = o === e;
+	d || o.unlink(), xo(c, r);
+	let f = new G("span");
+	for (f.rule = n, f.appendChild(new G("text", i.open)); c.firstChild !== null;) f.appendChild(c.firstChild);
+	if (f.appendChild(new G("text", i.close)), e.literal = e.literal.slice(0, t), e.insertAfter(f), u.length === 0) return {
+		span: f,
+		after: null,
+		cut: -1
+	};
+	let p = new G("text", u);
+	return f.insertAfter(p), {
+		span: f,
+		after: p,
+		cut: d ? l : -1
+	};
+}
+function To(e, t, n, r, i) {
+	for (let a = 0; a < r.length; a++) {
+		let o = e[a];
+		i.has(a) || n >= 0 && o < 0 || (e[a] = n >= 0 && o >= n ? o - n : t.literal.indexOf(r[a].open));
+	}
+}
+//#endregion
+//#region src/markdown-render.ts
+var X = a, Eo = {
+	marks: {},
+	spans: []
+};
+function Do(e, t, n, r, i = Eo) {
+	let a = Xa(e), o = {
+		references: a.references,
+		highlight: t,
+		styles: i,
+		names: n,
+		urls: r
+	};
+	return a.blocks.map((e) => ko(e, o, !1));
+}
+function Oo(e, t, n) {
+	let r = "";
+	for (let i of e) r += ko(i, t, n);
+	return r;
+}
+function ko(e, t, n) {
+	let { highlight: r } = t, i = Ao(e.line, t);
+	switch (e.type) {
+		case "paragraph": {
+			let r = Z(No(e.text, t), t);
+			return n ? r : `<p${i}>${r}</p>`;
+		}
+		case "heading": return `<h${e.level}${i}>${Z(No(e.text, t), t)}</h${e.level}>`;
+		case "code": {
+			let t = e.info.split(/\s+/, 1)[0], n = t.length > 0 ? r(e.text, t) : null;
+			return `<pre class="${X}__code"${t.length > 0 ? ` data-language="${H(t)}"` : ""}${i}><code>${n ?? H(e.text)}</code></pre>`;
+		}
+		case "quote": return `<blockquote${i}>${Oo(e.children, t, !1)}</blockquote>`;
+		case "list": return jo(e.ordered, e.start, e.tight, e.items, t);
+		case "table": return Mo(e.line, e.alignments, e.head, e.rows, t);
+		case "rule": return `<hr${i}>`;
+	}
+}
+function Ao(e, t) {
 	return ` ${t.names.sourceLine}="${e}"`;
 }
-function wo(e, t, n, r, i) {
-	let a = e ? "ol" : "ul", o = `<${a}${e && t !== 1 ? ` start="${t}"` : ""}${r.some((e) => e.checked !== null) ? ` class="${Z}__tasks"` : ""}>`;
+function jo(e, t, n, r, i) {
+	let a = e ? "ol" : "ul", o = `<${a}${e && t !== 1 ? ` start="${t}"` : ""}${r.some((e) => e.checked !== null) ? ` class="${X}__tasks"` : ""}>`;
 	for (let e of r) {
-		let t = xo(e.children, i, n);
+		let t = Oo(e.children, i, n);
 		if (e.checked === null) {
-			o += `<li${Co(e.line, i)}>${t}</li>`;
+			o += `<li${Ao(e.line, i)}>${t}</li>`;
 			continue;
 		}
-		let r = e.checked ? " checked" : "", a = `${g.checkboxClass} ${g.smallInputClass} ${i.names.readOnlyClass} ${Z}__check`;
-		o += `<li class="${Z}__task"${Co(e.line, i)}><span class="${a}"><input class="${g.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${r}><span class="${g.checkboxBoxClass}"></span></span>${t}</li>`;
+		let r = e.checked ? " checked" : "", a = `${g.checkboxClass} ${g.smallInputClass} ${i.names.readOnlyClass} ${X}__check`;
+		o += `<li class="${X}__task"${Ao(e.line, i)}><span class="${a}"><input class="${g.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${r}><span class="${g.checkboxBoxClass}"></span></span>${t}</li>`;
 	}
 	return `${o}</${a}>`;
 }
-function To(e, t, n, r, i) {
+function Mo(e, t, n, r, i) {
 	let a = (e, n, r) => {
 		let a = t[r];
-		return `<${e}${a == null ? "" : ` class="${Z}__cell--${a}"`}>${Q(Ba(n, i.references), i)}</${e}>`;
-	}, o = `<div class="${Z}__table"${Co(e, i)}><table>`;
+		return `<${e}${a == null ? "" : ` class="${X}__cell--${a}"`}>${Z(No(n, i), i)}</${e}>`;
+	}, o = `<div class="${X}__table"${Ao(e, i)}><table>`;
 	if (n.some((e) => e !== "")) {
 		o += "<thead><tr>";
 		for (let [e, t] of n.entries()) o += a("th", t, e);
@@ -4356,7 +4426,11 @@ function To(e, t, n, r, i) {
 	}
 	return `${o}</table></div>`;
 }
-function Q(e, t) {
+function No(e, t) {
+	let n = Ba(e, t.references);
+	return t.styles.spans.length > 0 && xo(n, t.styles.spans), n;
+}
+function Z(e, t) {
 	let n = "";
 	for (let r = e.firstChild; r !== null; r = r.next) switch (r.type) {
 		case "text":
@@ -4366,22 +4440,25 @@ function Q(e, t) {
 			n += r.literal;
 			break;
 		case "code":
-			n += `<code>${H(r.literal)}</code>`;
+			n += `<code${Q("code", t)}>${H(r.literal)}</code>`;
 			break;
 		case "emphasis":
-			n += `<em>${Q(r, t)}</em>`;
+			n += `<em${Q("emphasis", t)}>${Z(r, t)}</em>`;
 			break;
 		case "strong":
-			n += `<strong>${Q(r, t)}</strong>`;
+			n += `<strong${Q("strong", t)}>${Z(r, t)}</strong>`;
 			break;
 		case "strikethrough":
-			n += `<del>${Q(r, t)}</del>`;
+			n += `<del${Q("strikethrough", t)}>${Z(r, t)}</del>`;
 			break;
 		case "link":
-			n += Eo(r, t);
+			n += Fo(r, t);
 			break;
 		case "image":
-			n += Do(r, t);
+			n += Io(r, t);
+			break;
+		case "span":
+			n += `<span class="${X}__span"${Po(t.styles.spans[r.rule]?.css)}>${Z(r, t)}</span>`;
 			break;
 		case "hardbreak":
 			n += "<br>";
@@ -4389,56 +4466,98 @@ function Q(e, t) {
 		case "softbreak":
 			n += "\n";
 			break;
-		default: n += Q(r, t);
+		default: n += Z(r, t);
 	}
 	return n;
 }
-function Eo(e, t) {
-	let n = Q(e, t), r = e.href.trim();
+function Q(e, t) {
+	return Po(t.styles.marks[e]);
+}
+function Po(e) {
+	return e === void 0 || e.length === 0 ? "" : ` style="${H(e)}"`;
+}
+function Fo(e, t) {
+	let n = Z(e, t), r = e.href.trim();
 	if (!t.urls.isSafeLink(r)) return n;
 	let i = e.title.length > 0 ? ` title="${H(e.title)}"` : "", a = t.urls.isExternalLink(r) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
-	return `<a href="${H(r)}"${i}${a}>${n}</a>`;
+	return `<a href="${H(r)}"${i}${a}${Q("link", t)}>${n}</a>`;
 }
-function Do(e, t) {
-	let n = H(Oo(e));
+function Io(e, t) {
+	let n = H(Lo(e));
 	if (!t.urls.isImageSource(e.href)) return n;
 	let r = t.urls.asBrowserReads(e.href), i = e.title.length > 0 ? ` title="${H(e.title)}"` : "";
 	return `<img src="${H(r)}" alt="${n}"${i} loading="lazy">`;
 }
-function Oo(e) {
+function Lo(e) {
 	let t = "";
-	for (let n = e.firstChild; n !== null; n = n.next) n.type === "text" || n.type === "code" || n.type === "entity" ? t += n.literal : n.type === "softbreak" || n.type === "hardbreak" ? t += " " : t += Oo(n);
+	for (let n = e.firstChild; n !== null; n = n.next) n.type === "text" || n.type === "code" || n.type === "entity" ? t += n.literal : n.type === "softbreak" || n.type === "hardbreak" ? t += " " : t += Lo(n);
 	return t;
 }
 //#endregion
 //#region src/markdown-display-engine.ts
-var ko = `.${a}`, Ao = `.${o}`, jo = class {
+var Ro = `.${a}`, zo = `.${o}`, Bo = class {
 	names;
 	urls;
 	rendered = /* @__PURE__ */ new WeakMap();
+	blocks = /* @__PURE__ */ new WeakMap();
 	live = /* @__PURE__ */ new Set();
 	constructor(e) {
-		this.names = e.names, this.urls = e.urls, e.observeComponents(e.root, ko, {
+		this.names = e.names, this.urls = e.urls, e.observeComponents(e.root, Ro, {
 			childList: !0,
 			attributeFilter: ["data-ui-markdown-source"]
-		}, (e) => this.renderAll(e, !1)), R.onRegistered(() => this.renderAll([...this.live], !0)), this.renderAll(e.root.querySelectorAll(ko), !1);
+		}, (e) => this.renderAll(e, !1)), R.onRegistered(() => this.renderAll([...this.live], !0)), this.renderAll(e.root.querySelectorAll(Ro), !1);
 	}
 	renderAll(e, t) {
 		for (let e of this.live) e.isConnected || this.live.delete(e);
 		for (let n of e) {
-			let e = n.getAttribute("data-ui-markdown-source") ?? "", r = n.querySelector(Ao);
-			r === null || !t && this.rendered.get(n) === e || (this.rendered.set(n, e), this.live.add(n), r.innerHTML = Mo(e, this.names, this.urls));
+			let e = n.getAttribute("data-ui-markdown-source") ?? "", r = n.querySelector(zo);
+			r === null || !t && this.rendered.get(n) === e || (this.rendered.set(n, e), this.live.add(n), this.draw(r, Wo(e, Uo(n), this.names, this.urls)));
 		}
 	}
+	draw(e, t) {
+		let n = this.blocks.get(e);
+		if (this.blocks.set(e, t), n === void 0 || e.children.length !== n.length) {
+			e.innerHTML = t.join("");
+			return;
+		}
+		let r = Vo(n, t);
+		for (let t = r.removeEnd - 1; t >= r.start; t--) e.children[t].remove();
+		if (r.insertEnd === r.start) return;
+		let i = document.createElement("template");
+		i.innerHTML = t.slice(r.start, r.insertEnd).join(""), e.insertBefore(i.content, e.children[r.start] ?? null);
+	}
 };
-function Mo(e, t, n) {
+function Vo(e, t) {
+	let n = Math.min(e.length, t.length), r = 0;
+	for (; r < n && e[r] === t[r];) r++;
+	let i = 0;
+	for (; i < n - r && e[e.length - 1 - i] === t[t.length - 1 - i];) i++;
+	return {
+		start: r,
+		removeEnd: e.length - i,
+		insertEnd: t.length - i
+	};
+}
+var Ho = /* @__PURE__ */ new WeakMap();
+function Uo(e) {
+	let t = Ho.get(e);
+	if (t !== void 0) return t;
+	let n = e.getAttribute("data-ui-markdown-styles"), r = Eo;
 	try {
-		return bo(e, No, t, n);
+		n !== null && (r = JSON.parse(n));
+	} catch (e) {
+		console.warn("NE.Standard.UI.Web.CodeInput: a Markdown display's styles could not be read; it is drawn without them.", e);
+	}
+	return Ho.set(e, r), r;
+}
+function Wo(e, t, n, r) {
+	try {
+		return Do(e, Go, n, r, t);
 	} catch (t) {
-		return console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", t), `<pre class="${a}__code"><code>${H(e)}</code></pre>`;
+		return console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", t), [`<pre class="${a}__code"><code>${H(e)}</code></pre>`];
 	}
 }
-function No(e, t) {
+function Go(e, t) {
 	let n = R.get(Kn(t));
 	if (n === null) return null;
 	let r = n.initialState;
@@ -4457,9 +4576,9 @@ function No(e, t) {
 }
 //#endregion
 //#region src/package-api.ts
-function Po(e, t) {
+function Ko(e, t) {
 	let n = window.NEStandardUICodeInput?.__pendingLanguages ?? [], r = window.NEStandardUICodeInput?.__pendingCompletions ?? [], i = {
-		registerLanguage: (n, r, i) => Fo(e, t, {
+		registerLanguage: (n, r, i) => qo(e, t, {
 			id: n,
 			tokenizer: r,
 			completions: i
@@ -4470,16 +4589,16 @@ function Po(e, t) {
 		__pendingCompletions: []
 	};
 	window.NEStandardUICodeInput = i;
-	for (let r of n) Fo(e, t, r);
+	for (let r of n) qo(e, t, r);
 	for (let e of r) t.register(e.languageId, e.source);
 	return i;
 }
-function Fo(e, t, n) {
+function qo(e, t, n) {
 	e.register(n.id, n.tokenizer), n.completions !== void 0 && t.register(n.id, n.completions);
 }
 //#endregion
 //#region src/code-input.ts
-Po(R, Nr);
+Ko(R, Nr);
 var $ = Oa();
 $.registerEvent("save", {
 	settlesValue: !0,
@@ -4494,6 +4613,6 @@ $.registerEvent("save", {
 	kind: "code",
 	read: (e) => wa(e)
 }), $.registerEngine((e) => {
-	new Ea(e), new jo(e);
+	new Ea(e), new Bo(e);
 });
 //#endregion

@@ -52,6 +52,7 @@ export const CountAttribute = "data-ui-code-count";
 export const MarkdownRootClass = "ui-markdown";
 export const MarkdownBodyClass = "ui-markdown__body";
 export const MarkdownSourceAttribute = "data-ui-markdown-source";
+export const MarkdownStylesAttribute = "data-ui-markdown-styles";
 
 // The words the client writes itself, by their CodeInputStrings keys.
 export const PositionWord = "ui.code.position";

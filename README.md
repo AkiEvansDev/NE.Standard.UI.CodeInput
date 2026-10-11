@@ -8,9 +8,12 @@ rendering**, which carries the highlighting engine and the stylesheet embedded i
 ## Install
 
 ```
-dotnet add package NE.Standard.UI.CodeInput
-dotnet add package NE.Standard.UI.Web.CodeInput
+dotnet add App package NE.Standard.UI.CodeInput
+dotnet add App.Web package NE.Standard.UI.Web.CodeInput
 ```
+
+The first is the component, for the application's library; the second its rendering, for the web project that hosts the
+library ([getting started](https://akievansdev.github.io/NE.Standard/getting-started.html)).
 
 Both packages bring their namespaces as global usings, so the code below needs no `using` line for them; a project that
 sets `NEStandardUIImplicitUsings` to `false` writes its own.
@@ -285,6 +288,22 @@ and `/\host`, which a browser reads as another host — opens in a new tab. Ever
 viewer wrote cannot freeze the page. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
 at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
 tokenizer that fails leaves its block, or its line in the field, plain.
+
+A display may draw runs in styles of its own — a colour, followed through the light and the dark theme, a font list, a weight,
+a slant. `SetMarkStyle` styles Markdown's own runs (strong, emphasis, strikethrough, inline code, a link's words);
+`AddSpanStyle` styles words from an opening mark to the next closing one within a paragraph, the marks included — quoted
+speech, say. A mark never closed styles nothing, as an unclosed `**` does not, and a mark inside code is the code's. The styles
+are how the display is built, not values to bind:
+
+```csharp
+new MarkdownDisplayComponent()
+    .SetMarkStyle(UIMarkdownMark.Strong, new UIMarkdownTextStyle { Color = UIThemeColor.Primary })
+    .AddSpanStyle("\"", "\"", new UIMarkdownTextStyle { Color = UIThemeColor.Accent, Italic = true })
+    .BindText(nameof(ChatMessage.Text))
+```
+
+A document pushed again redraws only the blocks that came out differently: a reply streaming in keeps what the reader selected
+in the paragraphs already written.
 
 The body is styled by element under `.ui-markdown__body`, in the page's type and the inks of the ground it stands on — a
 display in a component given a theme `Background` reads in that colour's on-colour; an application restyles it there. A link is the framework's inline link, as in any description: underlined, brightening under the pointer.

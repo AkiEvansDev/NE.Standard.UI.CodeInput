@@ -98,7 +98,7 @@ test("the picture's event and effect are the ones the server raises and answers 
 });
 
 test("the Markdown display's names are the ones its renderer writes", () => {
-    for (const name of [names.MarkdownRootClass, names.MarkdownBodyClass, names.MarkdownSourceAttribute])
+    for (const name of [names.MarkdownRootClass, names.MarkdownBodyClass, names.MarkdownSourceAttribute, names.MarkdownStylesAttribute])
         assertWritten(markdown, "MarkdownDisplayComponentRenderer.cs", name);
 });
 

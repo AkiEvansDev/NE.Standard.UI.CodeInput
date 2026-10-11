@@ -1,5 +1,6 @@
 // A paragraph's inline markup as a tree: CommonMark's inline rules (code spans, emphasis, links, images, autolinks, entities,
-// escapes, breaks) plus GitHub's strikethrough and bare links. Raw HTML stays text, so a document can't inject elements of its own.
+// escapes, breaks) plus GitHub's strikethrough and bare links, and the author's own runs a later pass wraps (markdown-spans.ts). Raw
+// HTML stays text, so a document can't inject elements of its own.
 
 export type InlineType =
     | "root"
@@ -12,7 +13,8 @@ export type InlineType =
     | "link"
     | "image"
     | "hardbreak"
-    | "softbreak";
+    | "softbreak"
+    | "span";
 
 export type LinkTarget = {
     readonly href: string;
@@ -25,6 +27,8 @@ export class Inline {
     public literal: string;
     public href = "";
     public title = "";
+    /** On an author's run (markdown-spans.ts): the rule it was opened by. */
+    public rule = -1;
     public parent: Inline | null = null;
     public firstChild: Inline | null = null;
     public lastChild: Inline | null = null;
@@ -716,7 +720,7 @@ function linkBareAddresses(parent: Inline): void {
 }
 
 /** Joins neighbouring text nodes: the delimiter runs emphasis left alone are nodes of their own, and an address may run through one. */
-function mergeText(parent: Inline): void {
+export function mergeText(parent: Inline): void {
     for (let child = parent.firstChild; child !== null; child = child.next) {
         while (child.type === "text" && child.next !== null && child.next.type === "text") {
             child.literal += child.next.literal;
