@@ -6,7 +6,9 @@
     { "label": "TryGetValue", "insert": "TryGetValue()", "detail": "bool", "kind": "function" },
     { "label": "UserService", "detail": "class", "kind": "type" },
     { "label": "GetName", "insert": "GetName()", "detail": "string?", "kind": "function" },
-    { "label": "_users", "detail": "field", "kind": "variable" }
+    { "label": "_users", "detail": "field", "kind": "variable" },
+    { "label": "region", "detail": "#region", "kind": "meta" },
+    { "label": "IsoDate", "insert": "\"yyyy-MM-dd\"", "detail": "a date pattern", "kind": "string" }
   ],
   "triggers": ["."]
 }

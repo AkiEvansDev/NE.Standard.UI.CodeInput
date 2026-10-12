@@ -1,11 +1,15 @@
 // Completions: the shape of a suggestion and a source, and the pure prefix, ranking and document-word rules the popup filters by.
 // The popup, the `CompletionsSource` fetch and the list's keys live in `code-editor-completions.ts`.
 
+import { tokenClass } from "./highlighter.ts";
 import { WordCharacter, wordAt } from "./motion.ts";
+import type { TokenKind } from "./tokenizer.ts";
+import { TokenKinds } from "./tokenizer.ts";
 
-type CompletionKind = "keyword" | "type" | "function" | "variable" | "property" | "text";
+/** Any token kind, whose ink the label wears as the same word wears it in the text; `text` is plain, as no kind is. */
+type CompletionKind = TokenKind | "text";
 
-/** One suggestion: `insert` defaults to `label`, `detail` is shown muted after it, `kind` colours the row. */
+/** One suggestion: `insert` defaults to `label`, `detail` is shown muted after it, `kind` colours the label. */
 export type CompletionItem = {
     readonly label: string;
     readonly insert?: string;
@@ -155,7 +159,12 @@ function documentWords(text: string): readonly string[] {
     return wordsRead;
 }
 
-const ValidKinds: ReadonlySet<CompletionKind> = new Set(["keyword", "type", "function", "variable", "property", "text"]);
+/** The highlighter's own class for a completion's kind, so the label is coloured by the palette the text is; none for plain text. */
+export function completionKindClass(kind: CompletionKind | undefined): string | null {
+    return kind === undefined || kind === "text" ? null : tokenClass(kind);
+}
+
+const ValidKinds: ReadonlySet<CompletionKind> = new Set<CompletionKind>([...TokenKinds, "text"]);
 
 /** Reads a `CompletionsSource` file's JSON: an item with no label is dropped, `insert` defaults to `label`, an unknown `kind` is dropped. */
 export function parseCompletionsFile(data: unknown): CompletionsFile {

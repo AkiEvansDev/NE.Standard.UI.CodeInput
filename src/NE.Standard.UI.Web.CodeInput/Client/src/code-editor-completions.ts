@@ -7,7 +7,7 @@ import type { CodeEditorEditing } from "./code-editor-editing.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import { ActiveCompletionClass, CompletionAnchorClass, CompletionListClass, CompletionRowClass, CompletionsAttribute, CompletionsSourceAttribute, SuggestionsWord } from "./code-editor-dom.ts";
 import type { CompletionContext, CompletionItem, CompletionSource, CompletionsFile } from "./completions.ts";
-import { collectCompletions, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
+import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
 import { completionsRegistry } from "./completions-registry.ts";
 import { languages } from "./languages/index.ts";
 
@@ -360,12 +360,10 @@ export class CodeEditorCompletions {
             row.className = CompletionRowClass;
             row.setAttribute("role", "option");
 
-            if (item.kind !== undefined)
-                row.classList.add(`${CompletionRowClass}--${item.kind}`);
-
             const label = document.createElement("span");
+            const kindClass = completionKindClass(item.kind);
 
-            label.className = `${CompletionRowClass}-label`;
+            label.className = kindClass === null ? `${CompletionRowClass}-label` : `${CompletionRowClass}-label ${kindClass}`;
             label.textContent = item.label;
             row.append(label);
 

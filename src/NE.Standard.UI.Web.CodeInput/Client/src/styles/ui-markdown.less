@@ -104,9 +104,10 @@
         }
     }
 
+    // The framework's quote stroke, the width and the neutral colour a paragraph's quote line is drawn in, as wide as a reply's.
     blockquote {
         padding: 0 @ui-space-3;
-        border-left: 0.25rem solid var(--ui-color-border);
+        border-left: @ui-quote-stroke solid @ui-quote-ink;
         color: @ui-text-muted;
     }
 

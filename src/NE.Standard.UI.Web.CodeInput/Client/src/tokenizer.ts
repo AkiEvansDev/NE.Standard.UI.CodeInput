@@ -1,32 +1,36 @@
 // The contract every language is written against: a line at a time, carrying small state to the next line, so the highlighter can
 // re-read only the lines an edit touched and stop where state settles back.
 
-export type TokenKind =
-    | "keyword"
-    | "string"
-    | "number"
-    | "comment"
-    | "property"
-    | "tag"
-    | "attribute"
-    | "punctuation"
-    | "operator"
-    | "type"
-    | "function"
-    | "variable"
-    | "regex"
-    | "meta"
-    | "escape"
-    | "invalid"
-    | "selector"
-    | "value"
-    | "heading"
-    | "strong"
-    | "emphasis"
-    | "strikethrough"
-    | "code"
-    | "link"
-    | "quote";
+/** Every kind a token may be, each one a `ui-tk-*` class of the palette; a list, so a kind read off JSON can be checked. */
+export const TokenKinds = [
+    "keyword",
+    "string",
+    "number",
+    "comment",
+    "property",
+    "tag",
+    "attribute",
+    "punctuation",
+    "operator",
+    "type",
+    "function",
+    "variable",
+    "regex",
+    "meta",
+    "escape",
+    "invalid",
+    "selector",
+    "value",
+    "heading",
+    "strong",
+    "emphasis",
+    "strikethrough",
+    "code",
+    "link",
+    "quote"
+] as const;
+
+export type TokenKind = (typeof TokenKinds)[number];
 
 export type Token = {
     readonly from: number;

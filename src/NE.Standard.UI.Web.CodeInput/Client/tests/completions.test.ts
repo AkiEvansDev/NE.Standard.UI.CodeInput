@@ -3,7 +3,8 @@ import test from "node:test";
 
 import { CompletionsRegistry } from "../src/completions-registry.ts";
 import type { CompletionContext, CompletionItem } from "../src/completions.ts";
-import { collectCompletions, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
+import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
+import { renderSegments } from "../src/highlighter.ts";
 
 function context(overrides: Partial<CompletionContext> = {}): CompletionContext {
     return { text: "", offset: 0, line: 0, column: 0, prefix: "", languageId: "plain-text", ...overrides };
@@ -91,6 +92,21 @@ test("a completions file defaults insert to the label, drops an unknown kind, an
         { label: "y", insert: "yInsert", detail: "field", kind: undefined }
     ]);
     assert.deepEqual(file.triggers, [".", "::"]);
+});
+
+test("a completions file keeps any token kind, a language's own inks included, and plain text", () => {
+    const file = parseCompletionsFile({ items: [{ label: "name", kind: "regex" }, { label: "#if", kind: "meta" }, { label: "word", kind: "text" }] });
+
+    assert.deepEqual(file.items.map(item => item.kind), ["regex", "meta", "text"]);
+});
+
+test("a completion's label wears the class the highlighter gives a token of its kind, and plain text wears none", () => {
+    // The same class the text's own token of that kind carries, so one palette colours both.
+    assert.equal(completionKindClass("meta"), "ui-tk-meta");
+    assert.match(renderSegments("#if", [{ from: 0, to: 3, kind: "meta" }], []), /class="ui-tk-meta"/);
+    assert.equal(completionKindClass("keyword"), "ui-tk-keyword");
+    assert.equal(completionKindClass("text"), null);
+    assert.equal(completionKindClass(undefined), null);
 });
 
 test("a completions file with nothing usable reads as empty", () => {

@@ -49,7 +49,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                 .AddRow(UIGridUnit.Star())
                 // A reply streamed into the end of the document while the reader reads it.
                 .AddChild(new ButtonComponent()
-                    .SetType(UIButtonType.Outline)
+                    .SetType(UIButtonType.Ghost)
                     .SetSize(UIButtonSize.Small)
                     .SetTitle("code-demo.markdown.stream")
                     .BindEnabled(nameof(MarkdownController.CanStream))

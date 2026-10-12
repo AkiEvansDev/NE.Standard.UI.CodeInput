@@ -54,8 +54,10 @@
     --ui-code-quote: light-dark(#0451a5, #6a9955);
 }
 
+    // Without numbers the text stands where every field's does (`--ui-field-inset`, less the box's border), so it lines up with
+    // the fields beside it and with its own message and note, which stand at that inset: a fixed step stood it 4px short of them.
     .ui-code-input:not([data-ui-code-line-numbers]) {
-        --ui-code-gutter: @ui-space-2;
+        --ui-code-gutter: ~"max(0px, var(--ui-field-inset, calc(@{ui-space-2} + var(--ui-border-width, 1px))) - var(--ui-border-width, 1px))";
     }
 
 // The box, holding the scroller and the panel; its ground, appearance and states are the framework's, through .ui-field-box.
@@ -245,7 +247,7 @@
     white-space: pre;
 }
 
-// Tokens.
+// Tokens: the text's, and a completion's label of that kind, so a word looks in the list as it will in the field.
 .ui-tk-keyword { color: var(--ui-code-keyword); }
 .ui-tk-string { color: var(--ui-code-string); }
 .ui-tk-number { color: var(--ui-code-number); }
@@ -410,6 +412,11 @@
         display: flex;
     }
 
+    // Without numbers, the caret's position starts where the text above it does.
+    .ui-code-input:not([data-ui-code-line-numbers]) .ui-code-input__status {
+        padding-left: var(--ui-code-gutter);
+    }
+
 // The first to give way in a narrow field: it ellipsises while the pickers keep their words.
 .ui-code-input__status-position {
     .ui-text-nowrap();
@@ -521,13 +528,6 @@
     color: var(--ui-text-muted);
     font-size: var(--ui-text-caption-font-size);
 }
-
-// A kind colours its label the way the same word would be coloured in the text.
-.ui-code-input__completion--keyword .ui-code-input__completion-label { color: var(--ui-code-keyword); }
-.ui-code-input__completion--type .ui-code-input__completion-label { color: var(--ui-code-type); }
-.ui-code-input__completion--function .ui-code-input__completion-label { color: var(--ui-code-function); }
-.ui-code-input__completion--variable .ui-code-input__completion-label { color: var(--ui-code-variable); }
-.ui-code-input__completion--property .ui-code-input__completion-label { color: var(--ui-code-property); }
 
 // The zero-size point the list opens against, under the start of the word being completed; the engine measures and places the
 // popup from it.

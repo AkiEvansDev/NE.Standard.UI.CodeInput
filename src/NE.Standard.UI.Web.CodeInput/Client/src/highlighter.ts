@@ -347,8 +347,13 @@ export function renderSegments(text: string, tokens: readonly Token[], marks: re
     return html;
 }
 
+/** The class a token of `kind` wears, which the palette colours: the text's, and a completion's label of that kind. */
+export function tokenClass(kind: TokenKind): string {
+    return `ui-tk-${kind}`;
+}
+
 function classesFor(kind: TokenKind | null, mark: Mark | null): string {
-    let classes = kind === null ? "" : `ui-tk-${kind}`;
+    let classes = kind === null ? "" : tokenClass(kind);
 
     if (mark !== null)
         classes += (classes.length > 0 ? " " : "") + (mark.current ? `${MatchClass} ${CurrentMatchClass}` : MatchClass);

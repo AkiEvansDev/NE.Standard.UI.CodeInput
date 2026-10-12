@@ -44,6 +44,11 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
             _ = target.Attribute(SourceAttribute, value ?? string.Empty)
         , [WebDomOperation.Attribute(SourceAttribute)]);
 
+        // Its region is held until the engine has drawn the document, or a page load paints the display empty. Render-time only: a
+        // document pushed later is drawn as it arrives.
+        if (!string.IsNullOrEmpty(ReadRenderValue<string?>(context, MarkdownDisplayComponent.TextProperty, null)))
+            _ = root.Attribute(WebAttributes.AwaitsDraw);
+
         RenderStyles(context, root);
 
         _ = root.Element("div", body => _ = body.Class($"{ClassName}__body"));

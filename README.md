@@ -56,7 +56,8 @@ new CodeInputComponent()
 `Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon and badge, validation and
 borders come from the framework's field, exactly as a text area's do — except that the editor starts as
 `Ghost` — nothing drawn around it, on focus as at rest, save the edge of an invalid or warned value, which stays while the
-field is focused — and never lifts under the pointer: it is read, not filled in.
+field is focused — and never lifts under the pointer: it is read, not filled in. A code input that stands in a form among other
+fields (a prompt's text on a settings page) takes the form's appearance on purpose: `SetAppearance(UIInputAppearance.Tonal)`.
 
 Editing is the browser's own `<textarea>` — typing, selection, input methods and the clipboard behave as they
 do everywhere else — with the highlighted text drawn underneath it. Undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are the
@@ -234,8 +235,10 @@ keeps for the page:
 }
 ```
 
-`insert` is optional and defaults to `label`; `detail` is optional and shown muted after it; `kind` is optional, one of `keyword`,
-`type`, `function`, `variable`, `property` or `text`, and colours the row with the same ink the text itself is highlighted in.
+`insert` is optional and defaults to `label`; `detail` is optional and shown muted after it; `kind` is optional, any token kind the
+highlighter knows (`keyword`, `type`, `function`, `variable`, `property`, `string`, `number`, `regex`, `meta`, `tag`, `attribute`, …)
+or `text`, and colours the label with the very ink a token of that kind wears in the text — a language that paints its names as
+`regex` offers them as `regex`, and they look alike in both; `text`, or no kind, is plain.
 `triggers` is optional: characters that open the list themselves, right after they are typed. Serve the file as a plain static
 asset — a file under the host's own `wwwroot` with `app.UseStaticFiles()`, as the demo does — there is nothing of the framework's
 to build for it: `WebAssetDescriptor` is the framework's own way of shipping a package's script and stylesheet, not a host's file.
@@ -304,6 +307,11 @@ new MarkdownDisplayComponent()
 
 A document pushed again redraws only the blocks that came out differently: a reply streaming in keeps what the reader selected
 in the paragraphs already written.
+
+The document is drawn in the browser, so a page load holds the region a display stands in — the content, a side — out of sight
+until its displays are drawn, at most 1.5 s, and paints it whole: a chat's messages never show empty for a moment and then jump.
+The hold is the framework's (`data-ui-awaits-draw`, written only for a display rendered with a document); with scripting off
+nothing is held.
 
 The body is styled by element under `.ui-markdown__body`, in the page's type and the inks of the ground it stands on — a
 display in a component given a theme `Background` reads in that colour's on-colour; an application restyles it there. A link is the framework's inline link, as in any description: underlined, brightening under the pointer.
