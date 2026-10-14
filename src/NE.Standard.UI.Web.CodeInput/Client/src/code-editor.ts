@@ -245,6 +245,11 @@ export class CodeEditor {
         this.carets.dispose();
     }
 
+    /** The root is back on the page: the watches dispose let go are taken up again; its listeners never left it. */
+    public revive(): void {
+        this.carets.watchSize();
+    }
+
     /** A setting the server pushed: the pickers show it, and the carets are drawn again, since a tab size moves their columns. */
     public syncPickers(): void {
         this.statusBar.syncPickers();

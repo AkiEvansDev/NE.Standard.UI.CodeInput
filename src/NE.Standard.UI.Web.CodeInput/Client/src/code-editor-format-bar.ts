@@ -304,16 +304,16 @@ export class CodeEditorFormatBar {
             this.context.icons.apply(glyph, CoreGlyphs[action]);
             button.append(glyph);
 
-            const key = action === "heading" ? undefined : Chords[action]?.slice("Ctrl+".length);
+            const keys = action === "heading" ? null : this.context.shortcuts.aria(Chords[action] ?? "");
 
             if (action === "heading") {
                 button.setAttribute("aria-haspopup", "menu");
                 button.setAttribute("aria-expanded", "false");
             }
 
-            // Control presses it on every platform, ⌘ too on macOS.
-            if (key !== undefined)
-                button.setAttribute("aria-keyshortcuts", `Control+${key}`);
+            // In the platform's words: Control presses it everywhere, ⌘ too on macOS.
+            if (keys !== null)
+                button.setAttribute("aria-keyshortcuts", keys);
 
             button.addEventListener("click", () => this.pressed(action, button));
 

@@ -14,14 +14,19 @@ import { languages } from "./languages/index.ts";
 // A file is fetched once and kept for every field on the page that names it, since a page may hold several editors for one language.
 const fileCache = new Map<string, Promise<CompletionsFile>>();
 
-function loadCompletionsFile(url: string): Promise<CompletionsFile> {
+/** The completions file at `url`, fetched once; one that failed is not kept, so the next field to name it asks again. */
+export function loadCompletionsFile(url: string): Promise<CompletionsFile> {
     let cached = fileCache.get(url);
 
     if (cached === undefined) {
         cached = fetch(url)
             .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load completions: ${url}`)))
             .then(parseCompletionsFile)
-            .catch((): CompletionsFile => ({ items: [], triggers: [] }));
+            .catch((): CompletionsFile => {
+                fileCache.delete(url);
+
+                return { items: [], triggers: [] };
+            });
 
         fileCache.set(url, cached);
     }

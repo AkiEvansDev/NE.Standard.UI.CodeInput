@@ -38,7 +38,9 @@ type Rect = {
 };
 
 export class CodeEditorCarets {
-    private readonly stopWatchingSize: () => void;
+    private readonly observeSize: ObserveSize;
+    // Null while the editor's root is off the page, its watch let go.
+    private stopWatchingSize: (() => void) | null = null;
     private readonly root: HTMLElement;
     private readonly textarea: HTMLTextAreaElement;
     private readonly scroller: HTMLElement;
@@ -86,13 +88,20 @@ export class CodeEditorCarets {
         this.content.insertBefore(this.layer, this.textarea);
         this.content.insertBefore(this.probe, this.textarea);
 
+        this.observeSize = observeSize;
+        this.watchSize();
+    }
+
+    /** Watches the text's box, whose size moves the carets; again once a root that left the page is back on it. */
+    public watchSize(): void {
         // Kept, to be let go with the editor: a watch left on a field the page dropped keeps the whole editor alive.
-        this.stopWatchingSize = observeSize(this.content, () => this.queueRender());
+        this.stopWatchingSize ??= this.observeSize(this.content, () => this.queueRender());
     }
 
     /** Lets the size watch go; the editor's root has left the page. */
     public dispose(): void {
-        this.stopWatchingSize();
+        this.stopWatchingSize?.();
+        this.stopWatchingSize = null;
     }
 
     private get enabled(): boolean {

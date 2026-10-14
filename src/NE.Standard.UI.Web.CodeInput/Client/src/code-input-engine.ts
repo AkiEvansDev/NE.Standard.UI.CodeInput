@@ -122,8 +122,16 @@ export class CodeInputEngine {
                     this.live.add(created);
                 }
             }
-            else
+            else {
+                // A root back on the page after it was pruned keeps its editor, whose listeners stand on its elements: a second one
+                // would answer every key twice.
+                if (!this.live.has(editor)) {
+                    editor.revive();
+                    this.live.add(editor);
+                }
+
                 editor.settingsChanged();
+            }
         }
     }
 }

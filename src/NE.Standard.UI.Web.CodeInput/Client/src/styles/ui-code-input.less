@@ -481,12 +481,11 @@
 // Padded as every popup list is, so its rows' corners run parallel to the popup's.
 .ui-code-input__completions {
     .ui-popup-surface();
-    .ui-popup-scroll();
+    .ui-popup-scroll(@ui-space-1);
     .ui-popup-open(flex);
     .ui-entry-list();
     min-width: 12rem;
     max-height: calc(10 * 1.5rem + 9 * @ui-list-entry-gap + 2 * @ui-space-1 + 2 * var(--ui-border-width, 1px));
-    padding: @ui-space-1;
     margin: 0;
     list-style: none;
 }
@@ -557,12 +556,11 @@
 // under the button; created on each opening, so it fades in and is gone at once as the bar is.
 .ui-code-input__heading-menu {
     .ui-popup-surface();
-    .ui-popup-scroll();
+    .ui-popup-scroll(@ui-space-1);
     .ui-entry-list();
     .ui-entry-quiet(~".ui-menu-item"; @ui-button-live; ~".ui-menu-item--checked");
     display: flex;
     min-width: 10rem;
-    padding: @ui-space-1;
     opacity: 1;
 
     @starting-style {

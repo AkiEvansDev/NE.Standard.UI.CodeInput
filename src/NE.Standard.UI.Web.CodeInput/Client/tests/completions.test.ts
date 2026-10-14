@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { loadCompletionsFile } from "../src/code-editor-completions.ts";
 import { CompletionsRegistry } from "../src/completions-registry.ts";
 import type { CompletionContext, CompletionItem } from "../src/completions.ts";
 import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
@@ -127,4 +128,26 @@ test("a source is keyed by the language id as a field names it: trimmed, any cas
     assert.deepEqual(registry.sourcesFor("plain-text"), [everywhere, plain]);
     assert.deepEqual(registry.sourcesFor("csharp"), [everywhere, csharp]);
     assert.deepEqual(registry.sourcesFor("json"), [everywhere]);
+});
+
+test("a completions file whose fetch failed is not kept: the next field to name it asks again", async () => {
+    const answers: Response[] = [new Response(null, { status: 503 }), Response.json({ items: [{ label: "SELECT" }] })];
+    const fetched: string[] = [];
+    const realFetch = globalThis.fetch;
+
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+        fetched.push(String(input));
+
+        return Promise.resolve(answers.shift() as Response);
+    };
+
+    try {
+        assert.deepEqual(await loadCompletionsFile("/completions/sql.json"), { items: [], triggers: [] });
+        assert.deepEqual((await loadCompletionsFile("/completions/sql.json")).items.map(item => item.label), ["SELECT"]);
+        assert.deepEqual((await loadCompletionsFile("/completions/sql.json")).items.map(item => item.label), ["SELECT"]);
+        assert.equal(fetched.length, 2);
+    }
+    finally {
+        globalThis.fetch = realFetch;
+    }
 });

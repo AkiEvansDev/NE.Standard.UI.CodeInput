@@ -220,7 +220,8 @@ function Ue(e, t, n) {
 //#endregion
 //#region src/code-editor-carets.ts
 var We = class {
-	stopWatchingSize;
+	observeSize;
+	stopWatchingSize = null;
 	root;
 	textarea;
 	scroller;
@@ -238,10 +239,13 @@ var We = class {
 	adding = null;
 	renderQueued = !1;
 	constructor(e, t, n, r) {
-		this.root = e.root, this.shortcuts = r, this.textarea = e.textarea, this.scroller = e.scroller, this.content = e.content, this.surface = t, this.layer = document.createElement("div"), this.layer.className = ie, this.layer.setAttribute("aria-hidden", "true"), this.layer.hidden = !0, this.probe = document.createElement("span"), this.probe.className = `${ie}-probe`, this.probe.textContent = "0", this.content.insertBefore(this.layer, this.textarea), this.content.insertBefore(this.probe, this.textarea), this.stopWatchingSize = n(this.content, () => this.queueRender());
+		this.root = e.root, this.shortcuts = r, this.textarea = e.textarea, this.scroller = e.scroller, this.content = e.content, this.surface = t, this.layer = document.createElement("div"), this.layer.className = ie, this.layer.setAttribute("aria-hidden", "true"), this.layer.hidden = !0, this.probe = document.createElement("span"), this.probe.className = `${ie}-probe`, this.probe.textContent = "0", this.content.insertBefore(this.layer, this.textarea), this.content.insertBefore(this.probe, this.textarea), this.observeSize = n, this.watchSize();
+	}
+	watchSize() {
+		this.stopWatchingSize ??= this.observeSize(this.content, () => this.queueRender());
 	}
 	dispose() {
-		this.stopWatchingSize();
+		this.stopWatchingSize?.(), this.stopWatchingSize = null;
 	}
 	get enabled() {
 		return this.root.hasAttribute("data-ui-code-multi-caret") && !this.textarea.readOnly;
@@ -1845,7 +1849,7 @@ var Hr = {
 }(), qr = /* @__PURE__ */ new Map();
 function Jr(e) {
 	let t = qr.get(e);
-	return t === void 0 && (t = fetch(e).then((t) => t.ok ? t.json() : Promise.reject(/* @__PURE__ */ Error(`Failed to load completions: ${e}`))).then(bt).catch(() => ({
+	return t === void 0 && (t = fetch(e).then((t) => t.ok ? t.json() : Promise.reject(/* @__PURE__ */ Error(`Failed to load completions: ${e}`))).then(bt).catch(() => (qr.delete(e), {
 		items: [],
 		triggers: []
 	})), qr.set(e, t)), t;
@@ -2993,8 +2997,8 @@ var aa = class {
 		let n = yi.map((t) => {
 			let n = document.createElement("button"), r = document.createElement("span");
 			n.type = "button", n.className = `${ge} ${e.buttonClass} ${g.ghostButtonClass} ${g.smallButtonClass}`, n.dataset.format = t, r.setAttribute("aria-hidden", "true"), this.context.icons.apply(r, ee[t]), n.append(r);
-			let i = t === "heading" ? void 0 : $i[t]?.slice(5);
-			return t === "heading" && (n.setAttribute("aria-haspopup", "menu"), n.setAttribute("aria-expanded", "false")), i !== void 0 && n.setAttribute("aria-keyshortcuts", `Control+${i}`), n.addEventListener("click", () => this.pressed(t, n)), n;
+			let i = t === "heading" ? null : this.context.shortcuts.aria($i[t] ?? "");
+			return t === "heading" && (n.setAttribute("aria-haspopup", "menu"), n.setAttribute("aria-expanded", "false")), i !== null && n.setAttribute("aria-keyshortcuts", i), n.addEventListener("click", () => this.pressed(t, n)), n;
 		});
 		return t.append(...n), this.context.roving.applyTabIndex(n, n[0] ?? null), this.writeWords(t), t;
 	}
@@ -3551,6 +3555,9 @@ var xa = class e {
 	dispose() {
 		this.carets.dispose();
 	}
+	revive() {
+		this.carets.watchSize();
+	}
 	syncPickers() {
 		this.statusBar.syncPickers(), this.carets.queueRender();
 	}
@@ -3671,7 +3678,7 @@ var Oa = class {
 			if (e === void 0) {
 				let e = xa.create(t, this.context);
 				e !== null && (this.editors.set(t, e), this.live.add(e));
-			} else e.settingsChanged();
+			} else this.live.has(e) || (e.revive(), this.live.add(e)), e.settingsChanged();
 		}
 	}
 }, ka = 4;
