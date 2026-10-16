@@ -5,8 +5,8 @@ import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { MarkdownUrls } from "../src/markdown-render.ts";
-import { renderMarkdown } from "../src/markdown-render.ts";
+import type { MarkdownPictureSources, MarkdownUrls } from "../src/markdown-render.ts";
+import { NoMarkdownStyles, NoPictureSources, renderMarkdown } from "../src/markdown-render.ts";
 
 // The framework's names as the plugin surface hands them over.
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
@@ -15,9 +15,12 @@ const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 const urls = await import(pathToFileURL(resolve(repository, "src/Platforms/Web/NE.Standard.UI.Web/Client/src/rendering/url-safety.ts")).href) as MarkdownUrls;
 
+/** A page at app.test whose display takes pictures from anywhere on its own site, so the framework's rule is what judges them. */
+const WholeSite: MarkdownPictureSources = { base: "https://app.test/notes/page", sources: ["/"] };
+
 /** The markup without the source lines, which one test below reads on its own. */
-function html(source: string): string {
-    return renderMarkdown(source, () => null, names, urls).replace(/ data-ui-source-line="\d+"/g, "");
+function html(source: string, pictures = WholeSite): string {
+    return renderMarkdown(source, () => null, names, urls, NoMarkdownStyles, pictures).replace(/ data-ui-source-line="\d+"/g, "");
 }
 
 test("headings, paragraphs and rules", () => {
@@ -64,6 +67,67 @@ test("a document cannot put markup or script on the page", () => {
 test("a document's addresses are the framework's to judge", () => {
     assert.equal(html("![a](img/x.png) ![b](./x.png)"), "<p><img src=\"img/x.png\" alt=\"a\" loading=\"lazy\"> <img src=\"./x.png\" alt=\"b\" loading=\"lazy\"></p>");
     assert.equal(html("[call](tel:+100)"), "<p><a href=\"tel:+100\" target=\"_blank\" rel=\"noopener noreferrer\">call</a></p>");
+});
+
+/** Whether the picture a one-picture document names is drawn under the display's sources, rather than left as its words. */
+function drawn(address: string, pictures: MarkdownPictureSources): boolean {
+    return html(`![w](${address})`, pictures).includes("<img ");
+}
+
+// A picture is fetched as the reader, so another user's document must not call a tracker, or a route of this site, by one.
+test("a picture is drawn only from an image data address and the framework's content route, unless the author names more", () => {
+    const page: MarkdownPictureSources = { base: "https://app.test/notes/page", sources: [] };
+
+    assert.equal(drawn("data:image/png;base64,AAA", page), true);
+    assert.equal(drawn("/_ne/content/markdown/abc", page), true);
+    assert.equal(drawn("../_ne/content/abc", page), true);
+    assert.equal(drawn("https://app.test/_ne/content/abc", page), true);
+    assert.equal(html("![a tracker](https://tracker.test/p.png)", page), "<p>a tracker</p>");
+    assert.equal(drawn("/api/orders/delete?id=1", page), false);
+    assert.equal(drawn("p.png", page), false);
+    assert.equal(drawn("/_ne/content/../api/x", page), false);
+    assert.equal(drawn("/_ne/content/%2e%2e/api/x", page), false);
+    assert.equal(drawn("/_ne/contents/abc", page), false);
+    assert.equal(drawn("https://other.test/_ne/content/abc", page), false);
+});
+
+test("an author's source takes a site, or a path a whole segment at a time, and nothing beside it", () => {
+    const page: MarkdownPictureSources = { base: "https://app.test/notes/page", sources: ["https://cdn.test", "https://img.test/shared/", "/media"] };
+
+    assert.equal(drawn("https://cdn.test/any/p.png", page), true);
+    assert.equal(drawn("https://img.test/shared/p.png", page), true);
+    assert.equal(drawn("/media/p.png", page), true);
+    assert.equal(drawn("../media/p.png", page), true);
+    assert.equal(drawn("http://cdn.test/p.png", page), false);
+    assert.equal(drawn("https://cdn.test.evil/p.png", page), false);
+    assert.equal(drawn("https://img.test/private/p.png", page), false);
+    assert.equal(drawn("/media-private/p.png", page), false);
+    assert.equal(drawn("/media/../api/x", page), false);
+    assert.equal(drawn("https://elsewhere.test/media/p.png", page), false);
+});
+
+test("a picture's address is judged as the browser reads it: another host by its slashes, a scheme in any case, a dot segment however written", () => {
+    const page: MarkdownPictureSources = { base: "https://app.test/notes/page", sources: ["/", "HTTPS://CDN.TEST", "https://img.test/shared/", "/media"] };
+
+    // Under a source of the whole site, an address that starts with a slash and still names another host; two backslashes, written
+    // escaped, read as the two slashes. A source's own host neither: the framework's rule takes no address without its scheme.
+    assert.equal(drawn("//evil.test/p.png", page), false);
+    assert.equal(drawn("\\\\\\\\evil.test/p.png", page), false);
+    assert.equal(drawn("/\\evil.test/p.png", page), false);
+    assert.equal(drawn("//cdn.test/p.png", page), false);
+    assert.equal(drawn("HTTPS://CDN.test/p.png", page), true);
+    assert.equal(drawn("https://cdn.test/p.png", page), true);
+    assert.equal(drawn("Https://Img.Test/shared/p.png", page), true);
+    assert.equal(drawn("/media/%2e%2e/api/x", { ...page, sources: ["/media"] }), false);
+    assert.equal(drawn("/media/%2E%2E/api/x", { ...page, sources: ["/media"] }), false);
+    assert.equal(drawn("/media/.%2e/api/x", { ...page, sources: ["/media"] }), false);
+    assert.equal(drawn("https://img.test/shared/%2e%2e/private/p.png", page), false);
+});
+
+test("with no page to read an address against, a picture is drawn from an image data address alone", () => {
+    assert.equal(drawn("data:image/png;base64,AAA", NoPictureSources), true);
+    assert.equal(drawn("/_ne/content/abc", NoPictureSources), false);
+    assert.equal(drawn("https://cdn.test/p.png", { base: "", sources: ["https://cdn.test"] }), false);
 });
 
 test("quotes carry lazy lines and nest", () => {

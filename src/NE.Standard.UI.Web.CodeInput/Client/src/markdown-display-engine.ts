@@ -4,12 +4,12 @@
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
-import { MarkdownBodyClass, MarkdownRootClass, MarkdownSourceAttribute, MarkdownStylesAttribute } from "./code-editor-dom.ts";
+import { MarkdownBodyClass, MarkdownImageSourcesAttribute, MarkdownRootClass, MarkdownSourceAttribute, MarkdownStylesAttribute } from "./code-editor-dom.ts";
 import { escapeHtml, renderSegments } from "./highlighter.ts";
 import { languages } from "./languages/index.ts";
 import { fenceLanguageId } from "./languages/markdown.ts";
 import { NoMarkdownStyles, renderMarkdownBlocks } from "./markdown-render.ts";
-import type { MarkdownStyles, MarkdownUrls } from "./markdown-render.ts";
+import type { MarkdownPictureSources, MarkdownStyles, MarkdownUrls } from "./markdown-render.ts";
 import type { Token } from "./tokenizer.ts";
 
 const RootSelector = `.${MarkdownRootClass}`;
@@ -57,7 +57,7 @@ export class MarkdownDisplayEngine {
 
             this.rendered.set(root, source);
             this.live.add(root);
-            this.draw(body, renderSafely(source, readStyles(root), this.names, this.urls));
+            this.draw(body, renderSafely(source, readStyles(root), readPictureSources(root), this.names, this.urls));
         }
     }
 
@@ -129,10 +129,42 @@ function readStyles(root: HTMLElement): MarkdownStyles {
     return styles;
 }
 
-/** The document as HTML, block by block; one that cannot be rendered is shown as its source, and the displays beside it render as ever. */
-function renderSafely(source: string, styles: MarkdownStyles, names: MarkdownNames, urls: MarkdownUrls): string[] {
+/** Where the display's pictures come from, as its root carries them; render-time only, so read again only with a new root. */
+const pictureCache = new WeakMap<HTMLElement, readonly string[]>();
+
+function readPictureSources(root: HTMLElement): MarkdownPictureSources {
+    let sources = pictureCache.get(root);
+
+    if (sources === undefined) {
+        sources = readSourceList(root.getAttribute(MarkdownImageSourcesAttribute));
+        pictureCache.set(root, sources);
+    }
+
+    // Read now, not kept: a relative picture is fetched against the page's address as it stands.
+    return { base: document.baseURI, sources };
+}
+
+/** The author's sources as the server wrote them; a list that cannot be read takes no picture from anywhere but the framework's. */
+function readSourceList(json: string | null): readonly string[] {
+    if (json === null)
+        return [];
+
     try {
-        return renderMarkdownBlocks(source, highlightCode, names, urls, styles);
+        const parsed: unknown = JSON.parse(json);
+
+        return Array.isArray(parsed) ? parsed.filter((source): source is string => typeof source === "string") : [];
+    }
+    catch (error) {
+        console.warn("NE.Standard.UI.Web.CodeInput: a Markdown display's picture sources could not be read; it draws pictures from the framework's own alone.", error);
+
+        return [];
+    }
+}
+
+/** The document as HTML, block by block; one that cannot be rendered is shown as its source, and the displays beside it render as ever. */
+function renderSafely(source: string, styles: MarkdownStyles, pictures: MarkdownPictureSources, names: MarkdownNames, urls: MarkdownUrls): string[] {
+    try {
+        return renderMarkdownBlocks(source, highlightCode, names, urls, styles, pictures);
     }
     catch (error) {
         console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", error);

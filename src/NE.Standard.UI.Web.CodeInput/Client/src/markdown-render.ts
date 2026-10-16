@@ -1,5 +1,6 @@
 // A Markdown document as HTML. Every character is escaped on its way out and an address is kept only where the framework's one
-// address rule takes it, so the markup is whatever the document says and nothing it could smuggle in.
+// address rule takes it — a picture only from where the display takes one besides — so the markup is whatever the document says and
+// nothing it could smuggle in.
 
 import type { Urls } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
@@ -39,23 +40,46 @@ export type MarkdownStyles = {
 
 export const NoMarkdownStyles: MarkdownStyles = { marks: {}, spans: [] };
 
-/** What every block of one document is drawn against: its link references, the highlighter, its styles, and the framework's names and addresses. */
+/**
+ * Where the display fetches a picture from besides an image data address and the framework's content route: the author's sources
+ * (MarkdownDisplayComponent.AddImageSource) — an origin, an address with a path, a path of this site — and the page's own address,
+ * which a picture's address and a source of this site are read against, as the browser reads them.
+ */
+export type MarkdownPictureSources = {
+    readonly base: string;
+    readonly sources: readonly string[];
+};
+
+/** No source of the author's and no page to read an address against: a picture is drawn from an image data address alone. */
+export const NoPictureSources: MarkdownPictureSources = { base: "", sources: [] };
+
+/**
+ * The framework's content route, which serves what the application keeps: a picture there is the application's own. The C#
+ * `WebContentEndpoint.Prefix`, held to it by a test; an application serving its content elsewhere adds its own route as a source.
+ */
+export const ContentRoute = "/_ne/content/";
+
+/**
+ * What every block of one document is drawn against: its link references, the highlighter, its styles, where its pictures come
+ * from, and the framework's names and addresses.
+ */
 type Rendering = {
     readonly references: ReadonlyMap<string, LinkTarget>;
     readonly highlight: CodeHighlighter;
     readonly styles: MarkdownStyles;
+    readonly pictures: MarkdownPictureSources;
     readonly names: MarkdownNames;
     readonly urls: MarkdownUrls;
 };
 
-export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles): string {
-    return renderMarkdownBlocks(source, highlight, names, urls, styles).join("");
+export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources): string {
+    return renderMarkdownBlocks(source, highlight, names, urls, styles, pictures).join("");
 }
 
 /** The document as HTML block by block, one element each, so a display drawn before keeps the blocks that come out the same. */
-export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles): string[] {
+export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources): string[] {
     const document = parseMarkdown(source);
-    const rendering: Rendering = { references: document.references, highlight, styles, names, urls };
+    const rendering: Rendering = { references: document.references, highlight, styles, pictures, names, urls };
 
     return document.blocks.map(block => renderBlock(block, rendering, false));
 }
@@ -258,6 +282,10 @@ function renderImage(node: Inline, rendering: Rendering): string {
     // Written as the browser reads it, as the framework writes a picture it takes.
     const src = rendering.urls.asBrowserReads(node.href);
 
+    // Fetched as the reader: a document another user wrote could call a tracker, or a route of this site, by a picture.
+    if (!isPictureSource(src, rendering.pictures))
+        return alt;
+
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";
 
     return `<img src="${escapeHtml(src)}" alt="${alt}"${title} loading="lazy">`;
@@ -277,4 +305,43 @@ function plainText(parent: Inline): string {
     }
 
     return text;
+}
+
+/**
+ * Whether a picture is fetched from where the display takes one: an image data address, the framework's content route on the page's
+ * own site, or under one of the author's sources — its site, and its path a whole segment at a time — read as the browser reads it,
+ * dot segments resolved, against the page's address.
+ */
+function isPictureSource(address: string, pictures: MarkdownPictureSources): boolean {
+    if (address.toLowerCase().startsWith("data:image/"))
+        return true;
+
+    const page = readUrl(pictures.base, undefined);
+    const target = page === null ? null : readUrl(address, page);
+
+    if (page === null || target === null)
+        return false;
+
+    if (target.origin === page.origin && isUnder(target.pathname, ContentRoute))
+        return true;
+
+    return pictures.sources.some(source => {
+        const allowed = readUrl(source, page);
+
+        return allowed !== null && target.origin === allowed.origin && isUnder(target.pathname, allowed.pathname);
+    });
+}
+
+function readUrl(address: string, base: URL | undefined): URL | null {
+    try {
+        return new URL(address, base);
+    }
+    catch {
+        return null;
+    }
+}
+
+/** Whether a path lies under a prefix a whole segment at a time: `/media` takes `/media/a.png`, never `/media-private/a.png`. */
+function isUnder(path: string, prefix: string): boolean {
+    return prefix.endsWith("/") ? path.startsWith(prefix) : path === prefix || path.startsWith(`${prefix}/`);
 }

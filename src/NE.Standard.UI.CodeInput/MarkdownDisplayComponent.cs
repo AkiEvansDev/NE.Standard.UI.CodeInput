@@ -8,13 +8,14 @@ namespace NE.Standard.UI.CodeInput;
 
 /// <summary>
 /// A Markdown document shown as formatted text: headings, lists, quotes, tables, links, images and code blocks. Raw HTML renders as
-/// text, and a link is kept only when its address is safe.
+/// text, a link is kept only when its address is safe, and a picture only from where the display takes one (<see cref="ImageSources"/>).
 /// </summary>
 public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : VisualComponentBase<T>(id)
     where T : MarkdownDisplayComponent<T>, IUIComponentDefinition
 {
     private readonly List<UIMarkdownMarkStyle> _markStyles = [];
     private readonly List<UIMarkdownSpanStyle> _spanStyles = [];
+    private readonly List<string> _imageSources = [];
 
     /// <summary>
     /// Gets or sets the Markdown document to show; a value the server pushes renders it again.
@@ -35,6 +36,14 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     /// <remarks>Render-time only, as <see cref="MarkStyles"/>.</remarks>
     [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
     public IReadOnlyList<UIMarkdownSpanStyle> SpanStyles => _spanStyles;
+
+    /// <summary>
+    /// Gets where the display fetches a picture from besides an image <c>data:</c> address and the framework's content route, added by
+    /// <see cref="AddImageSource"/>; a picture from anywhere else shows as its words.
+    /// </summary>
+    /// <remarks>Render-time only, as <see cref="MarkStyles"/>.</remarks>
+    [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public IReadOnlyList<string> ImageSources => _imageSources;
 
     /// <summary>
     /// Draws one of Markdown's own runs — <c>**strong**</c>, <c>*emphasis*</c>, … — in a style; a mark styled again takes the new one.
@@ -79,6 +88,52 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
 
         _spanStyles.Add(span);
         return Self;
+    }
+
+    /// <summary>
+    /// Lets the display fetch pictures from under <paramref name="source"/>: an origin (<c>https://cdn.example.com</c>), an address
+    /// with a path (<c>https://cdn.example.com/pictures/</c>) or a path of this site (<c>/media/</c>). A picture is fetched as the
+    /// reader, so a document another user wrote could otherwise call any address — a tracker, or a route of this site.
+    /// </summary>
+    public T AddImageSource(string source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+
+        if (!IsImageSource(source))
+            throw new ArgumentException($"'{source}' is no picture source: an http or https address with no query, fragment or user, or a path of this site starting with one slash.", nameof(source));
+
+        _imageSources.Add(source);
+        return Self;
+    }
+
+    /// <summary>Whether a source is an http(s) address standing for itself, or a path of this site the browser cannot read as another.</summary>
+    private static bool IsImageSource(string source)
+    {
+        // A backslash anywhere, or a path's second slash, and the browser may read another host or another path than the one written.
+        if (HasControlOrSpace(source) || source.Contains('\\', StringComparison.Ordinal))
+            return false;
+
+        if (source[0] == '/')
+            return source.Length == 1 || (source[1] != '/' && source.AsSpan().IndexOfAny('?', '#') < 0);
+
+        // Uri refuses `https:cdn.example.com` and `https:/cdn.example.com`, which the browser reads as paths of the page's own site.
+        return Uri.TryCreate(source, UriKind.Absolute, out Uri? address)
+            && (address.Scheme == Uri.UriSchemeHttps || address.Scheme == Uri.UriSchemeHttp)
+            && address.Query.Length == 0
+            && address.Fragment.Length == 0
+            && address.UserInfo.Length == 0;
+    }
+
+    /// <summary>Whether a text holds a space or a control character, which the browser strips or reads past.</summary>
+    private static bool HasControlOrSpace(string text)
+    {
+        foreach (var character in text)
+        {
+            if (character <= ' ' || char.IsControl(character))
+                return true;
+        }
+
+        return false;
     }
 }
 

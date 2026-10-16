@@ -24,7 +24,10 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
     /// <summary>On the root: the styles of Markdown's own runs and of the author's, as the declarations the client writes on each.</summary>
     public const string StylesAttribute = "data-ui-markdown-styles";
 
-    private static readonly JsonSerializerOptions StylesJsonOptions = WebWireJson.CreateOptions();
+    /// <summary>On the root: where the client fetches a picture from besides an image data address and the content route, as JSON.</summary>
+    public const string ImageSourcesAttribute = "data-ui-markdown-image-sources";
+
+    private static readonly JsonSerializerOptions AttributeJsonOptions = WebWireJson.CreateOptions();
 
     public override string ComponentTypeKey => MarkdownDisplayComponent.ComponentTypeKey;
 
@@ -50,6 +53,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
             _ = root.Attribute(WebAttributes.AwaitsDraw);
 
         RenderStyles(context, root);
+        RenderImageSources(context, root);
 
         _ = root.Element("div", body => _ = body.Class($"{ClassName}__body"));
     }
@@ -72,7 +76,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         for (var i = 0; i < spans.Count; i++)
             spanModels.Add(new SpanModel(spans[i].Open, spans[i].Close, Declarations(spans[i].Style)));
 
-        _ = root.Attribute(StylesAttribute, JsonSerializer.Serialize(new StylesModel(markCss, spanModels), StylesJsonOptions));
+        _ = root.Attribute(StylesAttribute, JsonSerializer.Serialize(new StylesModel(markCss, spanModels), AttributeJsonOptions));
     }
 
     // The client's names for the runs, as its inline tree types them (markdown-inlines.ts).
@@ -105,6 +109,15 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
             _ = css.Append("font-style: ").Append(italic ? "italic" : "normal").Append("; ");
 
         return css.ToString().TrimEnd();
+    }
+
+    // Render-time only, as the styles are: a pushed document's pictures are judged by the same sources.
+    private static void RenderImageSources(WebRenderContext context, IHtmlElementBuilder root)
+    {
+        IReadOnlyList<string> sources = ReadRenderValue<IReadOnlyList<string>?>(context, MarkdownDisplayComponent.ImageSourcesProperty, null) ?? [];
+
+        if (sources.Count > 0)
+            _ = root.Attribute(ImageSourcesAttribute, JsonSerializer.Serialize(sources, AttributeJsonOptions));
     }
 
     private sealed record StylesModel(IReadOnlyDictionary<string, string> Marks, IReadOnlyList<SpanModel> Spans);

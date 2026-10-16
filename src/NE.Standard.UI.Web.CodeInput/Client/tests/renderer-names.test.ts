@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import * as names from "../src/code-editor-dom.ts";
+import { ContentRoute } from "../src/markdown-render.ts";
 
 // The C# each name is held to, as the client meets its markup: a part's class is written `$"{ClassName}__part"`.
 function source(path: string, prefix: string, className: string): string {
@@ -33,6 +34,7 @@ const checkbox = source(`${Core}NE.Standard.UI.Web.Renderers/Inputs/CheckboxComp
 const classNames = read(`${Core}NE.Standard.UI.Web.Abstractions/Theming/WebClassNames.cs`);
 const coreWords = read("../../../../../../src/Contracts/NE.Standard.UI.Shell/Localization/UIStrings.cs");
 const glyphs = read("../../../../../../src/Contracts/NE.Standard.UI.Primitives/Constants/UIGlyphs.cs");
+const contentEndpoint = read(`${Core}NE.Standard.UI.Web/Hosting/WebContentEndpoint.cs`);
 
 function assertWritten(file: string, fileName: string, name: string): void {
     assert.ok(file.includes(`"${name}"`), `${fileName} writes no "${name}", which the client looks for`);
@@ -98,8 +100,13 @@ test("the picture's event and effect are the ones the server raises and answers 
 });
 
 test("the Markdown display's names are the ones its renderer writes", () => {
-    for (const name of [names.MarkdownRootClass, names.MarkdownBodyClass, names.MarkdownSourceAttribute, names.MarkdownStylesAttribute])
+    for (const name of [names.MarkdownRootClass, names.MarkdownBodyClass, names.MarkdownSourceAttribute, names.MarkdownStylesAttribute, names.MarkdownImageSourcesAttribute])
         assertWritten(markdown, "MarkdownDisplayComponentRenderer.cs", name);
+});
+
+test("the content route a Markdown picture is drawn from is the one the framework serves content under", () => {
+    assert.ok(ContentRoute.endsWith("/"), "the route is matched a whole segment at a time");
+    assertWritten(contentEndpoint, "WebContentEndpoint.cs", ContentRoute.slice(0, -1));
 });
 
 test("the checkbox a task item draws by hand wears the framework checkbox's classes", () => {

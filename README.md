@@ -171,7 +171,9 @@ one-argument `OnPictureUpload`.
 narrows the types as a file input's does (`image/png, .jpg`); only a picture is ever taken. Without `OnPictureUpload` a paste is
 text alone, a copy that carries words beside a picture of them pastes the words, and a field in any language but Markdown —
 the one whose text can hold a picture — never takes one. The address is the application's: the effect refuses a `data:` address,
-so the text never carries the picture itself.
+so the text never carries the picture itself. A Markdown display draws a picture from the framework's content route
+(`/_ne/content/`) and from the sources it names alone (see *Markdown display*): an application that keeps its pictures elsewhere,
+or serves them through an `IUIContentAddressResolver` of its own, adds that address with `AddImageSource`.
 
 ## Several carets
 
@@ -291,6 +293,22 @@ and `/\host`, which a browser reads as another host — opens in a new tab. Ever
 viewer wrote cannot freeze the page. A task item's box is the framework's read-only checkbox, shown and never toggled. Quotes and lists nest
 at most 64 deep; a deeper marker reads as text. A document that cannot be rendered is shown as its source, and a package's
 tokenizer that fails leaves its block, or its line in the field, plain.
+
+A picture is fetched as the reader, so a document another user wrote could call a tracker or a route of this site by one: past
+that rule, a display draws a picture only from a `data:image/…` address, the framework's content route on the page's own site
+(`/_ne/content/`), or under a source the author added, and from anywhere else shows its words. A source is an origin
+(`https://cdn.example.com`), an address with a path (`https://cdn.example.com/pictures/`) or a path of this site (`/media/`) — an
+http(s) address with no query, fragment or user, never a backslash. A picture's address is read as the browser reads it, against
+the page's, dot segments resolved, and a source's path is matched a whole segment at a time: `/media` takes `/media/a.png`, not
+`/media-private/a.png`. An application serving its content through an `IUIContentAddressResolver` of its own adds that address.
+The sources are how the display is built, not values to bind:
+
+```csharp
+new MarkdownDisplayComponent()
+    .AddImageSource("https://cdn.example.com/pictures/")
+    .AddImageSource("/media/")
+    .BindText(nameof(ChatMessage.Text))
+```
 
 A display may draw runs in styles of its own — a colour, followed through the light and the dark theme, a font list, a weight,
 a slant. `SetMarkStyle` styles Markdown's own runs (strong, emphasis, strikethrough, inline code, a link's words);
