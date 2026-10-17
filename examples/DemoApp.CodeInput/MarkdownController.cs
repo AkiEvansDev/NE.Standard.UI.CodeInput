@@ -22,6 +22,10 @@ internal sealed partial class MarkdownController : UIControllerBase
     [RecursiveMember]
     public partial bool CanStream { get; set; } = true;
 
+    /// <summary>Whether the rendering draws a single line break as one, as the handover note is written.</summary>
+    [RecursiveMember]
+    public partial bool LineBreaks { get; set; } = true;
+
     /// <summary>
     /// Appends a follow-up to the document a word at a time, as a model's reply arrives: the display redraws the paragraph that grows
     /// and keeps what the reader selected above it. A job the runtime owns, so a page that reloads meanwhile finds it still writing.
@@ -103,8 +107,7 @@ internal sealed partial class MarkdownController : UIControllerBase
     public const string Sample = """
         # Incident report: slow API in Europe West
 
-        **Resolved** at 09:47 UTC. From 09:12 the two *API servers* in Europe West answered slowly; the status page at
-        https://status.orvane.example moved from ~~investigating~~ to monitoring by 09:30.
+        **Resolved** at 09:47 UTC. From 09:12 the two *API servers* in Europe West answered slowly; the status page at https://status.orvane.example moved from ~~investigating~~ to monitoring by 09:30.
 
         | | |
         |:--|:--|
@@ -139,10 +142,15 @@ internal sealed partial class MarkdownController : UIControllerBase
         }
         ```
 
+        ## Handover
+
+        Disk at 61%, the cache writing again.
+        Backups go to object storage from tonight.
+        Next on call: Mira, from 18:00.
+
         ## Notes and figures
 
-        The on-call engineer wrote: "the cache refused writes, so the backups went first" — a quote this display draws in a style of
-        its own, as it does **strong** words.
+        The on-call engineer wrote: "the cache refused writes, so the backups went first" — a quote this display draws in a style of its own, as it does **strong** words.
 
         > A report is shown as it was written: <b>raw HTML</b> stays text,
         > and a [javascript: link](javascript:alert(1)) is only its words.
@@ -165,8 +173,6 @@ internal sealed partial class MarkdownController : UIControllerBase
 
         ## Follow-up
 
-        Asked what to watch next, the on-call engineer answered: "disk first, then the cache, and the backups never on the same
-        volume again". **The second database server** is planned for next week, and the alert at 80% disk has fired once since,
-        on a test volume, as it should.
+        Asked what to watch next, the on-call engineer answered: "disk first, then the cache, and the backups never on the same volume again". **The second database server** is planned for next week, and the alert at 80% disk has fired once since, on a test volume, as it should.
         """;
 }

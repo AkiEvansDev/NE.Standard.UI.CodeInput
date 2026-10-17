@@ -61,25 +61,26 @@ export const ContentRoute = "/_ne/content/";
 
 /**
  * What every block of one document is drawn against: its link references, the highlighter, its styles, where its pictures come
- * from, and the framework's names and addresses.
+ * from, whether a single line break is drawn as one (MarkdownDisplayComponent.LineBreaks), and the framework's names and addresses.
  */
 type Rendering = {
     readonly references: ReadonlyMap<string, LinkTarget>;
     readonly highlight: CodeHighlighter;
     readonly styles: MarkdownStyles;
     readonly pictures: MarkdownPictureSources;
+    readonly lineBreaks: boolean;
     readonly names: MarkdownNames;
     readonly urls: MarkdownUrls;
 };
 
-export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources): string {
-    return renderMarkdownBlocks(source, highlight, names, urls, styles, pictures).join("");
+export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false): string {
+    return renderMarkdownBlocks(source, highlight, names, urls, styles, pictures, lineBreaks).join("");
 }
 
 /** The document as HTML block by block, one element each, so a display drawn before keeps the blocks that come out the same. */
-export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources): string[] {
+export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false): string[] {
     const document = parseMarkdown(source);
-    const rendering: Rendering = { references: document.references, highlight, styles, pictures, names, urls };
+    const rendering: Rendering = { references: document.references, highlight, styles, pictures, lineBreaks, names, urls };
 
     return document.blocks.map(block => renderBlock(block, rendering, false));
 }
@@ -238,7 +239,8 @@ function renderInline(parent: Inline, rendering: Rendering): string {
                 html += "<br>";
                 break;
             case "softbreak":
-                html += "\n";
+                // Only a paragraph's or a heading's text holds one: a code span's line breaks are spaces, a code block is no inline.
+                html += rendering.lineBreaks ? "<br>" : "\n";
                 break;
             default:
                 html += renderInline(node, rendering);

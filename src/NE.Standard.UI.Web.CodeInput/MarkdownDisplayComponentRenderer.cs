@@ -14,7 +14,7 @@ namespace NE.Standard.UI.Web.CodeInput;
 
 /// <summary>
 /// Renders the Markdown display: the document as the root's attribute, into an empty body the client fills and refills whenever
-/// that attribute changes.
+/// that attribute or the line-break switch changes.
 /// </summary>
 public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
 {
@@ -26,6 +26,9 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
 
     /// <summary>On the root: where the client fetches a picture from besides an image data address and the content route, as JSON.</summary>
     public const string ImageSourcesAttribute = "data-ui-markdown-image-sources";
+
+    /// <summary>On the root: a single line break inside a paragraph is drawn as one, not as a space.</summary>
+    public const string LineBreaksAttribute = "data-ui-markdown-line-breaks";
 
     private static readonly JsonSerializerOptions AttributeJsonOptions = WebWireJson.CreateOptions();
 
@@ -46,6 +49,8 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         _ = RenderProperty<string?>(context, root, MarkdownDisplayComponent.TextProperty, static (target, value) =>
             _ = target.Attribute(SourceAttribute, value ?? string.Empty)
         , [WebDomOperation.Attribute(SourceAttribute)]);
+
+        RenderFlagAttribute(context, root, MarkdownDisplayComponent.LineBreaksProperty, LineBreaksAttribute);
 
         // Its region is held until the engine has drawn the document, or a page load paints the display empty. Render-time only: a
         // document pushed later is drawn as it arrives.

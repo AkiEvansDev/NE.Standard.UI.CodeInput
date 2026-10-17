@@ -54,6 +54,7 @@ export const MarkdownBodyClass = "ui-markdown__body";
 export const MarkdownSourceAttribute = "data-ui-markdown-source";
 export const MarkdownStylesAttribute = "data-ui-markdown-styles";
 export const MarkdownImageSourcesAttribute = "data-ui-markdown-image-sources";
+export const MarkdownLineBreaksAttribute = "data-ui-markdown-line-breaks";
 
 // The words the client writes itself, by their CodeInputStrings keys.
 export const PositionWord = "ui.code.position";

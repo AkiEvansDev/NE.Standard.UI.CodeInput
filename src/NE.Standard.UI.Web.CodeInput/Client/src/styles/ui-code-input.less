@@ -97,6 +97,10 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
+    // The box's focus edge lies inside its border (an outline, Filled's inset shadow), and a scroller is a layer painted over it, so
+    // the gutter's ground cut the edge; clipped a ring's width in, round the box's corners, it leaves the edge whole.
+    @ui-code-input-radius: .ui-responsive-chain(--ui-border-radius; var(--ui-radius-input))[@value];
+    clip-path: ~"inset(var(--ui-input-focus-ring, 1px) round @{ui-code-input-radius})";
     font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);
     line-height: var(--ui-code-line-height);

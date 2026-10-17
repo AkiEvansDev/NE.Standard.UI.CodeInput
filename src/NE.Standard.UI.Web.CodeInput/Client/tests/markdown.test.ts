@@ -42,6 +42,27 @@ test("code spans, escapes, entities and breaks", () => {
     assert.equal(html("hard  \nbreak\\\nand soft\nbreak"), "<p>hard<br>break<br>and soft\nbreak</p>");
 });
 
+/** The markup of a display that draws a single line break as one (MarkdownDisplayComponent.LineBreaks). */
+function asWritten(source: string): string {
+    return renderMarkdown(source, () => null, names, urls, NoMarkdownStyles, WholeSite, true).replace(/ data-ui-source-line="\d+"/g, "");
+}
+
+test("with line breaks on, a single line break is drawn as one and a blank line still starts a paragraph", () => {
+    assert.equal(asWritten("dsd\ndsd\ndsd"), "<p>dsd<br>dsd<br>dsd</p>");
+    assert.equal(asWritten("one  \ntwo \nthree\\\nfour\n\nnext"), "<p>one<br>two<br>three<br>four</p><p>next</p>");
+    assert.equal(asWritten("*a\nb* [c\nd](/x)"), "<p><em>a<br>b</em> <a href=\"/x\">c<br>d</a></p>");
+    assert.equal(asWritten("> a\n> b\n\n- c\n  d\n- e"), "<blockquote><p>a<br>b</p></blockquote><ul><li>c<br>d</li><li>e</li></ul>");
+    assert.equal(asWritten("Title\nmore\n==="), "<h1>Title<br>more</h1>");
+});
+
+test("with line breaks on, code, tables and a list's own lines stay as they are", () => {
+    assert.equal(asWritten("`a\nb` x"), "<p><code>a b</code> x</p>");
+    assert.equal(asWritten("```\na\nb\n```\n\n    c\n    d"), "<pre class=\"ui-markdown__code\"><code>a\nb</code></pre><pre class=\"ui-markdown__code\"><code>c\nd</code></pre>");
+    assert.equal(asWritten("| a |\n|---|\n| 1 |\n| 2 |"), "<div class=\"ui-markdown__table\"><table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr><tr><td>2</td></tr></tbody></table></div>");
+    assert.equal(asWritten("- a\n- b\n# h\ntext"), "<ul><li>a</li><li>b</li></ul><h1>h</h1><p>text</p>");
+    assert.equal(asWritten("![a\nb](data:image/png;base64,AAA)"), "<p><img src=\"data:image/png;base64,AAA\" alt=\"a b\" loading=\"lazy\"></p>");
+});
+
 test("links and images, inline and by reference", () => {
     assert.equal(html("[a](/x \"T\") ![pic *b*](p.png)"), "<p><a href=\"/x\" title=\"T\">a</a> <img src=\"p.png\" alt=\"pic b\" loading=\"lazy\"></p>");
     assert.equal(html("[full][Ref] [Ref][] [ref]\n\n[ref]: https://ne.dev 'Title'"),

@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { changedBlocks } from "../src/markdown-display-engine.ts";
 import { parseInlines } from "../src/markdown-inlines.ts";
 import type { MarkdownStyles, MarkdownUrls } from "../src/markdown-render.ts";
-import { renderMarkdown, renderMarkdownBlocks } from "../src/markdown-render.ts";
+import { NoMarkdownStyles, NoPictureSources, renderMarkdown, renderMarkdownBlocks } from "../src/markdown-render.ts";
 import { markSpans } from "../src/markdown-spans.ts";
 
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
@@ -99,4 +99,12 @@ test("a document drawn again replaces only the blocks between the runs both rend
     assert.deepEqual(changedBlocks(["a", "b"], ["a", "x", "y", "b"]), { start: 1, removeEnd: 1, insertEnd: 3 });
     assert.deepEqual(changedBlocks(["a", "b", "c"], ["a", "c"]), { start: 1, removeEnd: 2, insertEnd: 1 });
     assert.deepEqual(changedBlocks(["a"], ["a", "a"]), { start: 1, removeEnd: 1, insertEnd: 2 });
+});
+
+test("a display whose line breaks are switched replaces only the blocks that hold one", () => {
+    const source = "# A\n\none\ntwo\n\nthree";
+    const before = renderMarkdownBlocks(source, () => null, names, urls);
+    const after = renderMarkdownBlocks(source, () => null, names, urls, NoMarkdownStyles, NoPictureSources, true);
+
+    assert.deepEqual(changedBlocks(before, after), { start: 1, removeEnd: 2, insertEnd: 2 });
 });

@@ -1,10 +1,10 @@
-// Runs every Markdown display on the page: renders the document its root carries, again when the server pushes another, and again
-// when a code block's language is registered after the display was drawn. A document drawn again replaces only the blocks that
+// Runs every Markdown display on the page: renders the document its root carries, again when the server pushes another or switches
+// its line breaks, and again when a code block's language is registered after the display was drawn. A document drawn again replaces only the blocks that
 // came out differently, so a reply streaming in keeps what the reader selected, or points at, in the blocks already written.
 
 import type { PluginEngineContext } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
-import { MarkdownBodyClass, MarkdownImageSourcesAttribute, MarkdownRootClass, MarkdownSourceAttribute, MarkdownStylesAttribute } from "./code-editor-dom.ts";
+import { MarkdownBodyClass, MarkdownImageSourcesAttribute, MarkdownLineBreaksAttribute, MarkdownRootClass, MarkdownSourceAttribute, MarkdownStylesAttribute } from "./code-editor-dom.ts";
 import { escapeHtml, renderSegments } from "./highlighter.ts";
 import { languages } from "./languages/index.ts";
 import { fenceLanguageId } from "./languages/markdown.ts";
@@ -22,11 +22,17 @@ export type BlockChange = {
     readonly insertEnd: number;
 };
 
+/** What a root was last drawn from: its document, and whether a single line break is drawn as one. */
+type Drawn = {
+    readonly source: string;
+    readonly lineBreaks: boolean;
+};
+
 export class MarkdownDisplayEngine {
     private readonly names: MarkdownNames;
     private readonly urls: MarkdownUrls;
-    // The source each root was last rendered from: the observer also reports the render's own writes, and those change nothing.
-    private readonly rendered = new WeakMap<HTMLElement, string>();
+    // What each root was last rendered from: the observer also reports the render's own writes, and those change nothing.
+    private readonly rendered = new WeakMap<HTMLElement, Drawn>();
     // The blocks each body holds, as they were rendered, one element each.
     private readonly blocks = new WeakMap<HTMLElement, readonly string[]>();
     private readonly live = new Set<HTMLElement>();
@@ -36,7 +42,7 @@ export class MarkdownDisplayEngine {
         this.urls = context.urls;
 
         // Watching first: a document that fails to render must not leave every display on the page without its watch.
-        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute] }, roots => this.renderAll(roots, false));
+        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute, MarkdownLineBreaksAttribute] }, roots => this.renderAll(roots, false));
         languages.onRegistered(() => this.renderAll([...this.live], true));
 
         this.renderAll(context.root.querySelectorAll<HTMLElement>(RootSelector), false);
@@ -50,14 +56,16 @@ export class MarkdownDisplayEngine {
 
         for (const root of roots) {
             const source = root.getAttribute(MarkdownSourceAttribute) ?? "";
+            const lineBreaks = root.hasAttribute(MarkdownLineBreaksAttribute);
             const body = root.querySelector<HTMLElement>(BodySelector);
+            const last = this.rendered.get(root);
 
-            if (body === null || (!force && this.rendered.get(root) === source))
+            if (body === null || (!force && last?.source === source && last.lineBreaks === lineBreaks))
                 continue;
 
-            this.rendered.set(root, source);
+            this.rendered.set(root, { source, lineBreaks });
             this.live.add(root);
-            this.draw(body, renderSafely(source, readStyles(root), readPictureSources(root), this.names, this.urls));
+            this.draw(body, renderSafely(source, readStyles(root), readPictureSources(root), lineBreaks, this.names, this.urls));
         }
     }
 
@@ -162,9 +170,9 @@ function readSourceList(json: string | null): readonly string[] {
 }
 
 /** The document as HTML, block by block; one that cannot be rendered is shown as its source, and the displays beside it render as ever. */
-function renderSafely(source: string, styles: MarkdownStyles, pictures: MarkdownPictureSources, names: MarkdownNames, urls: MarkdownUrls): string[] {
+function renderSafely(source: string, styles: MarkdownStyles, pictures: MarkdownPictureSources, lineBreaks: boolean, names: MarkdownNames, urls: MarkdownUrls): string[] {
     try {
-        return renderMarkdownBlocks(source, highlightCode, names, urls, styles, pictures);
+        return renderMarkdownBlocks(source, highlightCode, names, urls, styles, pictures, lineBreaks);
     }
     catch (error) {
         console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", error);

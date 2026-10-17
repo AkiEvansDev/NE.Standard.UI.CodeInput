@@ -284,6 +284,16 @@ highlighted in the code field's colours as the language its info string names (t
 language a package registered, and the common short names: `cs`, `js`, `ts`, `sh`, `py`, `md`). The rendering happens in
 the browser; a value the server pushes renders again.
 
+A single line break inside a paragraph is CommonMark's soft break, drawn as a space. Text written line by line — a chat message,
+a note — sets `LineBreaks` (bindable, off by default), and each such break is drawn as one, as GitHub comments draw it; a blank
+line still starts a paragraph, and code, tables and lists keep their own lines:
+
+```csharp
+new MarkdownDisplayComponent()
+    .SetLineBreaks()
+    .BindText(nameof(ChatMessage.Text))
+```
+
 Raw HTML in a document is shown as text, not markup, and its addresses are judged by the framework's one rule, the one its
 own links and pictures follow (`urls` on the plugin surface): a link keeps an address that is relative or `http`, `https`,
 `mailto` or `tel`, with no space or control character anywhere; an image keeps a path of the site, absolute or relative to the

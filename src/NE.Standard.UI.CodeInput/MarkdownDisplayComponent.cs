@@ -24,6 +24,13 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     public string? Text { get; set; }
 
     /// <summary>
+    /// Gets or sets whether a single line break inside a paragraph is drawn as one, as a chat or a GitHub comment draws it, rather
+    /// than as a space, as CommonMark does. A blank line still starts a paragraph, and code is untouched.
+    /// </summary>
+    [UIComponentProperty(DefaultValue = false)]
+    public bool? LineBreaks { get; set; }
+
+    /// <summary>
     /// Gets the styles Markdown's own runs are drawn in, set by <see cref="SetMarkStyle"/>.
     /// </summary>
     /// <remarks>Render-time only: the styles are how the display is built.</remarks>
