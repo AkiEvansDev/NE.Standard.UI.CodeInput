@@ -67,8 +67,10 @@ test("a line of unclosed marks is read in linear time", () => {
 });
 
 test("a paragraph of many closed runs is read in linear time, beside a mark it never closes", () => {
-    // Measured as growth, not against a clock a busy build slows: four times the runs take about four times as long, where a rescan
-    // of the rest after each run took sixteen.
+    // Four times the runs take about four times as long, where a rescan of the rest after each run took sixteen — or the long read is
+    // quick whatever its ratio: a quadratic one of these runs takes tens of seconds. The fastest of three reads, as markdown-linear.test.ts
+    // takes. Rejected: the ratio alone, of one read each — the short read is a few milliseconds, and a busy build's garbage collections,
+    // each as long as the live tree is large, grew it up to 23-fold.
     const timed = (runs: number): number => {
         const root = parseInlines(`«${"\"a\" ".repeat(runs)}`, new Map());
         const started = performance.now();
@@ -77,12 +79,14 @@ test("a paragraph of many closed runs is read in linear time, beside a mark it n
 
         return performance.now() - started;
     };
+    const fastest = (runs: number): number => Math.min(timed(runs), timed(runs), timed(runs));
 
     timed(5000);
 
-    const growth = timed(160000) / Math.max(timed(40000), 1);
+    const short = fastest(40000);
+    const long = fastest(160000);
 
-    assert.ok(growth < 10, `four times the runs took ${growth.toFixed(1)} times as long`);
+    assert.ok(long < 2000 || long / Math.max(short, 1) < 10, `${Math.round(short)} ms for 40000 runs, ${Math.round(long)} ms for 160000`);
 });
 
 test("runs that close in a later node go on in the text after the close", () => {

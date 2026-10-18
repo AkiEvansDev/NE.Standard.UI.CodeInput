@@ -1,5 +1,5 @@
 import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
-import { Stream, modeTokenizer, words } from "../tokenizer.ts";
+import { Stream, closeBrace, modeTokenizer, openBrace, words } from "../tokenizer.ts";
 import { isTypeName } from "./javascript.ts";
 
 type PythonString = {
@@ -159,9 +159,7 @@ function codeToken(stream: Stream, state: PythonState): TokenKind | null {
 
     if (character === "{") {
         stream.next();
-
-        if (state.frames.length > 0)
-            state.frames[state.frames.length - 1]++;
+        openBrace(state.frames);
 
         return "punctuation";
     }
@@ -169,18 +167,8 @@ function codeToken(stream: Stream, state: PythonState): TokenKind | null {
     if (character === "}") {
         stream.next();
 
-        if (state.frames.length > 0) {
-            const top = state.frames.length - 1;
-
-            if (state.frames[top] === 0) {
-                state.frames.pop();
-                state.mode = "string";
-
-                return "punctuation";
-            }
-
-            state.frames[top]--;
-        }
+        if (closeBrace(state.frames))
+            state.mode = "string";
 
         return "punctuation";
     }

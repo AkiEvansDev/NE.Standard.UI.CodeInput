@@ -19,6 +19,6 @@ internal static class CodeInputWebServices
         _ = services.AddStandardRenderers();
         _ = services.AddCodeInput();
         // Only the glyphs the shell wears: registering a whole Material style costs over half a megabyte of stylesheet.
-        _ = services.AddMaterialWebIcons(MaterialIconStyle.Outlined, CodeInputDemoView.LightIcon, CodeInputDemoView.DarkIcon, CodeInputDemoView.CodeIcon, CodeInputDemoView.CopyIcon);
+        _ = services.AddMaterialWebIcons(MaterialIconStyle.Outlined, [CodeInputDemoView.LightIcon, CodeInputDemoView.DarkIcon, CodeInputDemoView.CodeIcon, CodeInputDemoView.CopyIcon, .. CodeInputDemoView.PageIcons]);
     }
 }

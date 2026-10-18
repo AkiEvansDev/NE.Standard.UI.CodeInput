@@ -82,9 +82,7 @@ export const CoreNames = {
     checkboxClass: "ui-checkbox",
     checkboxInputClass: "ui-checkbox__input",
     checkboxBoxClass: "ui-checkbox__box",
-    smallInputClass: "ui-input--small",
-    ghostButtonClass: "ui-button--ghost",
-    smallButtonClass: "ui-button--small"
+    smallInputClass: "ui-input--small"
 } as const;
 
 /** The framework's glyphs the format bar's buttons wear, by their UIGlyphs names, held by the test to their C# source. */

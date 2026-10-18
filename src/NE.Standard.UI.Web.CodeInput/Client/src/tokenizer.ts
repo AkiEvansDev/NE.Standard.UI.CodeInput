@@ -246,6 +246,39 @@ export function words(list: string): ReadonlySet<string> {
     return new Set(list.split(/\s+/).filter(word => word.length > 0));
 }
 
+/** Reads a block comment's body to its closing star and slash on this line; true when it closed, false when the line ended inside it. */
+export function readBlockComment(stream: Stream): boolean {
+    const end = stream.indexOf("*/");
+
+    stream.skipTo(end < 0 ? -1 : end + 2);
+
+    return end >= 0;
+}
+
+/** A `{` in an interpolation's code: one more brace its closing `}` waits past. Each frame counts the open braces of one interpolation. */
+export function openBrace(frames: number[]): void {
+    if (frames.length > 0)
+        frames[frames.length - 1]++;
+}
+
+/** A `}` in code: true when it closes the innermost interpolation, whose frame goes; false when it closes a brace of the code's own. */
+export function closeBrace(frames: number[]): boolean {
+    if (frames.length === 0)
+        return false;
+
+    const top = frames.length - 1;
+
+    if (frames[top] === 0) {
+        frames.pop();
+
+        return true;
+    }
+
+    frames[top]--;
+
+    return false;
+}
+
 /** Reads a string literal body to its closing quote on this line; true when it closed, false when the line ended inside it. */
 export function readQuoted(stream: Stream, quote: string, escapes = true): boolean {
     while (!stream.eol()) {

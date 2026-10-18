@@ -1,5 +1,5 @@
 import type { Mode, TokenKind } from "../tokenizer.ts";
-import { Stream, modeTokenizer, readQuoted, words } from "../tokenizer.ts";
+import { Stream, modeTokenizer, readBlockComment, readQuoted, words } from "../tokenizer.ts";
 
 // Where the reader stands: among selectors, inside a block, in a declaration's value, or in an at-rule's prelude
 // (`@media screen and (max-width: 600px)`) up to its `{` or `;`.
@@ -69,10 +69,7 @@ export function cssMode(less: boolean): Mode<CssState> {
         initialState: () => ({ context: "selector", depth: 0, comment: false, afterProperty: false, bracket: 0 }),
         token(stream, state) {
             if (state.comment) {
-                const end = stream.indexOf("*/");
-
-                stream.skipTo(end < 0 ? -1 : end + 2);
-                state.comment = end < 0;
+                state.comment = !readBlockComment(stream);
 
                 return "comment";
             }
@@ -81,10 +78,7 @@ export function cssMode(less: boolean): Mode<CssState> {
                 return null;
 
             if (stream.match("/*")) {
-                const end = stream.indexOf("*/");
-
-                stream.skipTo(end < 0 ? -1 : end + 2);
-                state.comment = end < 0;
+                state.comment = !readBlockComment(stream);
 
                 return "comment";
             }

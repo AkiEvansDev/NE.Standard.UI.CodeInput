@@ -17,8 +17,8 @@ const Length = 100000;
 const Quarter = Length / 4;
 const Ratio = 8;
 // Under this the long read is fast whatever its ratio: a ratio of two small times is mostly noise (a garbage collection under a
-// busy build doubled one), and a quadratic read of this length takes seconds.
-const Quick = 150;
+// busy build doubled one), and a quadratic read of this length takes seconds. Rejected: 150 ms, which a long read went past with eight test runs at once.
+const Quick = 1000;
 const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
 
 // The framework's reading of an address, as the plugin surface hands it over.

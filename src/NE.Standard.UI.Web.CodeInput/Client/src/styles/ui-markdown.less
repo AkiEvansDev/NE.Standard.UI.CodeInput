@@ -4,8 +4,9 @@
 @import (reference) "../../plugin/ne-standard-ui.less";
 @import (reference) "./ui-code-input.less";
 
-// The ground inline code and code blocks stand on: a wash of the ink, so it reads on any surface the display is placed on.
-@ui-markdown-code-ground: color-mix(in srgb, @ui-text-ink 7%, transparent);
+// The ground inline code and code blocks stand on: the framework's faint ground of the ink, a file tile's, so it reads on any surface
+// the display is placed on.
+@ui-markdown-code-ground: @ui-ink-ground;
 
 .ui-markdown {
     display: block;

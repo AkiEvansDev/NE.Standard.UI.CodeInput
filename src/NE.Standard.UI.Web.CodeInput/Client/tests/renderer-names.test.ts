@@ -116,10 +116,7 @@ test("the checkbox a task item draws by hand wears the framework checkbox's clas
     assertWritten(classNames, "WebClassNames.cs", names.CoreNames.smallInputClass);
 });
 
-test("the format bar's buttons wear the framework's small ghost button and its glyphs", () => {
-    for (const name of [names.CoreNames.ghostButtonClass, names.CoreNames.smallButtonClass])
-        assertWritten(classNames, "WebClassNames.cs", name);
-
+test("the format bar's buttons wear the framework's glyphs", () => {
     for (const glyph of Object.values(names.CoreGlyphs))
         assertWritten(glyphs, "UIGlyphs.cs", glyph);
 });

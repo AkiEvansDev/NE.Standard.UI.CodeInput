@@ -7,7 +7,7 @@
 import type { PluginEngineContext, PopupHandle, ShortcutWords } from "ne-standard-ui";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
-import { BoldWord, CoreGlyphs, CoreNames, FormatAnchorClass, FormatBarAttribute, FormatBarClass, FormatBarWord, FormatButtonClass, HeadingLevelWord, HeadingMenuClass, HeadingWord, InlineCodeWord, ItalicWord, LinkWord, ListWord, StrikethroughWord } from "./code-editor-dom.ts";
+import { BoldWord, CoreGlyphs, FormatAnchorClass, FormatBarAttribute, FormatBarClass, FormatBarWord, FormatButtonClass, HeadingLevelWord, HeadingMenuClass, HeadingWord, InlineCodeWord, ItalicWord, LinkWord, ListWord, StrikethroughWord } from "./code-editor-dom.ts";
 import type { EditAction, FormatAction, FormatResult } from "./markdown-format.ts";
 import { FormatActions, formatEdits, headingChoices, headingEdits, headingLevel, isFormatted } from "./markdown-format.ts";
 import { isCaret, rangeEnd, rangeStart } from "./selections.ts";
@@ -298,7 +298,7 @@ export class CodeEditorFormatBar {
             const glyph = document.createElement("span");
 
             button.type = "button";
-            button.className = `${FormatButtonClass} ${names.buttonClass} ${CoreNames.ghostButtonClass} ${CoreNames.smallButtonClass}`;
+            button.className = `${FormatButtonClass} ${names.buttonClass} ${names.ghostButtonClass} ${names.smallButtonClass}`;
             button.dataset.format = action;
             glyph.setAttribute("aria-hidden", "true");
             this.context.icons.apply(glyph, CoreGlyphs[action]);
@@ -422,7 +422,7 @@ export class CodeEditorFormatBar {
             const title = document.createElement("span");
 
             entry.type = "button";
-            entry.className = `${names.menuItemClass} ${names.buttonClass} ${CoreNames.ghostButtonClass}`;
+            entry.className = `${names.menuItemClass} ${names.buttonClass} ${names.ghostButtonClass}`;
             entry.setAttribute("role", "menuitemradio");
             entry.setAttribute(names.menuItemKind, "check");
             entry.setAttribute("aria-checked", checked ? "true" : "false");

@@ -25,11 +25,14 @@ public abstract class CodeInputDemoView : UIViewBase
     /// <summary>The sidebar's authored id, stable across renders.</summary>
     private const string SidebarId = "codeinput-sidebar";
 
-    private static readonly (string Route, string Label)[] Pages =
+    private static readonly (string Route, string Label, string Icon)[] Pages =
     [
-        (EditorRoute, "code-demo.editor.title"),
-        (MarkdownRoute, "code-demo.markdown.title")
+        (EditorRoute, "code-demo.editor.title", MaterialIcons.Code),
+        (MarkdownRoute, "code-demo.markdown.title", MaterialIcons.Markdown)
     ];
+
+    /// <summary>The pages' glyphs, which the host registers with the pack.</summary>
+    public static string[] PageIcons => [.. Pages.Select(static page => page.Icon)];
 
     /// <summary>The title band and the sidebar stand, the sidebar from the top of the page; the content scrolls by itself.</summary>
     public override UIViewOptions Options { get; } = new() { StickyHeader = true, ScrollContentOnly = true, ShellLayout = UIShellLayout.FullHeightSides };
@@ -204,7 +207,7 @@ public abstract class CodeInputDemoView : UIViewBase
         MenuItem[] entries = new MenuItem[Pages.Length];
 
         for (var i = 0; i < Pages.Length; i++)
-            entries[i] = new MenuItem { Id = Pages[i].Route, Title = Pages[i].Label, Url = Pages[i].Route, Selected = Pages[i].Route == Route };
+            entries[i] = new MenuItem { Id = Pages[i].Route, Title = Pages[i].Label, Icon = MaterialIcons.Outlined(Pages[i].Icon), Url = Pages[i].Route, Selected = Pages[i].Route == Route };
 
         // The width sits on the menu, not the container.
         return new ContainerComponent()

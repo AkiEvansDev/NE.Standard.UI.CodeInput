@@ -1,5 +1,5 @@
 import type { Mode, TokenKind, Tokenizer } from "../tokenizer.ts";
-import { Stream, modeTokenizer, readQuoted, words } from "../tokenizer.ts";
+import { Stream, closeBrace, modeTokenizer, openBrace, readBlockComment, readQuoted, words } from "../tokenizer.ts";
 import { isTypeName } from "./javascript.ts";
 
 type CSharpState = {
@@ -55,10 +55,7 @@ const csharpMode: Mode<CSharpState> = {
 };
 
 function blockComment(stream: Stream, state: CSharpState): TokenKind {
-    const end = stream.indexOf("*/");
-
-    stream.skipTo(end < 0 ? -1 : end + 2);
-    state.mode = end < 0 ? "comment" : "code";
+    state.mode = readBlockComment(stream) ? "code" : "comment";
 
     return "comment";
 }
@@ -258,9 +255,7 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
 
     if (character === "{") {
         stream.next();
-
-        if (state.frames.length > 0)
-            state.frames[state.frames.length - 1]++;
+        openBrace(state.frames);
 
         return "punctuation";
     }
@@ -268,18 +263,8 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
     if (character === "}") {
         stream.next();
 
-        if (state.frames.length > 0) {
-            const top = state.frames.length - 1;
-
-            if (state.frames[top] === 0) {
-                state.frames.pop();
-                state.mode = "interpolated";
-
-                return "punctuation";
-            }
-
-            state.frames[top]--;
-        }
+        if (closeBrace(state.frames))
+            state.mode = "interpolated";
 
         return "punctuation";
     }

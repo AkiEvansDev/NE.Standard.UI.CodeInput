@@ -28,6 +28,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
             .SetHeight(Filled(UILayoutLength.Auto()))
             .AddChild(new CodeInputComponent()
                 .SetTitle("code-demo.markdown.document")
+                .SetHelp("code-demo.markdown.document.help")
                 .SetLanguage(UICodeLanguages.Markdown)
                 .SetWrapLines()
                 .SetTabSize(2)
@@ -50,6 +51,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                 // A single line break drawn as one, as a chat draws it; off, CommonMark runs the handover's lines together.
                 .AddChild(new SwitchComponent()
                     .SetTitle("code-demo.markdown.line-breaks")
+                    .SetHelp("code-demo.markdown.line-breaks.help")
                     .BindValue(nameof(MarkdownController.LineBreaks), mode: UIBindingMode.TwoWay)
                     .SetVerticalAlignment(UIAlignment.Center)
                     .SetPlacement(1, 1, 14, 1)
@@ -59,6 +61,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                     .SetType(UIButtonType.Ghost)
                     .SetSize(UIButtonSize.Small)
                     .SetTitle("code-demo.markdown.stream")
+                    .SetTooltip("code-demo.markdown.stream.tooltip")
                     .BindEnabled(nameof(MarkdownController.CanStream))
                     .OnClick(nameof(MarkdownController.StreamReply))
                     .SetHorizontalAlignment(UIAlignment.End)

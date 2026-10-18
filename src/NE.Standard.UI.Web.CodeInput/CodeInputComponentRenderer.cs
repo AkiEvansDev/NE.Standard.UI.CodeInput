@@ -269,12 +269,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         // The text the reader edits is this textarea, so the caption names it rather than the root it stands in.
         RenderFieldLabel(context, textarea);
 
-        // Read by DebouncedCommitEngine on every keystroke, so a bound value is in force at once.
-        _ = RenderProperty<int?>(context, textarea, CodeInputComponent.DebounceMillisecondsProperty, static (target, value) =>
-        {
-            if (value is int milliseconds and >= 0)
-                _ = target.Attribute(WebAttributes.InputDebounce, milliseconds.ToString(CultureInfo.InvariantCulture));
-        }, [WebDomOperation.Attribute(WebAttributes.InputDebounce)]);
+        NativeInputRendererBase.RenderDebounce(context, textarea, CodeInputComponent.DebounceMillisecondsProperty);
 
         NativeInputRendererBase.RenderPlaceholder(context, textarea);
         NativeInputRendererBase.RenderFormId(context, textarea);

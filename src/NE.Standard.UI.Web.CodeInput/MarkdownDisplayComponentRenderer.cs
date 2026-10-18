@@ -30,8 +30,6 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
     /// <summary>On the root: a single line break inside a paragraph is drawn as one, not as a space.</summary>
     public const string LineBreaksAttribute = "data-ui-markdown-line-breaks";
 
-    private static readonly JsonSerializerOptions AttributeJsonOptions = WebWireJson.CreateOptions();
-
     public override string ComponentTypeKey => MarkdownDisplayComponent.ComponentTypeKey;
 
     protected override string ClassName => "ui-markdown";
@@ -81,7 +79,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         for (var i = 0; i < spans.Count; i++)
             spanModels.Add(new SpanModel(spans[i].Open, spans[i].Close, Declarations(spans[i].Style)));
 
-        _ = root.Attribute(StylesAttribute, JsonSerializer.Serialize(new StylesModel(markCss, spanModels), AttributeJsonOptions));
+        _ = root.Attribute(StylesAttribute, JsonSerializer.Serialize(new StylesModel(markCss, spanModels), WebWireJson.Options));
     }
 
     // The client's names for the runs, as its inline tree types them (markdown-inlines.ts).
@@ -122,7 +120,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         IReadOnlyList<string> sources = ReadRenderValue<IReadOnlyList<string>?>(context, MarkdownDisplayComponent.ImageSourcesProperty, null) ?? [];
 
         if (sources.Count > 0)
-            _ = root.Attribute(ImageSourcesAttribute, JsonSerializer.Serialize(sources, AttributeJsonOptions));
+            _ = root.Attribute(ImageSourcesAttribute, JsonSerializer.Serialize(sources, WebWireJson.Options));
     }
 
     private sealed record StylesModel(IReadOnlyDictionary<string, string> Marks, IReadOnlyList<SpanModel> Spans);

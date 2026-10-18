@@ -20,6 +20,6 @@ test("a button is the strip's square, its glyph on whole pixels, so the icon sta
 test("the keyboard's place wears the strip's frame, never after a pointer", () => {
     const frame = /\.ui-code-input__format-button:focus-visible:not\(\[data-ui-pointer-focus\]\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
 
-    assert.match(frame, /outline: 2px solid var\(--ui-color-primary-ink\);/);
+    assert.match(frame, /outline: 2px solid var\(--ui-mark-keyboard\);/);
     assert.equal(css.split(".ui-code-input__format-button:focus-visible").length - 1, 1, "one frame, the strip's, not a copy of the package's own");
 });
