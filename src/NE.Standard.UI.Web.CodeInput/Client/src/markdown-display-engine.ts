@@ -22,10 +22,11 @@ export type BlockChange = {
     readonly insertEnd: number;
 };
 
-/** What a root was last drawn from: its document, and whether a single line break is drawn as one. */
+/** What a root was last drawn from: its document, whether a single line break is drawn as one, and whether it stood inside a link. */
 type Drawn = {
     readonly source: string;
     readonly lineBreaks: boolean;
+    readonly insideLink: boolean;
 };
 
 export class MarkdownDisplayEngine {
@@ -57,15 +58,17 @@ export class MarkdownDisplayEngine {
         for (const root of roots) {
             const source = root.getAttribute(MarkdownSourceAttribute) ?? "";
             const lineBreaks = root.hasAttribute(MarkdownLineBreaksAttribute);
+            // Any anchor, a disabled link's with its address kept aside too, as the framework's inline markup reads it.
+            const insideLink = root.closest("a") !== null;
             const body = root.querySelector<HTMLElement>(BodySelector);
             const last = this.rendered.get(root);
 
-            if (body === null || (!force && last?.source === source && last.lineBreaks === lineBreaks))
+            if (body === null || (!force && last?.source === source && last.lineBreaks === lineBreaks && last.insideLink === insideLink))
                 continue;
 
-            this.rendered.set(root, { source, lineBreaks });
+            this.rendered.set(root, { source, lineBreaks, insideLink });
             this.live.add(root);
-            this.draw(body, renderSafely(source, readStyles(root), readPictureSources(root), lineBreaks, this.names, this.urls));
+            this.draw(body, renderSafely(source, readStyles(root), readPictureSources(root), lineBreaks, insideLink, this.names, this.urls));
         }
     }
 
@@ -170,9 +173,9 @@ function readSourceList(json: string | null): readonly string[] {
 }
 
 /** The document as HTML, block by block; one that cannot be rendered is shown as its source, and the displays beside it render as ever. */
-function renderSafely(source: string, styles: MarkdownStyles, pictures: MarkdownPictureSources, lineBreaks: boolean, names: MarkdownNames, urls: MarkdownUrls): string[] {
+function renderSafely(source: string, styles: MarkdownStyles, pictures: MarkdownPictureSources, lineBreaks: boolean, insideLink: boolean, names: MarkdownNames, urls: MarkdownUrls): string[] {
     try {
-        return renderMarkdownBlocks(source, highlightCode, names, urls, styles, pictures, lineBreaks);
+        return renderMarkdownBlocks(source, highlightCode, names, urls, styles, pictures, lineBreaks, insideLink);
     }
     catch (error) {
         console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", error);

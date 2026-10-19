@@ -61,7 +61,8 @@ export const ContentRoute = "/_ne/content/";
 
 /**
  * What every block of one document is drawn against: its link references, the highlighter, its styles, where its pictures come
- * from, whether a single line break is drawn as one (MarkdownDisplayComponent.LineBreaks), and the framework's names and addresses.
+ * from, whether a single line break is drawn as one (MarkdownDisplayComponent.LineBreaks), whether the display stands inside a link,
+ * and the framework's names and addresses.
  */
 type Rendering = {
     readonly references: ReadonlyMap<string, LinkTarget>;
@@ -69,18 +70,19 @@ type Rendering = {
     readonly styles: MarkdownStyles;
     readonly pictures: MarkdownPictureSources;
     readonly lineBreaks: boolean;
+    readonly insideLink: boolean;
     readonly names: MarkdownNames;
     readonly urls: MarkdownUrls;
 };
 
-export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false): string {
-    return renderMarkdownBlocks(source, highlight, names, urls, styles, pictures, lineBreaks).join("");
+export function renderMarkdown(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false, insideLink = false): string {
+    return renderMarkdownBlocks(source, highlight, names, urls, styles, pictures, lineBreaks, insideLink).join("");
 }
 
 /** The document as HTML block by block, one element each, so a display drawn before keeps the blocks that come out the same. */
-export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false): string[] {
+export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false, insideLink = false): string[] {
     const document = parseMarkdown(source);
-    const rendering: Rendering = { references: document.references, highlight, styles, pictures, lineBreaks, names, urls };
+    const rendering: Rendering = { references: document.references, highlight, styles, pictures, lineBreaks, insideLink, names, urls };
 
     return document.blocks.map(block => renderBlock(block, rendering, false));
 }
@@ -264,7 +266,9 @@ function renderLink(node: Inline, rendering: Rendering): string {
     const content = renderInline(node, rendering);
     const href = node.href.trim();
 
-    if (!rendering.urls.isSafeLink(href))
+    // Inside a link a link is its words, as the framework's inline markup draws one: an anchor holds no other, and the press is the
+    // one around it.
+    if (rendering.insideLink || !rendering.urls.isSafeLink(href))
         return content;
 
     const title = node.title.length > 0 ? ` title="${escapeHtml(node.title)}"` : "";

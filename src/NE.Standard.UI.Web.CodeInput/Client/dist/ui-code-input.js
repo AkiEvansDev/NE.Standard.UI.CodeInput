@@ -4267,17 +4267,18 @@ var Q = a, jo = {
 	base: "",
 	sources: []
 };
-function No(e, t, n, r, i = jo, a = Mo, o = !1) {
-	let s = to(e), c = {
-		references: s.references,
+function No(e, t, n, r, i = jo, a = Mo, o = !1, s = !1) {
+	let c = to(e), l = {
+		references: c.references,
 		highlight: t,
 		styles: i,
 		pictures: a,
 		lineBreaks: o,
+		insideLink: s,
 		names: n,
 		urls: r
 	};
-	return s.blocks.map((e) => Fo(e, c, !1));
+	return c.blocks.map((e) => Fo(e, l, !1));
 }
 function Po(e, t, n) {
 	let r = "";
@@ -4391,7 +4392,7 @@ function Vo(e) {
 }
 function Ho(e, t) {
 	let n = $(e, t), r = e.href.trim();
-	if (!t.urls.isSafeLink(r)) return n;
+	if (t.insideLink || !t.urls.isSafeLink(r)) return n;
 	let i = e.title.length > 0 ? ` title="${j(e.title)}"` : "", a = t.urls.isExternalLink(r) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : "";
 	return `<a href="${j(r)}"${i}${a}${Bo("link", t)}>${n}</a>`;
 }
@@ -4443,11 +4444,12 @@ var Jo = `.${a}`, Yo = `.${o}`, Xo = class {
 	renderAll(e, t) {
 		for (let e of this.live) e.isConnected || this.live.delete(e);
 		for (let n of e) {
-			let e = n.getAttribute("data-ui-markdown-source") ?? "", r = n.hasAttribute(s), i = n.querySelector(Yo), a = this.rendered.get(n);
-			i === null || !t && a?.source === e && a.lineBreaks === r || (this.rendered.set(n, {
+			let e = n.getAttribute("data-ui-markdown-source") ?? "", r = n.hasAttribute(s), i = n.closest("a") !== null, a = n.querySelector(Yo), o = this.rendered.get(n);
+			a === null || !t && o?.source === e && o.lineBreaks === r && o.insideLink === i || (this.rendered.set(n, {
 				source: e,
-				lineBreaks: r
-			}), this.live.add(n), this.draw(i, rs(e, $o(n), ts(n), r, this.names, this.urls)));
+				lineBreaks: r,
+				insideLink: i
+			}), this.live.add(n), this.draw(a, rs(e, $o(n), ts(n), r, i, this.names, this.urls)));
 		}
 	}
 	draw(e, t) {
@@ -4503,9 +4505,9 @@ function ns(e) {
 		return console.warn("NE.Standard.UI.Web.CodeInput: a Markdown display's picture sources could not be read; it draws pictures from the framework's own alone.", e), [];
 	}
 }
-function rs(e, t, n, r, i, o) {
+function rs(e, t, n, r, i, o, s) {
 	try {
-		return No(e, is, i, o, t, n, r);
+		return No(e, is, o, s, t, n, r, i);
 	} catch (t) {
 		return console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", t), [`<pre class="${a}__code"><code>${j(e)}</code></pre>`];
 	}

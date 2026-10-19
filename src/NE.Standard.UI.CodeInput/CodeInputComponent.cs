@@ -19,7 +19,7 @@ namespace NE.Standard.UI.CodeInput;
 /// <summary>
 /// A code editor: a monospaced multi-line field with syntax highlighting, line numbers, and find and replace in the browser.
 /// </summary>
-public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent, IFormSubmittingComponent
+public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent, IFormSubmittingComponent, ICaretFieldComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
     private readonly Dictionary<string, IVisualComponent> _regions;

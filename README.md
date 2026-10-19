@@ -68,7 +68,8 @@ Escape closes the panel. With nothing of the field's own open — the panel, the
 the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. In a dialog or a drawer the
 field's Escape is its own too, so the dialog closes only on the one after it. Every Ctrl chord below is ⌘ on macOS, matched by the
 key's place whatever the layout types there. **Ctrl+S** commits the value at once, ahead of any debounce, and
-raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out. **Ctrl+U** turns the
+raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out (`OnSaveLiteral` with
+values of its own, which document a page of several fields saves). **Ctrl+U** turns the
 selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
 selection stays selected and a caret keeps its place in the word.
 

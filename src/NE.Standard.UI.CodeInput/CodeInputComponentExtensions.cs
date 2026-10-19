@@ -58,6 +58,17 @@ public static class CodeInputComponentExtensions
     }
 
     /// <summary>
+    /// Runs <paramref name="command"/> on Ctrl+S with literal argument values — which document a field of several saves — after the
+    /// value has reached the server, as with every form.
+    /// </summary>
+    public static T OnSaveLiteral<T>(this T input, string command, params KeyValuePair<string, object?>[] arguments)
+        where T : CodeInputComponent<T>, IUIComponentDefinition
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return input.OnLiteral(CodeInputEvents.Save, command, arguments);
+    }
+
+    /// <summary>
     /// Takes pictures pasted or dropped into the field while it holds Markdown: each is uploaded through the framework's own upload
     /// with a placeholder in the text meanwhile, and <paramref name="command"/> runs with its selection and file name (see
     /// <see cref="CodeInputArguments"/>). The application keeps the file and answers with an <see cref="InsertPictureEffect"/>

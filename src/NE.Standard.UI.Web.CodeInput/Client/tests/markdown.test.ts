@@ -5,6 +5,9 @@ import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import type { PluginEngineContext } from "ne-standard-ui";
+
+import { MarkdownDisplayEngine } from "../src/markdown-display-engine.ts";
 import type { MarkdownPictureSources, MarkdownUrls } from "../src/markdown-render.ts";
 import { NoMarkdownStyles, NoPictureSources, renderMarkdown } from "../src/markdown-render.ts";
 
@@ -74,6 +77,51 @@ test("links and images, inline and by reference", () => {
         "<p><a href=\"https://ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">https://ne.dev</a> <a href=\"mailto:me@ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">me@ne.dev</a> " +
         "see <a href=\"https://ne.dev/a_(b)\" target=\"_blank\" rel=\"noopener noreferrer\">https://ne.dev/a_(b)</a>. " +
         "<a href=\"http://www.ne.dev\" target=\"_blank\" rel=\"noopener noreferrer\">www.ne.dev</a></p>");
+});
+
+test("inside a link a link is its words, its styles kept, and so is an address read as one", () => {
+    const inside = renderMarkdown("**[docs](/docs)** and <https://ne.dev> or www.ne.dev ![p](p.png)", () => null, names, urls, NoMarkdownStyles, WholeSite, false, true);
+
+    assert.equal(inside.replace(/ data-ui-source-line="\d+"/g, ""), "<p><strong>docs</strong> and https://ne.dev or www.ne.dev <img src=\"p.png\" alt=\"p\" loading=\"lazy\"></p>");
+});
+
+test("a display inside a link draws its links as words, and draws them again as links once it stands outside one", () => {
+    let anchor: object | null = { tagName: "A" };
+    let changed: ((roots: Iterable<HTMLElement>) => void) | undefined;
+    const body = { innerHTML: "", children: [] as unknown[] };
+    const root = {
+        isConnected: true,
+        getAttribute: (name: string) => name === "data-ui-markdown-source" ? "see [docs](/docs)" : null,
+        hasAttribute: () => false,
+        querySelector: () => body,
+        closest: (selector: string) => selector === "a" ? anchor : null
+    } as unknown as HTMLElement;
+    const context = {
+        names,
+        urls,
+        root: { querySelectorAll: () => [root] },
+        observeComponents: (_root: unknown, _selector: string, _options: unknown, callback: (roots: Iterable<HTMLElement>) => void) => {
+            changed = callback;
+        }
+    } as unknown as PluginEngineContext;
+    const page = globalThis as { document?: unknown };
+    const previous = page.document;
+
+    page.document = { baseURI: "https://app.test/" };
+
+    try {
+        void new MarkdownDisplayEngine(context);
+
+        assert.equal(body.innerHTML.replace(/ data-ui-source-line="\d+"/g, ""), "<p>see docs</p>");
+
+        anchor = null;
+        changed?.([root]);
+
+        assert.equal(body.innerHTML.replace(/ data-ui-source-line="\d+"/g, ""), "<p>see <a href=\"/docs\">docs</a></p>");
+    }
+    finally {
+        page.document = previous;
+    }
 });
 
 test("a document cannot put markup or script on the page", () => {
