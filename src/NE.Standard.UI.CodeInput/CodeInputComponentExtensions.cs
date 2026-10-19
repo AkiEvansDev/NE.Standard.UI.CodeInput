@@ -84,8 +84,8 @@ public static class CodeInputComponentExtensions
         return input.On(
             CodeInputEvents.PictureUpload,
             command,
-            CodeInputArguments.Selection("selection"),
-            CodeInputArguments.FileName("fileName"));
+            UIAction.Offered(CodeInputArguments.Selection("selection")),
+            UIAction.Offered(CodeInputArguments.FileName("fileName")));
     }
 
     /// <inheritdoc cref="OnPictureUpload{T}(T, string)"/>
