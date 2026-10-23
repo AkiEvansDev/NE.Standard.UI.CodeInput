@@ -126,7 +126,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
         _ = root.Attribute(PicturesAttribute);
 
-        NativeInputRendererBase.RenderMaxFileSize(context, root, CodeInputComponent.MaxFileSizeProperty);
+        NativeInputRendererBase.RenderMaxFileSize(context, root);
 
         _ = RenderProperty<string?>(context, root, CodeInputComponent.AcceptProperty, static (target, value) =>
         {
@@ -269,7 +269,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         // The text the reader edits is this textarea, so the caption names it rather than the root it stands in.
         RenderFieldLabel(context, textarea);
 
-        NativeInputRendererBase.RenderDebounce(context, textarea, CodeInputComponent.DebounceMillisecondsProperty);
+        NativeInputRendererBase.RenderDebounce(context, textarea);
 
         NativeInputRendererBase.RenderPlaceholder(context, textarea);
         NativeInputRendererBase.RenderFormId(context, textarea);

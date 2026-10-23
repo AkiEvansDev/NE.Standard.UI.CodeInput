@@ -11,7 +11,6 @@ using NE.Standard.UI.Components.Foundation.Inputs;
 using NE.Standard.UI.Primitives.Annotations;
 using NE.Standard.UI.Primitives.Binding;
 using NE.Standard.UI.Primitives.Constants;
-using NE.Standard.UI.Primitives.Localization;
 using NE.Standard.UI.Primitives.Styling;
 
 namespace NE.Standard.UI.CodeInput;
@@ -19,7 +18,14 @@ namespace NE.Standard.UI.CodeInput;
 /// <summary>
 /// A code editor: a monospaced multi-line field with syntax highlighting, line numbers, and find and replace in the browser.
 /// </summary>
-public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IMaxFileSizeComponent, IFormSubmittingComponent, ICaretFieldComponent
+/// <remarks>
+/// Its <c>Accept</c> and <c>MaxFileSize</c> weigh the pictures a paste or a drop takes — unset, any picture — and only a field with an
+/// <c>OnPictureUpload</c> command takes one.
+/// </remarks>
+[UIComponentPropertyBlock(typeof(IPlaceholderInputComponent))]
+[UIComponentPropertyBlock(typeof(IDebounceInputComponent))]
+[UIComponentPropertyBlock(typeof(IFileAcceptComponent))]
+public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IFileAcceptComponent, IFormSubmittingComponent, ICaretFieldComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
     private readonly Dictionary<string, IVisualComponent> _regions;
@@ -119,11 +125,6 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
             .SetTooltip(tooltip)
             .SetAccessibleName(tooltip)
             .SetPressed(false);
-
-    /// <inheritdoc/>
-    [Translatable]
-    [UIComponentProperty(Contract = typeof(IPlaceholderInputComponent), DefaultValue = null)]
-    public UIPhrase? Placeholder { get; set; }
 
     /// <summary>
     /// Gets or sets the highlighting language, by id — one of <see cref="UICodeLanguages"/> or a registered package id. Two-way: the
@@ -226,27 +227,6 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// </summary>
     [UIComponentProperty(DefaultValue = 12, GenerateSetter = false)]
     public int? Rows { get; set; }
-
-    /// <summary>
-    /// Gets or sets how long after the viewer stops typing the value is committed, in milliseconds; unset, it
-    /// commits on blur.
-    /// </summary>
-    [UIComponentProperty(DefaultValue = null, GenerateSetter = false)]
-    public int? DebounceMilliseconds { get; set; }
-
-    /// <summary>
-    /// Gets or sets the picture types a paste or a drop takes, as a file input's <c>Accept</c> lists them — MIME types, families
-    /// (<c>image/png</c>, <c>image/*</c>) or extensions; unset, any picture. Only a field with an <c>OnPictureUpload</c> command takes one.
-    /// </summary>
-    [UIComponentProperty(DefaultValue = null)]
-    public string? Accept { get; set; }
-
-    /// <summary>
-    /// Gets or sets the largest picture a paste or a drop takes, in bytes; the client refuses a larger one before uploading it and
-    /// says so on the field's validation line.
-    /// </summary>
-    [UIComponentProperty(DefaultValue = null, GenerateSetter = false)]
-    public long? MaxFileSize { get; set; }
 
     /// <summary>
     /// Sets how many spaces a tab stop is, from one to eight.
