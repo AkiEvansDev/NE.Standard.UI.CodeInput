@@ -62,7 +62,7 @@ function stringToken(stream: Stream, state: PythonState): TokenKind {
     while (!stream.eol()) {
         const character = stream.peek();
 
-        if (current.formatted && character === "{")
+        if (current.formatted && (character === "{" || (character === "}" && stream.peek(1) === "}")))
             return "string";
 
         if (!current.raw && character === "\\") {

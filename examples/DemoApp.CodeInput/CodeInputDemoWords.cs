@@ -15,6 +15,7 @@ internal static class CodeInputDemoWords
 
     private static readonly Dictionary<string, string> English = new(StringComparer.Ordinal)
     {
+        ["code-demo.title"] = "{page} · NE.Standard.UI.CodeInput",
         ["code-demo.editor.title"] = "Editor",
         ["code-demo.editor.description"] = "A field from NE.Standard.UI.CodeInput. Tab indents, Enter keeps the indentation, Ctrl+F finds and Ctrl+H replaces, Ctrl+U/Ctrl+Shift+U change case, and Ctrl+Space opens completions (a JSON file adds a few .NET names, in every language).",
         ["code-demo.editor.line-numbers"] = "Line numbers",
@@ -37,7 +38,6 @@ internal static class CodeInputDemoWords
 
         ["code-demo.appearance.ghost"] = "Ghost",
         ["code-demo.appearance.filled"] = "Filled",
-        ["code-demo.appearance.tonal"] = "Tonal",
         ["code-demo.appearance.outline"] = "Outline",
         ["code-demo.appearance.underline"] = "Underline",
 
@@ -58,6 +58,7 @@ internal static class CodeInputDemoWords
     // Chinese has one plural form, so a plural key has only its ".other".
     private static readonly Dictionary<string, string> Chinese = new(StringComparer.Ordinal)
     {
+        ["code-demo.title"] = "{page} · NE.Standard.UI.CodeInput",
         ["code-demo.editor.title"] = "编辑器",
         ["code-demo.editor.description"] = "来自 NE.Standard.UI.CodeInput 的字段。Tab 缩进，Enter 保持缩进，Ctrl+F 查找，Ctrl+H 替换，Ctrl+U/Ctrl+Shift+U 转换大小写，Ctrl+Space 打开补全（一个 JSON 文件在每种语言中添加几个 .NET 名称）。",
         ["code-demo.editor.line-numbers"] = "行号",
@@ -78,7 +79,6 @@ internal static class CodeInputDemoWords
 
         ["code-demo.appearance.ghost"] = "幽灵",
         ["code-demo.appearance.filled"] = "填充",
-        ["code-demo.appearance.tonal"] = "色调",
         ["code-demo.appearance.outline"] = "描边",
         ["code-demo.appearance.underline"] = "下划线",
 

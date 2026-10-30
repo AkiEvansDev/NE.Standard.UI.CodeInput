@@ -24,8 +24,8 @@ export const CompletionsSourceAttribute = "data-ui-code-completions-source";
 export const StatusBarAttribute = "data-ui-code-status";
 export const FormatBarAttribute = "data-ui-code-format-bar";
 export const DetectedLineEndingAttribute = "data-ui-code-eol";
-export const PicturesAttribute = "data-ui-code-pictures";
-export const PictureAcceptAttribute = "data-ui-code-picture-accept";
+export const ImagesAttribute = "data-ui-code-images";
+export const ImageAcceptAttribute = "data-ui-code-image-accept";
 export const TabSizeVariable = "--ui-code-tab-size";
 
 // Drawn by the renderer: the status bar's position and the hidden carriers of its four pickers.
@@ -62,7 +62,7 @@ export const MatchesWord = "ui.code.matches";
 export const NoMatchesWord = "ui.code.no-matches";
 export const InvalidPatternWord = "ui.code.invalid-pattern";
 export const SuggestionsWord = "ui.code.suggestions";
-export const PictureUploadingWord = "ui.code.picture-uploading";
+export const ImageUploadingWord = "ui.code.image-uploading";
 export const FormatBarWord = "ui.code.format-bar";
 export const BoldWord = "ui.code.format-bold";
 export const ItalicWord = "ui.code.format-italic";
@@ -73,17 +73,11 @@ export const HeadingWord = "ui.code.format-heading";
 export const HeadingLevelWord = "ui.code.format-heading-level";
 export const ListWord = "ui.code.format-list";
 
-// The picture's round trip, by the names CodeInputEvents and InsertPictureEffect give it on the server.
-export const PictureUploadEvent = "picture-upload";
-export const InsertPictureEffectKind = "codeinput.insert-picture";
-
-/** The framework's names the plugin surface's `names` does not carry, held by the test to their C# sources. */
-export const CoreNames = {
-    checkboxClass: "ui-checkbox",
-    checkboxInputClass: "ui-checkbox__input",
-    checkboxBoxClass: "ui-checkbox__box",
-    smallInputClass: "ui-input--small"
-} as const;
+// The picture's round trip, by the names CodeInputEvents and InsertImageEffect give it on the server.
+export const ImageUploadEvent = "code-image-upload";
+export const InsertImageEffectKind = "codeinput.insert-image";
+/** Ctrl+S, by the name `CodeInputEvents.Save` gives it: the package's own, apart from another package's save. */
+export const SaveEvent = "code-save";
 
 /** The framework's glyphs the format bar's buttons wear, by their UIGlyphs names, held by the test to their C# source. */
 export const CoreGlyphs = {
@@ -126,4 +120,4 @@ export const CrLf = "crlf";
 export type Strings = PluginEngineContext["strings"];
 
 /** The framework's own names a Markdown document is drawn with: a block's source line, and the task box's read-only mark. */
-export type MarkdownNames = Pick<DomNames, "sourceLine" | "readOnlyClass">;
+export type MarkdownNames = Pick<DomNames, "sourceLine" | "readOnlyClass" | "checkboxClass" | "checkboxInputClass" | "checkboxBoxClass" | "smallInputClass">;

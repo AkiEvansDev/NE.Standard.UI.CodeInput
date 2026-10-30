@@ -47,14 +47,14 @@ internal sealed partial class MarkdownController : UIControllerBase
             foreach (var word in Words(Reply))
             {
                 await Task.Delay(WordDelay, cancellationToken).ConfigureAwait(false);
-                _ = await Context.Runtime.InvokeAsync(() => Document += word, cancellationToken).ConfigureAwait(false);
+                await Context.Runtime.InvokeAsync(() => Document += word, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
         {
             // A reply that failed half-way may be streamed again; not once the page is going, where no one is left to press it.
             if (!cancellationToken.IsCancellationRequested)
-                _ = await Context.Runtime.InvokeAsync(() => CanStream = true, CancellationToken.None).ConfigureAwait(false);
+                await Context.Runtime.InvokeAsync(() => CanStream = true, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -98,7 +98,7 @@ internal sealed partial class MarkdownController : UIControllerBase
 
             // The bytes decide what the file is, not its name: anything but PNG, JPEG, GIF or WebP is refused, in the page's words.
             return Context.Services.GetRequiredService<MarkdownPictures>().Keep(bytes.ToArray()) is string address
-                ? UICommandResult.Ok([new InsertPictureEffect(selection, address)])
+                ? UICommandResult.Ok([new InsertImageEffect(selection, address)])
                 : UICommandResult.Fail("code-demo.markdown.no-picture");
         }
     }

@@ -80,12 +80,12 @@ export class CodeEditorFindReplace {
 
     /** Whether the replace row is folded out; a read-only field never shows it, since there is nothing to rewrite. */
     public get isReplacing(): boolean {
-        return !this.replaceRow.hidden && !this.textarea.readOnly;
+        return !this.replaceRow.hidden && !this.surface.isLocked;
     }
 
     /** Folds the replace row out or away, as Visual Studio's chevron does; the row stays as the reader left it between openings. */
     public showReplace(show: boolean): void {
-        const showing = show && !this.textarea.readOnly;
+        const showing = show && !this.surface.isLocked;
 
         this.replaceRow.hidden = !showing;
         this.expand?.setAttribute("aria-expanded", showing ? "true" : "false");
@@ -275,7 +275,7 @@ export class CodeEditorFindReplace {
     }
 
     public replaceOne(): void {
-        if (this.textarea.readOnly)
+        if (this.surface.isLocked)
             return;
 
         if (this.current < 0) {
@@ -285,16 +285,20 @@ export class CodeEditorFindReplace {
 
         const match = this.matches[this.current];
         const replacement = expandReplacement(this.textarea.value, match, this.query, this.replaceField.value, this.options.regex);
+        const applied = this.surface.replaceRange(match.from, match.to, replacement);
 
-        this.surface.replaceRange(match.from, match.to, replacement);
         this.replaceField.focus({ preventScroll: true });
+
+        if (!applied)
+            return;
+
         // The edit re-read the matches; the next one starts past the new text, since a replacement the query still matches would
         // otherwise be found again where it was put.
         this.goTo(nextMatchFrom(this.matches, match.from + replacement.length), true);
     }
 
     public replaceEvery(): void {
-        if (this.textarea.readOnly || this.matches.length === 0)
+        if (this.surface.isLocked || this.matches.length === 0)
             return;
 
         const value = this.textarea.value;

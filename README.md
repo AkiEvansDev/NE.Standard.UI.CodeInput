@@ -40,7 +40,7 @@ new CodeInputComponent()
 | `Language` | What the text is highlighted as: JSON, CSS, LESS, JavaScript, TypeScript, HTML, C#, Python, Bash, Markdown, plain text, or a language an application declared with `UICodeLanguages.Register`; two-way, the status bar's picker writes it back. |
 | `LineNumbers` | A number beside every line (on by default). |
 | `WrapLines` | Long lines wrap at the field's edge instead of scrolling sideways. |
-| `TabSize` | How many spaces a tab stop is, and what the Tab key inserts; two-way, the status bar's picker writes it back. |
+| `TabSize` | How many spaces a tab stop is, one to eight, and what the Tab key inserts; two-way, the status bar's picker writes it back. A value past them is drawn as four. |
 | `StatusBar` | The line under the text: the caret's line and column, and pickers for the tab size, the encoding, the line ending and the language (on by default). |
 | `Encoding` | What the application writes the text out as (`UICodeEncodings`); the field holds text, the picker offers the choice, the controller receives it. |
 | `LineEnding` | The line break the value is sent with (`UICodeLineEndings`): unset keeps whatever the value came with, which is what the bar shows; a choice converts on the next commit. |
@@ -50,6 +50,7 @@ new CodeInputComponent()
 | `Completions` | Whether Ctrl+Space and typing open a completion list — see *Completions* (on by default). |
 | `CompletionsSource` | The URL of a JSON file of completion items and trigger characters the client loads once — see *Completions*. |
 | `FormatBar` | Whether a Markdown field offers its format bar and keys — see *Formatting Markdown* (on by default). |
+| `MaxLength` | The longest text the field takes: the textarea's `maxlength`, and refused by the server past it. |
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
 | `MaxFileSize`, `Accept` | The largest picture a paste or a drop takes, and its types — see *Pictures in Markdown*. |
 
@@ -57,7 +58,7 @@ new CodeInputComponent()
 borders come from the framework's field, exactly as a text area's do — except that the editor starts as
 `Ghost` — nothing drawn around it, on focus as at rest, save the edge of an invalid or warned value, which stays while the
 field is focused — and never lifts under the pointer: it is read, not filled in. A code input that stands in a form among other
-fields (a prompt's text on a settings page) takes the form's appearance on purpose: `SetAppearance(UIInputAppearance.Tonal)`.
+fields (a prompt's text on a settings page) takes the form's appearance on purpose: `SetAppearance(UIInputAppearance.Filled)`.
 
 Editing is the browser's own `<textarea>` — typing, selection, input methods and the clipboard behave as they
 do everywhere else — with the highlighted text drawn underneath it. Undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are the
@@ -68,7 +69,7 @@ Escape closes the panel. With nothing of the field's own open — the panel, the
 the next Tab goes on to the control after it: the way out for the keyboard, since Tab indents inside. In a dialog or a drawer the
 field's Escape is its own too, so the dialog closes only on the one after it. Every Ctrl chord below is ⌘ on macOS, matched by the
 key's place whatever the layout types there. **Ctrl+S** commits the value at once, ahead of any debounce, and
-raises the field's `save` event — `.OnSave(nameof(Controller.Save))` is where an application writes it out (`OnSaveLiteral` with
+raises the field's own `code-save` event (`CodeInputEvents.Save`) — `.OnSave(nameof(Controller.Save))` is where an application writes it out (`OnSaveLiteral` with
 values of its own, which document a page of several fields saves). **Ctrl+U** turns the
 selection, or the identifier the caret touches, to lower case, and **Ctrl+Shift+U** to upper case — Visual Studio's own keys; a
 selection stays selected and a caret keeps its place in the word.
@@ -77,7 +78,8 @@ Under the text runs a status bar, as an editor's: the caret's line and column, a
 encoding, the line ending and the language. A picker's choice is the property's value — bind `TabSize`, `Encoding`,
 `LineEnding` and `Language` two-way to read them. The line ending is the one thing the browser cannot keep for itself
 (a text field holds every break as LF), so the field notes the ending the value came with, shows it, and sends the
-value back with it; a choice converts the text on the next commit. `SetStatusBar(false)` hides the bar, and
+value back with it; a choice converts the text on the next commit. The server takes from the page only what the bar
+offers — a tab size of one to eight, a listed encoding or language, LF, CRLF or none — and answers anything else with its own value. `SetStatusBar(false)` hides the bar, and
 `SetSearch(false)` the find panel; written as a value rather than bound, either leaves its controls out of the page
 altogether, which is what keeps a read-only listing light. While the field is read-only its pickers are too: each still
 shows its setting and stays in the Tab order, and none opens a list.
@@ -145,7 +147,7 @@ answering with the address the picture is shown from.
 new CodeInputComponent()
     .SetLanguage(UICodeLanguages.Markdown)
     .BindValue(nameof(DocsController.Readme))
-    .OnPictureUpload(nameof(DocsController.AddPictureAsync))
+    .OnImageUpload(nameof(DocsController.AddPictureAsync))
     .SetMaxFileSize(2 * 1024 * 1024)
 ```
 
@@ -155,21 +157,21 @@ public async Task<UICommandResult> AddPictureAsync(string selection, Cancellatio
 {
     UIUploadSelection chosen = await Context.Uploads.GetSelectionAsync(Context.Handle, selection, cancellationToken);
     // ...keep chosen.SingleFile where the application keeps files...
-    return UICommandResult.Ok([new InsertPictureEffect(selection, address)]);
+    return UICommandResult.Ok([new InsertImageEffect(selection, address)]);
 }
 ```
 
 While a picture uploads, a placeholder stands at the caret, or where the picture was let go — `![Uploading shot.png…]()`, in the
-reader's language — and the reader goes on editing. The answer's `InsertPictureEffect` turns the placeholder into
+reader's language — and the reader goes on editing. The answer's `InsertImageEffect` turns the placeholder into
 `![shot](address)` wherever the edits have moved it; several pictures at once stand a line each, and each lands at its own
 placeholder whichever answers first. One Ctrl+Z takes a picture that landed straight away back whole, as it would typed text. A
 command that fails takes the placeholder out and says its words on the field's validation line (`UICommandResult.Fail`, a key
 or text); an answer without the effect takes it out quietly, and a placeholder the reader deleted is not put back. The command's
 keys are `CodeInputArguments.Selection` and `CodeInputArguments.FileName` — bound as `selection` and `fileName` by the
-one-argument `OnPictureUpload`.
+one-argument `OnImageUpload`.
 
 `MaxFileSize` refuses a larger picture before it is sent, in the framework's own words for a file input's limit, and `Accept`
-narrows the types as a file input's does (`image/png, .jpg`); only a picture is ever taken. Without `OnPictureUpload` a paste is
+narrows the types as a file input's does (`image/png, .jpg`); only a picture is ever taken. Without `OnImageUpload` a paste is
 text alone, a copy that carries words beside a picture of them pastes the words, and a field in any language but Markdown —
 the one whose text can hold a picture — never takes one. The address is the application's: the effect refuses a `data:` address,
 so the text never carries the picture itself. A Markdown display draws a picture from the framework's content route

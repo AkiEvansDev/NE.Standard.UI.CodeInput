@@ -10,6 +10,7 @@ import type { CompletionContext, CompletionItem, CompletionSource, CompletionsFi
 import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
 import { completionsRegistry } from "./completions-registry.ts";
 import { languages } from "./languages/index.ts";
+import { warnOnce } from "./warn-once.ts";
 
 // A file is fetched once and kept for every field on the page that names it, since a page may hold several editors for one language.
 const fileCache = new Map<string, Promise<CompletionsFile>>();
@@ -22,8 +23,9 @@ export function loadCompletionsFile(url: string): Promise<CompletionsFile> {
         cached = fetch(url)
             .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load completions: ${url}`)))
             .then(parseCompletionsFile)
-            .catch((): CompletionsFile => {
+            .catch((error: unknown): CompletionsFile => {
                 fileCache.delete(url);
+                warnOnce(url, `the completions file '${url}' could not be loaded; the field offers the rest.`, error);
 
                 return { items: [], triggers: [] };
             });
@@ -97,7 +99,7 @@ export class CodeEditorCompletions {
     }
 
     private get enabled(): boolean {
-        return this.root.hasAttribute(CompletionsAttribute) && !this.textarea.readOnly;
+        return this.root.hasAttribute(CompletionsAttribute) && !this.surface.isLocked;
     }
 
     /** The field's switches may have changed: a list switched off closes; one on a field turned read-only the framework closes. */

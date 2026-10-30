@@ -11,6 +11,7 @@ import { fenceLanguageId } from "./languages/markdown.ts";
 import { NoMarkdownStyles, renderMarkdownBlocks } from "./markdown-render.ts";
 import type { MarkdownPictureSources, MarkdownStyles, MarkdownUrls } from "./markdown-render.ts";
 import type { Token } from "./tokenizer.ts";
+import { warnOnce } from "./warn-once.ts";
 
 const RootSelector = `.${MarkdownRootClass}`;
 const BodySelector = `.${MarkdownBodyClass}`;
@@ -37,16 +38,27 @@ export class MarkdownDisplayEngine {
     // The blocks each body holds, as they were rendered, one element each.
     private readonly blocks = new WeakMap<HTMLElement, readonly string[]>();
     private readonly live = new Set<HTMLElement>();
+    private readonly cleanups: (() => void)[] = [];
 
     public constructor(context: PluginEngineContext) {
         this.names = context.names;
         this.urls = context.urls;
 
         // Watching first: a document that fails to render must not leave every display on the page without its watch.
-        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute, MarkdownLineBreaksAttribute] }, roots => this.renderAll(roots, false));
-        languages.onRegistered(() => this.renderAll([...this.live], true));
+        const observer = context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute, MarkdownLineBreaksAttribute] }, roots => this.renderAll(roots, false));
+        const stopLanguages = languages.onRegistered(() => this.renderAll([...this.live], true));
 
+        this.cleanups.push(() => observer?.disconnect(), stopLanguages);
         this.renderAll(context.root.querySelectorAll<HTMLElement>(RootSelector), false);
+    }
+
+    /** Disposes the observer and language subscription when the engine is disposed. */
+    public dispose(): void {
+        for (const cleanup of this.cleanups)
+            cleanup();
+
+        this.cleanups.length = 0;
+        this.live.clear();
     }
 
     private renderAll(roots: Iterable<HTMLElement>, force: boolean): void {
@@ -203,7 +215,9 @@ function highlightCode(text: string, info: string): string | null {
             return renderSegments(line, tokens, []);
         }).join("\n");
     }
-    catch {
+    catch (error) {
+        warnOnce(tokenizer, `the tokenizer of '${fenceLanguageId(info)}' threw; the code blocks it fails on are shown plain.`, error);
+
         return null;
     }
 }

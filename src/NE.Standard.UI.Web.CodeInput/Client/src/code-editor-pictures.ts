@@ -1,10 +1,10 @@
 // Pictures pasted or dropped into a Markdown text: each stands under a placeholder while it goes up through the framework's own
-// upload, the field's `picture-upload` event hands its selection to the application's command, and the command's answer — an
-// address, by `InsertPictureEffect` — takes the placeholder's place. The field keeps no picture and never writes one into the text.
+// upload, the field's `code-image-upload` event hands its selection to the application's command, and the command's answer — an
+// address, by `InsertImageEffect` — takes the placeholder's place. The field keeps no picture and never writes one into the text.
 
 import type { EventCompletionContext, PluginEngineContext, ValidationWords } from "ne-standard-ui";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
-import { CoreWords, PictureAcceptAttribute, PictureOverClass, PicturesAttribute, PictureUploadEvent, PictureUploadingWord } from "./code-editor-dom.ts";
+import { CoreWords, ImageUploadEvent, ImageAcceptAttribute, PictureOverClass, ImagesAttribute, ImageUploadingWord } from "./code-editor-dom.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
 import type { Change } from "./history.ts";
 import { carriesPicture, isDataAddress, pictureFiles, pictureText, placeholderText } from "./markdown-pictures.ts";
@@ -12,7 +12,7 @@ import { rangeEnd, rangeStart, singleSelection } from "./selections.ts";
 
 const MarkdownLanguage = "markdown";
 
-/** The `picture-upload` event's detail: its keys, the selection and the file's name, in the order `CodeInputArguments` reads them. */
+/** The `code-image-upload` event's detail: its keys, the selection and the file's name, in the order `CodeInputArguments` reads them. */
 export type PictureUploadDetail = {
     readonly keys: readonly string[];
 };
@@ -39,7 +39,7 @@ type PendingPicture = {
 /** The pictures uploaded and waiting for their command's answer, by selection: page-wide, as the answer's effect is. */
 const awaiting = new Map<string, PendingPicture>();
 
-/** The answer's `InsertPictureEffect`: the picture's address in its placeholder's place. */
+/** The answer's `InsertImageEffect`: the picture's address in its placeholder's place. */
 export function insertPicture(selection: string, address: string): void {
     const pending = awaiting.get(selection);
 
@@ -89,7 +89,7 @@ export class CodeEditorPictures {
 
     /** Only a Markdown text with a command to answer takes a picture, and only while the reader may edit it. */
     private get takes(): boolean {
-        return this.root.hasAttribute(PicturesAttribute) && this.getLanguage() === MarkdownLanguage && !this.textarea.readOnly && !this.context.states.isInert(this.textarea);
+        return this.root.hasAttribute(ImagesAttribute) && this.getLanguage() === MarkdownLanguage && !this.textarea.readOnly && !this.context.states.isInert(this.textarea);
     }
 
     /** The textarea's `paste`: true when it carried pictures the field took, in place of the selection; words are left to the text. */
@@ -154,7 +154,7 @@ export class CodeEditorPictures {
      * history, and sends each picture up on its own, so every one lands at its own placeholder whichever answers first.
      */
     private take(files: readonly File[], from: number, to: number): boolean {
-        const pictures = pictureFiles(files, this.root.getAttribute(PictureAcceptAttribute) ?? "", this.context.uploads.accepts);
+        const pictures = pictureFiles(files, this.root.getAttribute(ImageAcceptAttribute) ?? "", this.context.uploads.accepts);
 
         if (pictures.length === 0)
             return false;
@@ -172,7 +172,7 @@ export class CodeEditorPictures {
         const made: string[] = [];
 
         for (const file of within) {
-            made.push(placeholderText(file.name, name => this.context.strings.format(PictureUploadingWord, { name }), candidate => made.includes(candidate) || text.includes(candidate)));
+            made.push(placeholderText(file.name, name => this.context.strings.format(ImageUploadingWord, { name }), candidate => made.includes(candidate) || text.includes(candidate)));
         }
 
         const inserted = made.join("\n");
@@ -210,7 +210,7 @@ export class CodeEditorPictures {
 
         const detail: PictureUploadDetail = { keys: [selection, file.name] };
 
-        this.textarea.dispatchEvent(new CustomEvent(PictureUploadEvent, { bubbles: true, detail }));
+        this.textarea.dispatchEvent(new CustomEvent(ImageUploadEvent, { bubbles: true, detail }));
     }
 
     /** The picture in its placeholder's place; a placeholder the reader took out meanwhile is not put back. */

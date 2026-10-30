@@ -105,7 +105,7 @@ function interpolatedToken(stream: Stream, state: CSharpState): TokenKind {
         const character = stream.peek();
 
         // Stop before a brace, escape or hole alike, so it gets its own token.
-        if (character === "{")
+        if (character === "{" || (character === "}" && stream.peek(1) === "}"))
             return "string";
 
         if (verbatim && character === "\"" && stream.peek(1) === "\"") {
@@ -244,7 +244,7 @@ function codeToken(stream: Stream, state: CSharpState): TokenKind | null {
 
             DotAhead.lastIndex = stream.pos;
 
-            // `UIButtonType.Ghost`: a member of a type rather than one more type; a name with a dot after it still qualifies the next.
+            // `UIButtonVariant.Ghost`: a member of a type rather than one more type; a name with a dot after it still qualifies the next.
             return afterDot && ahead !== "<" && !DotAhead.test(stream.text) ? "property" : "type";
         }
 

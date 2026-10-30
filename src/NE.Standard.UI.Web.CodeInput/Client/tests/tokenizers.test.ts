@@ -167,9 +167,9 @@ test("csharp keywords, strings, types, calls and holes", () => {
 });
 
 test("csharp member after a dot is a property, a qualifier stays a type", () => {
-    const tokens = tokensOf(csharpTokenizer, "x.SetType(UIButtonType.Ghost);\nvar e = System.Text.Encoding.UTF8;\nvar n = Items.Count;");
+    const tokens = tokensOf(csharpTokenizer, "x.SetVariant(UIButtonVariant.Ghost);\nvar e = System.Text.Encoding.UTF8;\nvar n = Items.Count;");
 
-    assert.equal(kindOf(tokens, "UIButtonType"), "type");
+    assert.equal(kindOf(tokens, "UIButtonVariant"), "type");
     assert.equal(kindOf(tokens, "Ghost"), "property");
     assert.equal(kindOf(tokens, "Encoding"), "type");
     assert.equal(kindOf(tokens, "UTF8"), "property");
@@ -379,4 +379,12 @@ test("markdown ends a quote's fence where the quote ends, at its own depth", () 
 
     assert.equal(kindOf(nested, "*in*"), "code");
     assert.equal(kindOf(nested, "*out*"), "emphasis");
+});
+
+test("csharp and python tokenize escaped closing braces }} after literal text inside interpolated and f-strings", () => {
+    const cs = tokensOf(csharpTokenizer, "var s = $\"head {{mid}} tail}}\";");
+    const py = tokensOf(pythonTokenizer, "s = f\"head {{mid}} tail}}\"");
+
+    assert.deepEqual(cs.filter(token => token.kind === "escape").map(token => token.text), ["{{", "}}", "}}"]);
+    assert.deepEqual(py.filter(token => token.kind === "escape").map(token => token.text), ["{{", "}}", "}}"]);
 });

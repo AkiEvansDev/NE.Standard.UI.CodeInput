@@ -4,22 +4,22 @@ using NE.Standard.UI.Abstractions.Effects;
 namespace NE.Standard.UI.CodeInput;
 
 /// <summary>
-/// The answer to a code field's <see cref="CodeInputEvents.PictureUpload"/>: the address the application kept the picture at, which
+/// The answer to a code field's <see cref="CodeInputEvents.ImageUpload"/>: the address the application kept the picture at, which
 /// takes the place of the placeholder the upload left in the text, as <c>![name](address)</c>.
 /// </summary>
 /// <remarks>
 /// The upload's selection names the placeholder, wherever the reader's edits have moved it meanwhile; one the reader took out is not
 /// put back. A <c>data:</c> address is refused: the picture is the application's to keep, and the text names where it is.
 /// </remarks>
-public sealed class InsertPictureEffect : ClientEffect
+public sealed class InsertImageEffect : ClientEffect
 {
-    /// <summary>The kind this package's picture effect travels under.</summary>
-    public const string EffectKind = "codeinput.insert-picture";
+    /// <summary>The kind this package's image effect travels under.</summary>
+    public const string EffectKind = "codeinput.insert-image";
 
     /// <summary>
     /// Puts the picture kept at <paramref name="address"/> where the upload <paramref name="selection"/> left its placeholder.
     /// </summary>
-    public InsertPictureEffect(string selection, string address)
+    public InsertImageEffect(string selection, string address)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selection);
         ArgumentException.ThrowIfNullOrWhiteSpace(address);

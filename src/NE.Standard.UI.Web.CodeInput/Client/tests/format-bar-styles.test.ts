@@ -17,9 +17,10 @@ test("a button is the strip's square, its glyph on whole pixels, so the icon sta
     assert.equal(/format-button[^{]*\{[^}]*font-size: 1\.25em/.test(css), false);
 });
 
-test("the keyboard's place wears the strip's frame, never after a pointer", () => {
+test("the keyboard's place wears the strip's hover wash, never after a pointer", () => {
     const frame = /\.ui-code-input__format-button:focus-visible:not\(\[data-ui-pointer-focus\]\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
 
-    assert.match(frame, /outline: 2px solid var\(--ui-mark-keyboard\);/);
-    assert.equal(css.split(".ui-code-input__format-button:focus-visible").length - 1, 1, "one frame, the strip's, not a copy of the package's own");
+    assert.match(frame, /background-color: var\(--ui-wash-hover\);/);
+    assert.match(frame, /outline: none;/);
+    assert.equal(css.split(".ui-code-input__format-button:focus-visible").length - 1, 1, "one rule, the strip's, not a copy of the package's own");
 });

@@ -12,7 +12,7 @@ import type { MarkdownStyles, MarkdownUrls } from "../src/markdown-render.ts";
 import { NoMarkdownStyles, NoPictureSources, renderMarkdown, renderMarkdownBlocks } from "../src/markdown-render.ts";
 import { markSpans } from "../src/markdown-spans.ts";
 
-const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
+const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly", checkboxClass: "ui-checkbox", checkboxInputClass: "ui-checkbox__input", checkboxBoxClass: "ui-checkbox__box", smallInputClass: "ui-input--small" } as const;
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 const urls = await import(pathToFileURL(resolve(repository, "src/Platforms/Web/NE.Standard.UI.Web/Client/src/rendering/url-safety.ts")).href) as MarkdownUrls;

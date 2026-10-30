@@ -26,12 +26,10 @@ const renderer = source("../../CodeInputComponentRenderer.cs", "ClassName", name
 const markdown = source("../../MarkdownDisplayComponentRenderer.cs", "ClassName", names.MarkdownRootClass);
 const words = read("../../CodeInputStrings.cs");
 const events = read("../../../NE.Standard.UI.CodeInput/CodeInputComponentExtensions.cs");
-const pictureEffect = read("../../../NE.Standard.UI.CodeInput/InsertPictureEffect.cs");
+const pictureEffect = read("../../../NE.Standard.UI.CodeInput/InsertImageEffect.cs");
 
 // The framework's own sources, for the names its plugin surface does not carry.
 const Core = "../../../../../../src/Platforms/Web/";
-const checkbox = source(`${Core}NE.Standard.UI.Web.Renderers/Inputs/CheckboxComponentRenderer.cs`, "classPrefix", names.CoreNames.checkboxClass);
-const classNames = read(`${Core}NE.Standard.UI.Web.Abstractions/Theming/WebClassNames.cs`);
 const coreWords = read("../../../../../../src/Contracts/NE.Standard.UI.Shell/Localization/UIStrings.cs");
 const glyphs = read("../../../../../../src/Contracts/NE.Standard.UI.Primitives/Constants/UIGlyphs.cs");
 const contentEndpoint = read(`${Core}NE.Standard.UI.Web/Hosting/WebContentEndpoint.cs`);
@@ -92,8 +90,9 @@ test("every word the client writes is a key CodeInputStrings lists", () => {
 });
 
 test("the picture's event and effect are the ones the server raises and answers with, and the framework's word is its own", () => {
-    assertWritten(events, "CodeInputComponentExtensions.cs", names.PictureUploadEvent);
-    assertWritten(pictureEffect, "InsertPictureEffect.cs", names.InsertPictureEffectKind);
+    assertWritten(events, "CodeInputComponentExtensions.cs", names.ImageUploadEvent);
+    assertWritten(events, "CodeInputComponentExtensions.cs", names.SaveEvent);
+    assertWritten(pictureEffect, "InsertImageEffect.cs", names.InsertImageEffectKind);
 
     for (const key of Object.values(names.CoreWords))
         assertWritten(coreWords, "UIStrings.cs", key);
@@ -109,12 +108,6 @@ test("the content route a Markdown picture is drawn from is the one the framewor
     assertWritten(contentEndpoint, "WebContentEndpoint.cs", ContentRoute.slice(0, -1));
 });
 
-test("the checkbox a task item draws by hand wears the framework checkbox's classes", () => {
-    for (const name of [names.CoreNames.checkboxClass, names.CoreNames.checkboxInputClass, names.CoreNames.checkboxBoxClass])
-        assertWritten(checkbox, "CheckboxComponentRenderer.cs", name);
-
-    assertWritten(classNames, "WebClassNames.cs", names.CoreNames.smallInputClass);
-});
 
 test("the format bar's buttons wear the framework's glyphs", () => {
     for (const glyph of Object.values(names.CoreGlyphs))

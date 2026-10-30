@@ -17,7 +17,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
 
     protected override string Route => MarkdownRoute;
 
-    public override string Title => "code-demo.markdown.title";
+    protected override string Header => "code-demo.markdown.title";
 
     protected override string Description => "code-demo.markdown.description";
 
@@ -33,10 +33,10 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                 .SetWrapLines()
                 .SetTabSize(2)
                 .SetAppearance(UIInputAppearance.Ghost)
-                .BindValue(nameof(MarkdownController.Document), mode: UIBindingMode.TwoWay)
+                .BindValue<MarkdownController>(static c => c.Document, mode: UIBindingMode.TwoWay)
                 .SetDebounceMilliseconds(300)
                 // A picture pasted or dropped goes up, and the controller answers with where it keeps it.
-                .OnPictureUpload(nameof(MarkdownController.AddPictureAsync))
+                .OnImageUpload(nameof(MarkdownController.AddPictureAsync))
                 .SetMaxFileSize(MarkdownPictures.MaxBytes)
                 .SetScrollGroup(DocumentScroll)
                 .SetHeight(Filled(UILayoutLength.Absolute(StackedEditorHeight)))
@@ -52,17 +52,17 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                 .AddChild(new SwitchComponent()
                     .SetTitle("code-demo.markdown.line-breaks")
                     .SetHelp("code-demo.markdown.line-breaks.help")
-                    .BindValue(nameof(MarkdownController.LineBreaks), mode: UIBindingMode.TwoWay)
+                    .BindValue<MarkdownController>(static c => c.LineBreaks, mode: UIBindingMode.TwoWay)
                     .SetVerticalAlignment(UIAlignment.Center)
                     .SetPlacement(1, 1, 14, 1)
                 )
                 // A reply streamed into the end of the document while the reader reads it.
                 .AddChild(new ButtonComponent()
-                    .SetType(UIButtonType.Ghost)
-                    .SetSize(UIButtonSize.Small)
+                    .SetVariant(UIButtonVariant.Ghost)
+                    .SetSize(UISize.Small)
                     .SetTitle("code-demo.markdown.stream")
                     .SetTooltip("code-demo.markdown.stream.tooltip")
-                    .BindEnabled(nameof(MarkdownController.CanStream))
+                    .BindEnabled<MarkdownController>(static c => c.CanStream)
                     .OnClick(nameof(MarkdownController.StreamReply))
                     .SetHorizontalAlignment(UIAlignment.End)
                     .SetPlacement(15, 1, 10, 1)
@@ -75,8 +75,8 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
                     .AddChild(new MarkdownDisplayComponent()
                         .SetMarkStyle(UIMarkdownMark.Strong, new UIMarkdownTextStyle { Color = UIThemeColor.Primary })
                         .AddSpanStyle("\"", "\"", new UIMarkdownTextStyle { Color = UIThemeColor.Accent, Italic = true })
-                        .BindText(nameof(MarkdownController.Document))
-                        .BindLineBreaks(nameof(MarkdownController.LineBreaks))
+                        .BindText<MarkdownController>(static c => c.Document)
+                        .BindLineBreaks<MarkdownController>(static c => c.LineBreaks)
                     )
                     .SetPlacement(1, 2, 24, 1)
                 )

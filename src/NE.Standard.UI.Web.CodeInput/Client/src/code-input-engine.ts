@@ -36,6 +36,7 @@ export class CodeInputEngine {
     private readonly editors = new WeakMap<HTMLElement, CodeEditor>();
     // Every live editor, for a language registered after its field was drawn; one whose root left the page is disposed.
     private readonly live = new Set<CodeEditor>();
+    private readonly cleanups: (() => void)[] = [];
 
     public constructor(context: PluginEngineContext) {
         this.context = context;
@@ -44,20 +45,23 @@ export class CodeInputEngine {
         // The language, and the switches that take away what an open panel, the extra carets, an open list or a bar stand on.
         const attributeFilter = [LanguageAttribute, SearchAttribute, MultiCaretAttribute, CompletionsAttribute, StatusBarAttribute, FormatBarAttribute];
 
-        context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter }, roots => this.attach(roots));
+        const attachObserver = context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter, removed: () => this.prune() }, roots => this.attach(roots));
 
         // Read-only follows the root's own mark, however it moved — the value handler below skips an interaction on this page.
-        context.observeComponents(context.root, RootSelector, { attributeFilter: ["class"], relevant: mutation => mutation.target instanceof Element && mutation.target.matches(RootSelector) }, roots => {
+        const readOnlyObserver = context.observeComponents(context.root, RootSelector, { attributeFilter: ["class"], relevant: mutation => mutation.target instanceof Element && mutation.target.matches(RootSelector) }, roots => {
             for (const root of roots)
                 this.editors.get(root)?.readOnlyChanged();
         });
 
-        // A root that left the page takes its editor with it; a removal is a childList change above every selector.
-        context.observeComponents(context.root, "*", { childList: true }, () => this.prune());
+        // Disabled or loading, a field takes no edits and closes any open popup bar or list of its own.
+        const inertObserver = context.observeComponents(context.root, RootSelector, { attributeFilter: ["aria-disabled", "aria-busy"] }, roots => {
+            for (const root of roots)
+                this.editors.get(root)?.inertChanged();
+        });
 
         // The status bar lists what the server declared; a tokenizer registered after a field was drawn still redraws its text, and
         // a Markdown field's too, whose fenced blocks read in whatever language their info string names.
-        languages.onRegistered(id => {
+        const stopLanguages = languages.onRegistered(id => {
             for (const editor of this.live) {
                 if (editor.connected && (editor.languageId === id || editor.languageId === MarkdownLanguage))
                     editor.reload();
@@ -65,7 +69,7 @@ export class CodeInputEngine {
         });
 
         // The find panel's count is the one word an editor writes unmarked.
-        context.strings.onChange(() => {
+        const stopStrings = context.strings.onChange(() => {
             for (const editor of this.live) {
                 if (editor.connected)
                     editor.wordsChanged();
@@ -74,7 +78,7 @@ export class CodeInputEngine {
 
         // A server-pushed value lands on the textarea with no event, unlike typing which already came through `input`; the pushed
         // text also carries the line break the textarea forgets.
-        context.propertyPatchEngine.addValueChangeHandler(change => {
+        const stopPatch = context.propertyPatchEngine.addValueChangeHandler(change => {
             if (change.local)
                 return;
 
@@ -89,13 +93,43 @@ export class CodeInputEngine {
         });
 
         // The caret's place and the carets beside it: the selection is the document's, so one listener serves every editor.
-        document.addEventListener("selectionchange", () => {
+        const onSelectionChange = (): void => {
             const active = document.activeElement;
             const root = active instanceof HTMLTextAreaElement ? active.closest<HTMLElement>(RootSelector) : null;
 
             if (root !== null)
                 this.editors.get(root)?.selectionChanged();
-        });
+        };
+
+        document.addEventListener("selectionchange", onSelectionChange);
+        this.cleanups.push(
+            () => attachObserver?.disconnect(),
+            () => readOnlyObserver?.disconnect(),
+            () => inertObserver?.disconnect(),
+            stopLanguages,
+            () => {
+                if (typeof stopStrings === "function")
+                    stopStrings();
+            },
+            () => {
+                if (typeof stopPatch === "function")
+                    stopPatch();
+            },
+            () => document.removeEventListener("selectionchange", onSelectionChange)
+        );
+    }
+
+    /** Disposes every observer, listener and live editor when the engine is disposed. */
+    public dispose(): void {
+        for (const cleanup of this.cleanups)
+            cleanup();
+
+        this.cleanups.length = 0;
+
+        for (const editor of [...this.live]) {
+            this.live.delete(editor);
+            editor.dispose();
+        }
     }
 
     /** An editor whose root left the page is disposed: its size watch would otherwise keep the whole editor alive. */

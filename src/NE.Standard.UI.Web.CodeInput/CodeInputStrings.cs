@@ -29,21 +29,33 @@ public sealed partial class CodeInputStrings : IUIStringsSource
     public const string Suggestions = "ui.code.suggestions";
 
     /// <summary>The placeholder a picture stands under in a Markdown text while it uploads: its file's <c>{name}</c>.</summary>
-    public const string PictureUploading = "ui.code.picture-uploading";
+    public const string ImageUploading = "ui.code.image-uploading";
 
     /// <summary>The Markdown format bar's own accessible name.</summary>
     public const string FormatBar = "ui.code.format-bar";
 
-    /// <summary>The format bar's buttons, each its name and tooltip: bold, italic, strikethrough, code, a link, a heading, a list.</summary>
+    /// <summary>The format bar's bold button accessible name.</summary>
     public const string FormatBold = "ui.code.format-bold";
+
+    /// <summary>The format bar's italic button accessible name.</summary>
     public const string FormatItalic = "ui.code.format-italic";
+
+    /// <summary>The format bar's strikethrough button accessible name.</summary>
     public const string FormatStrikethrough = "ui.code.format-strikethrough";
+
+    /// <summary>The format bar's inline-code button accessible name.</summary>
     public const string FormatCode = "ui.code.format-code";
+
+    /// <summary>The format bar's link button accessible name.</summary>
     public const string FormatLink = "ui.code.format-link";
+
+    /// <summary>The format bar's heading menu button accessible name.</summary>
     public const string FormatHeading = "ui.code.format-heading";
+
+    /// <summary>The format bar's bulleted-list button accessible name.</summary>
     public const string FormatList = "ui.code.format-list";
 
-    /** An entry of the heading button's menu: its <c>{level}</c>, one to six. */
+    /// <summary>An entry of the heading button's menu: its <c>{level}</c>, one to six.</summary>
     public const string FormatHeadingLevel = "ui.code.format-heading-level";
 
     /// <inheritdoc/>
@@ -75,7 +87,7 @@ public sealed partial class CodeInputStrings : IUIStringsSource
             [InvalidPattern] = "Invalid pattern",
             [Position] = "Ln {line}, Col {column}",
             [Suggestions] = "Suggestions",
-            [PictureUploading] = "Uploading {name}…",
+            [ImageUploading] = "Uploading {name}…",
             [FormatBar] = "Formatting",
             [FormatBold] = "Bold",
             [FormatItalic] = "Italic",

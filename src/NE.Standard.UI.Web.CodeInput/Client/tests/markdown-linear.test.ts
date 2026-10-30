@@ -19,7 +19,7 @@ const Ratio = 8;
 // Under this the long read is fast whatever its ratio: a ratio of two small times is mostly noise (a garbage collection under a
 // busy build doubled one), and a quadratic read of this length takes seconds. Rejected: 150 ms, which a long read went past with eight test runs at once.
 const Quick = 1000;
-const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
+const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly", checkboxClass: "ui-checkbox", checkboxInputClass: "ui-checkbox__input", checkboxBoxClass: "ui-checkbox__box", smallInputClass: "ui-input--small" } as const;
 
 // The framework's reading of an address, as the plugin surface hands it over.
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");

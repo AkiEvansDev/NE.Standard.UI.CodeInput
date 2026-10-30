@@ -44,9 +44,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
 
         RenderTooltip(context, root);
 
-        _ = RenderProperty<string?>(context, root, MarkdownDisplayComponent.TextProperty, static (target, value) =>
-            _ = target.Attribute(SourceAttribute, value ?? string.Empty)
-        , [WebDomOperation.Attribute(SourceAttribute)]);
+        _ = RenderProperty<string?>(context, root, MarkdownDisplayComponent.TextProperty, static (target, value) => _ = target.Attribute(SourceAttribute, value ?? string.Empty), [WebDomOperation.Attribute(SourceAttribute, converter: WebDomConverters.EmptyText, convertsNull: true)]);
 
         RenderFlagAttribute(context, root, MarkdownDisplayComponent.LineBreaksProperty, LineBreaksAttribute);
 

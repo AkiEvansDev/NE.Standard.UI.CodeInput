@@ -75,7 +75,8 @@ export class CodeEditor {
             strings,
             () => this.language,
             { read: () => this.carets.read(), write: (set, reveal) => this.carets.write(set, reveal), virtualColumns: () => this.carets.primaryPadding },
-            fromServer => this.findReplace?.refreshIfOpen(fromServer)
+            fromServer => this.findReplace?.refreshIfOpen(fromServer),
+            element => context.states.isInert(element)
         );
         this.surface.renderAll();
 
@@ -240,8 +241,10 @@ export class CodeEditor {
         this.formatBar.wordsChanged();
     }
 
-    /** Lets go of what would outlive the root: the watches on it. Called once the root has left the page. */
+    /** Lets go of what would outlive the root: the watches and open popups on it. Called once the root has left the page. */
     public dispose(): void {
+        this.completions.close();
+        this.formatBar.close();
         this.carets.dispose();
     }
 
@@ -279,6 +282,15 @@ export class CodeEditor {
             this.findReplace?.replaceHidden();
 
         this.settingsChanged();
+    }
+
+    /** The root's disabled or loading mark moved: an inert field closes any open list or format bar of its own. */
+    public inertChanged(): void {
+        if (!this.surface.isLocked)
+            return;
+
+        this.completions.close();
+        this.formatBar.close();
     }
 
     /** The language or a switch may have been patched; anything else the observer reports is this editor's own writing. */

@@ -5,6 +5,7 @@ import { tokenClass } from "./highlighter.ts";
 import { WordCharacter, wordAt } from "./motion.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import { TokenKinds } from "./tokenizer.ts";
+import { warnOnce } from "./warn-once.ts";
 
 /** Any token kind, whose ink the label wears as the same word wears it in the text; `text` is plain, as no kind is. */
 type CompletionKind = TokenKind | "text";
@@ -65,8 +66,9 @@ export async function collectCompletions(sources: readonly CompletionSource[], c
 
             collected.push(...items);
         }
-        catch {
+        catch (error) {
             // Left out, not thrown: the sources after this one still run.
+            warnOnce(source, "a completions provider threw; its words are left out.", error);
         }
     }
 

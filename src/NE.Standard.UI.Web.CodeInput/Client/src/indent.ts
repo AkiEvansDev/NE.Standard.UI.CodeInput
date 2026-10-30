@@ -4,6 +4,19 @@ import type { Edit, SelectionSet } from "./selections.ts";
 import { editRanges, isCaret, mapPosition, normalizeSelections, rangeEnd, rangeStart } from "./selections.ts";
 import { linesOf, visualColumn } from "./motion.ts";
 
+/** The most spaces a tab stop is, as the status bar offers them (`UICodeInputStrings.MaxTabSize`). */
+export const MaxTabSize = 8;
+
+/**
+ * A tab stop as the root's variable says it, held to the one to eight spaces the status bar offers: a value pushed past them, or
+ * none, reads as the default four rather than a line of a thousand spaces.
+ */
+export function readTabSize(text: string): number {
+    const size = Number.parseInt(text, 10);
+
+    return Number.isFinite(size) && size > 0 && size <= MaxTabSize ? size : 4;
+}
+
 /** The edits a Tab (or Shift+Tab, `outdent`) makes, or null when nothing would change. */
 export function applyTab(text: string, set: SelectionSet, tabSize: number, outdent: boolean): { readonly edits: Edit[]; readonly after: SelectionSet } | null {
     // Carets alone indent at each caret, to its next stop; anything else moves whole lines.

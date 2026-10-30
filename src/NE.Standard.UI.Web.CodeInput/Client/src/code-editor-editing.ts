@@ -49,10 +49,10 @@ export class CodeEditorEditing {
             // Chrome opens view-source on Ctrl+U; prevented whatever the field holds, a read-only field just changes nothing.
             domEvent.preventDefault();
 
-            if (!this.textarea.readOnly)
+            if (!this.surface.isLocked)
                 this.changeCase(domEvent.shiftKey);
         }
-        else if (!this.shortcuts.isPlainKey(domEvent, { shift: true }) || this.textarea.readOnly)
+        else if (!this.shortcuts.isPlainKey(domEvent, { shift: true }) || this.surface.isLocked)
             return;
         else if (domEvent.key === "Tab") {
             domEvent.preventDefault();
@@ -106,6 +106,11 @@ export class CodeEditorEditing {
      * carets every edit is made here; an edit type this doesn't recognize is left to the browser.
      */
     public beforeInput(domEvent: InputEvent): void {
+        if (this.surface.isLocked) {
+            domEvent.preventDefault();
+            return;
+        }
+
         if (domEvent.inputType === "historyUndo" || domEvent.inputType === "historyRedo") {
             domEvent.preventDefault();
 
@@ -214,7 +219,7 @@ export class CodeEditorEditing {
     }
 
     public cut(domEvent: ClipboardEvent): void {
-        if (this.textarea.readOnly)
+        if (this.surface.isLocked)
             return;
 
         const pieces = this.selectedPieces();
@@ -232,7 +237,7 @@ export class CodeEditorEditing {
     public paste(domEvent: ClipboardEvent): void {
         const set = this.carets.read();
 
-        if (set.ranges.length < 2 || this.textarea.readOnly || domEvent.clipboardData === null)
+        if (set.ranges.length < 2 || this.surface.isLocked || domEvent.clipboardData === null)
             return;
 
         // The textarea holds every line break as LF, and a paste the browser makes is normalized the same way.

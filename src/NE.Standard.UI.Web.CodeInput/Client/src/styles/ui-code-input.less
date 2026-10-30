@@ -71,9 +71,6 @@
     overflow: hidden;
     // What the sticky line numbers paint over text scrolled under them: whatever the field paints at the moment.
     --ui-code-ground: var(--ui-field-fill);
-    // An editor is not a row of a list that lifts under the pointer: its hover is its rest, whatever the appearance.
-    --ui-field-hover: var(--ui-field-rest);
-    --ui-field-hover-accent: var(--ui-color-mark);
 }
 
     // The half padding Ghost and Underline give a row's field is a row's; the box has its air inside the scroller.
@@ -97,10 +94,6 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    // The box's focus edge lies inside its border (an outline, Filled's inset shadow), and a scroller is a layer painted over it, so
-    // the gutter's ground cut the edge; clipped a ring's width in, round the box's corners, it leaves the edge whole.
-    @ui-code-input-radius: .ui-responsive-chain(--ui-border-radius; var(--ui-radius-input))[@value];
-    clip-path: ~"inset(var(--ui-input-focus-ring, 1px) round @{ui-code-input-radius})";
     font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);
     line-height: var(--ui-code-line-height);
@@ -403,7 +396,7 @@
     align-items: stretch;
     gap: @ui-space-1;
     height: var(--ui-code-status-height, 1.5rem);
-    padding: 0 0 0 @ui-space-2;
+    padding: 2px @ui-space-1 2px @ui-space-2;
     border-top: var(--ui-border-width, 1px) solid var(--ui-color-border);
     color: var(--ui-text-muted);
     font-family: inherit;
@@ -446,11 +439,11 @@
         height: auto;
     }
 
-        // The word is square, as the bar's own edge is; the list it opens keeps a list's corners. Its ink eases with its ground.
+        // The picker trigger shares the standard list-entry corner radius (`6px`), as the list it opens does. Its ink eases with its ground.
         .ui-code-input__status-picker .ui-select__trigger {
             flex: 1 1 auto;
             min-height: 0;
-            .ui-responsive-property(border-radius, --ui-border-radius, 0);
+            .ui-responsive-property(border-radius, --ui-border-radius, @ui-list-entry-radius);
             transition: border-color @ui-motion-fast @ui-motion-ease, box-shadow @ui-motion-fast @ui-motion-ease, background-color @ui-motion-fast @ui-motion-ease, color @ui-motion-fast @ui-motion-ease;
         }
 
@@ -473,8 +466,12 @@
         }
     }
 
-    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger[aria-expanded="true"] {
+    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:is([aria-expanded="true"], @{ui-keyboard-focus}) {
         @ui-code-input-picker-lift();
+    }
+
+    .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger@{ui-keyboard-focus} {
+        .ui-keyboard-frame();
     }
 
     .ui-code-input__status-picker > .ui-select@{ui-field-live} > .ui-select__trigger:active {
@@ -489,7 +486,7 @@
     .ui-popup-open(flex);
     .ui-entry-list();
     min-width: 12rem;
-    max-height: calc(10 * 1.5rem + 9 * @ui-list-entry-gap + 2 * @ui-space-1 + 2 * var(--ui-border-width, 1px));
+    max-height: calc(10 * @ui-list-row-height + 9 * @ui-list-entry-gap + 2 * @ui-space-1 + 2 * var(--ui-border-width, 1px));
     margin: 0;
     list-style: none;
 }
@@ -498,26 +495,31 @@
         .ui-popup-closed();
     }
 
-// A row is the editor's own line height, its words centred on it; the detail is smaller and would sit off a baseline.
+// A row uses the standard list row height with its words centred on it; the detail is smaller and would sit off a baseline.
 .ui-code-input__completion {
     display: flex;
     align-items: center;
     gap: @ui-space-2;
-    height: 1.5rem;
-    padding: 0 @ui-space-2;
+    min-height: @ui-list-row-height;
+    padding: @ui-space-1 @ui-space-2;
     border-radius: @ui-list-entry-radius;
-    color: var(--ui-color-on-surface);
+    color: @ui-text-ink;
     font-family: @ui-font-mono;
     font-size: var(--ui-code-font-size);
     cursor: pointer;
     white-space: nowrap;
-    // The pointer moves the active row (the engine's), and the hover wash never lands on it, so it never reads weaker.
-    .ui-entry-hover(~".ui-code-input__completion--active");
+    // The pointer moves the active row (the engine's), so no separate :hover wash lights a second row at the same time.
 }
 
     // The active row takes the wash, not the selected ground: a label is coloured by its kind, and the primary tint fought it.
     .ui-code-input__completion--active {
+        background-color: var(--ui-wash-hover);
+        color: var(--ui-color-on-surface);
+    }
+
+    .ui-code-input__completion:active {
         background-color: var(--ui-wash-active);
+        color: var(--ui-color-on-surface);
     }
 
 .ui-code-input__completion-label {
@@ -527,7 +529,7 @@
 .ui-code-input__completion-detail {
     .ui-text-nowrap();
     margin-left: auto;
-    padding-left: @ui-space-2;
+    padding-left: @ui-space-4;
     color: var(--ui-text-muted);
     font-size: var(--ui-text-caption-font-size);
 }
@@ -552,7 +554,7 @@
         &[aria-pressed="true"] {
             .ui-selected-ground();
             .ui-selected-ink();
-            .ui-reveal-hover-off({ .ui-selected-ground(); });
+            .ui-reveal-hover-off({ .ui-selected-ground(); .ui-selected-ink(); });
         }
     }
 

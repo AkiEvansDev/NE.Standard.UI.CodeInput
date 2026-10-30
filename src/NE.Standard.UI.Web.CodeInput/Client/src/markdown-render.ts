@@ -4,7 +4,7 @@
 
 import type { Urls } from "ne-standard-ui";
 import type { MarkdownNames } from "./code-editor-dom.ts";
-import { CoreNames, MarkdownRootClass } from "./code-editor-dom.ts";
+import { MarkdownRootClass } from "./code-editor-dom.ts";
 import { escapeHtml } from "./highlighter.ts";
 import type { Block, ListItem, TableAlignment } from "./markdown-blocks.ts";
 import { parseMarkdown } from "./markdown-blocks.ts";
@@ -148,9 +148,9 @@ function renderList(ordered: boolean, start: number, tight: boolean, items: read
 
         // Read-only, not disabled, which would grey the state out; the framework refuses a click that reaches it.
         const checked = item.checked ? " checked" : "";
-        const box = `${CoreNames.checkboxClass} ${CoreNames.smallInputClass} ${rendering.names.readOnlyClass} ${ClassName}__check`;
+        const box = `${rendering.names.checkboxClass} ${rendering.names.smallInputClass} ${rendering.names.readOnlyClass} ${ClassName}__check`;
 
-        html += `<li class="${ClassName}__task"${sourceLine(item.line, rendering)}><span class="${box}"><input class="${CoreNames.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${checked}><span class="${CoreNames.checkboxBoxClass}"></span></span>${content}</li>`;
+        html += `<li class="${ClassName}__task"${sourceLine(item.line, rendering)}><span class="${box}"><input class="${rendering.names.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${checked}><span class="${rendering.names.checkboxBoxClass}"></span></span>${content}</li>`;
     }
 
     return `${html}</${tag}>`;

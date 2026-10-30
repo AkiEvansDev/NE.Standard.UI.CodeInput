@@ -1,6 +1,7 @@
 import { CodeClass, CurrentMatchClass, MatchClass } from "./code-editor-dom.ts";
 import type { LineState, Token, TokenKind, Tokenizer } from "./tokenizer.ts";
 import { statesEqual } from "./tokenizer.ts";
+import { warnOnce } from "./warn-once.ts";
 
 /** A find match on one line; a match that spans lines is a mark on each. */
 export type Mark = {
@@ -176,7 +177,9 @@ export class Highlighter {
 
             return { text, startState, endState, tokens, marks: NoMarks };
         }
-        catch {
+        catch (error) {
+            warnOnce(this.tokenizer, "a language's tokenizer threw; the lines it fails on are drawn plain.", error);
+
             return { text, startState, endState: startState, tokens: NoTokens, marks: NoMarks };
         }
     }

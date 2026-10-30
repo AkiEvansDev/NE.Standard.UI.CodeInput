@@ -6,6 +6,9 @@ import test from "node:test";
 import { Highlighter, renderSegments } from "../src/highlighter.ts";
 import { javascriptTokenizer } from "../src/languages/javascript.ts";
 
+// A degrade here warns once on the console; degrade-warnings.test.ts asserts the words, so these runs stay quiet.
+console.warn = () => {};
+
 test("first read renders every line", () => {
     const highlighter = new Highlighter(javascriptTokenizer);
 

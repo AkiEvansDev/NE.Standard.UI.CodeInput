@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using NE.Standard.UI.Abstractions.Binding.Properties;
-using NE.Standard.UI.Authoring.BuiltIns;
 using NE.Standard.UI.Authoring.Components;
 using NE.Standard.UI.CodeInput;
 using NE.Standard.UI.Compiled.Models;
@@ -46,11 +45,11 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     /// <summary>On the root while a Markdown field offers its format bar and keys.</summary>
     public const string FormatBarAttribute = "data-ui-code-format-bar";
 
-    /// <summary>On the root while an <c>OnPictureUpload</c> command takes the pictures pasted or dropped into a Markdown text.</summary>
-    public const string PicturesAttribute = "data-ui-code-pictures";
+    /// <summary>On the root while an <c>OnImageUpload</c> command takes the pictures pasted or dropped into a Markdown text.</summary>
+    public const string ImagesAttribute = "data-ui-code-images";
 
     /// <summary>On the root: the picture types a paste or a drop takes, when <c>Accept</c> narrows them.</summary>
-    public const string PictureAcceptAttribute = "data-ui-code-picture-accept";
+    public const string ImageAcceptAttribute = "data-ui-code-image-accept";
 
     /// <summary>On the root: the line ending the value arrived with, <c>lf</c> or <c>crlf</c>.</summary>
     public const string DetectedLineEndingAttribute = "data-ui-code-eol";
@@ -102,11 +101,11 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         {
             if (!string.IsNullOrWhiteSpace(value))
                 _ = target.Attribute(CompletionsSourceAttribute, value.Trim());
-        }, [WebDomOperation.Attribute(CompletionsSourceAttribute)]);
+        }, [WebDomOperation.Attribute(CompletionsSourceAttribute, converter: WebDomConverters.TrimmedText)]);
 
         _ = root.Attribute(DetectedLineEndingAttribute, DetectLineEnding(context));
 
-        RenderPictures(context, root);
+        RenderImages(context, root);
 
         _ = RenderProperty<int?>(context, root, CodeInputComponent.RowsProperty, static (target, value) =>
         {
@@ -119,20 +118,20 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
     /// Pictures are taken only where a command answers them: the field keeps none itself. The size limit is the framework's file
     /// limit, which its upload refuses by in the browser.
     /// </summary>
-    private static void RenderPictures(WebRenderContext context, IHtmlElementBuilder root)
+    private static void RenderImages(WebRenderContext context, IHtmlElementBuilder root)
     {
-        if (!context.ViewResolution.View.Events.TryGet(new CompiledUIEventAddress(context.Node.ComponentId, CodeInputEvents.PictureUpload), out _))
+        if (!context.ViewResolution.View.Events.TryGet(new CompiledUIEventAddress(context.Node.ComponentId, CodeInputEvents.ImageUpload), out _))
             return;
 
-        _ = root.Attribute(PicturesAttribute);
+        _ = root.Attribute(ImagesAttribute);
 
         NativeInputRendererBase.RenderMaxFileSize(context, root);
 
         _ = RenderProperty<string?>(context, root, CodeInputComponent.AcceptProperty, static (target, value) =>
         {
             if (!string.IsNullOrWhiteSpace(value))
-                _ = target.Attribute(PictureAcceptAttribute, value.Trim());
-        }, [WebDomOperation.Attribute(PictureAcceptAttribute)]);
+                _ = target.Attribute(ImageAcceptAttribute, value.Trim());
+        }, [WebDomOperation.Attribute(ImageAcceptAttribute, converter: WebDomConverters.TrimmedText)]);
     }
 
     /// <summary>The line break the value came with: the browser holds every break as LF, so only the render can tell.</summary>
@@ -204,26 +203,23 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 });
             }
 
+            // The root's variable is what the stylesheet and the Tab key read.
             RenderStatusPicker(context, status, pickers, "data-ui-code-tab-size", UICodeInputRegions.TabSize, carrier =>
-                // The root's variable is what the stylesheet and the Tab key read.
                 _ = RenderProperty<int?>(context, carrier, CodeInputComponent.TabSizeProperty, (target, value) =>
                 {
-                    var size = (value is int chosen and > 0 ? chosen : 4).ToString(CultureInfo.InvariantCulture);
+                    // Held to what the picker offers: a value pushed past it is drawn as the default, as the browser reads it.
+                    var size = (value is int chosen and > 0 and <= UICodeInputStrings.MaxTabSize ? chosen : 4).ToString(CultureInfo.InvariantCulture);
 
                     _ = target.Attribute("value", size);
                     _ = root.Style(TabSizeVariable, size);
-                }, [WebDomOperation.Property("value"), WebDomOperation.Style(TabSizeVariable, target: "root")]));
+                }, [WebDomOperation.Property("value", converter: "code-tab-size"), WebDomOperation.Style(TabSizeVariable, target: "root", converter: "code-tab-size")]));
 
             RenderStatusPicker(context, status, pickers, "data-ui-code-encoding", UICodeInputRegions.Encoding, carrier =>
-                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.EncodingProperty, static (target, value) =>
-                    _ = target.Attribute("value", string.IsNullOrWhiteSpace(value) ? UICodeEncodings.Utf8 : value)
-                , [WebDomOperation.Property("value")]));
+                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.EncodingProperty, static (target, value) => _ = target.Attribute("value", string.IsNullOrWhiteSpace(value) ? UICodeEncodings.Utf8 : value), [WebDomOperation.Property("value", converter: "code-encoding")]));
 
             // Unset is the empty value, which a null push also lands on: the engine then shows the ending the text came with.
             RenderStatusPicker(context, status, pickers, "data-ui-code-line-ending", UICodeInputRegions.LineEnding, carrier =>
-                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LineEndingProperty, static (target, value) =>
-                    _ = target.Attribute("value", value ?? string.Empty)
-                , [WebDomOperation.Property("value")]));
+                _ = RenderProperty<string?>(context, carrier, CodeInputComponent.LineEndingProperty, static (target, value) => _ = target.Attribute("value", value ?? string.Empty), [WebDomOperation.Property("value")]));
 
             // The id as the author wrote it; the client looks it up case-insensitively and falls back to plain text for one it does not know.
             RenderStatusPicker(context, status, pickers, LanguageAttribute, UICodeInputRegions.Language, carrier =>
@@ -233,7 +229,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
                     _ = target.Attribute("value", language);
                     _ = root.Attribute(LanguageAttribute, language);
-                }, [WebDomOperation.Property("value"), WebDomOperation.Attribute(LanguageAttribute, target: "root")]));
+                }, [WebDomOperation.Property("value", converter: "code-language"), WebDomOperation.Attribute(LanguageAttribute, target: "root", converter: "code-language", convertsNull: true)]));
         });
     }
 
@@ -272,6 +268,8 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         NativeInputRendererBase.RenderDebounce(context, textarea);
 
         NativeInputRendererBase.RenderPlaceholder(context, textarea);
+        // The browser's own limit on what the reader types and pastes; the server refuses a longer text however it was made.
+        NativeInputRendererBase.RenderMaxLength(context, textarea);
         NativeInputRendererBase.RenderFormId(context, textarea);
         NativeInputRendererBase.RenderFieldName(context, textarea);
         NativeInputRendererBase.RenderIsReadOnly(context, root, textarea);

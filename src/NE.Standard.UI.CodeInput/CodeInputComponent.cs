@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using NE.Standard.UI.Abstractions.Binding.Properties;
 using NE.Standard.UI.Abstractions.Styling;
 using NE.Standard.UI.Authoring.BuiltIns;
 using NE.Standard.UI.Authoring.Components;
@@ -20,23 +21,22 @@ namespace NE.Standard.UI.CodeInput;
 /// </summary>
 /// <remarks>
 /// Its <c>Accept</c> and <c>MaxFileSize</c> weigh the pictures a paste or a drop takes — unset, any picture — and only a field with an
-/// <c>OnPictureUpload</c> command takes one.
+/// <c>OnImageUpload</c> command takes one.
 /// </remarks>
+[UIComponentPropertyBlock(typeof(IBorderedComponent))]
+[UIComponentPropertyBlock(typeof(IFieldInputComponent))]
 [UIComponentPropertyBlock(typeof(IPlaceholderInputComponent))]
 [UIComponentPropertyBlock(typeof(IDebounceInputComponent))]
 [UIComponentPropertyBlock(typeof(IFileAcceptComponent))]
-public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T, string?>, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IFileAcceptComponent, IFormSubmittingComponent, ICaretFieldComponent
+[UIComponentPropertyBlock(typeof(ITextLengthComponent))]
+[UIComponentPropertyDefault(nameof(IFieldInputComponent.Appearance), nameof(DefaultAppearance))]
+public abstract partial class CodeInputComponent<T>(string? id = null) : InputComponentBase<T, string?>(id), IBorderedComponent, IFieldInputComponent, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IFileAcceptComponent, ITextLengthComponent, IFormSubmittingComponent, ICaretFieldComponent, IClientWriteCheckComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
-    private readonly Dictionary<string, IVisualComponent> _regions;
+    // An editor is read, not filled in: no box, focused or under the pointer (the stylesheet's part).
+    private const UIInputAppearance DefaultAppearance = UIInputAppearance.Ghost;
 
-    protected CodeInputComponent(string? id = null) : base(id)
-    {
-        // An editor is read, not filled in: no box, focused or under the pointer (the stylesheet's part).
-        Appearance = UIInputAppearance.Ghost;
-
-        _regions = CreateParts();
-    }
+    private readonly Dictionary<string, IVisualComponent> _regions = CreateParts();
 
     /// <summary>
     /// Gets the framework's own components the field shows — the find panel's fields, buttons and switches, the status bar's pickers —
@@ -94,32 +94,34 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
             .AsContent(IPlaceholderInputComponent.PlaceholderProperty);
 
     // Sized to its word, not a field, so it sits inline in the status bar; the popup opens from the right edge since bar items are right-aligned.
+    // A combobox takes no name from its tooltip: the tooltip's word is its name to a screen reader too, as a search switch's.
     private static SelectComponent StatusPicker(string tooltip, IEnumerable<OptionItem> options)
         => new SelectComponent()
             .SetAppearance(UIInputAppearance.Ghost)
-            .SetSize(UIInputSize.Small)
+            .SetSize(UISize.Small)
             .SetShowChevron(false)
             .SetPopupPlacement(UIPopupPlacement.TopEnd)
             .SetMinWidth(UILayoutLength.Absolute(0))
             .SetOptions(options)
-            .SetTooltip(tooltip);
+            .SetTooltip(tooltip)
+            .SetAccessibleName(tooltip);
 
-    // Tonal: the find panel frames its fields, and a Filled field's line would only add weight to it.
+    // Filled: the find panel frames its fields, with no extra rule under them.
     private static TextInputComponent SearchField(string placeholder)
-        => new TextInputComponent().SetSize(UIInputSize.Small).SetAppearance(UIInputAppearance.Tonal).SetPlaceholder(placeholder);
+        => new TextInputComponent().SetSize(UISize.Small).SetAppearance(UIInputAppearance.Filled).SetPlaceholder(placeholder);
 
     private static ButtonComponent SearchButton(string icon, string tooltip)
         => new ButtonComponent()
-            .SetType(UIButtonType.Ghost)
-            .SetSize(UIButtonSize.Small)
+            .SetVariant(UIButtonVariant.Ghost)
+            .SetSize(UISize.Small)
             .SetIcon(icon)
             .SetTooltip(tooltip);
 
     // Its mark ("Aa", ".*") is content; the tooltip's word is its name to a screen reader too.
     private static ButtonComponent SearchSwitch(string title, string tooltip)
         => new ButtonComponent()
-            .SetType(UIButtonType.Ghost)
-            .SetSize(UIButtonSize.Small)
+            .SetVariant(UIButtonVariant.Ghost)
+            .SetSize(UISize.Small)
             .SetTitle(title)
             .AsContent(ITextBaseComponent.TitleProperty)
             .SetTooltip(tooltip)
@@ -130,10 +132,7 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// Gets or sets the highlighting language, by id — one of <see cref="UICodeLanguages"/> or a registered package id. Two-way: the
     /// status bar picker writes it back.
     /// </summary>
-    [UIComponentProperty(
-        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
-        DefaultBindingMode = UIBindingMode.TwoWay,
-        DefaultValue = UICodeLanguages.PlainText)]
+    [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = UICodeLanguages.PlainText)]
     public string? Language { get; set; }
 
     /// <summary>
@@ -180,11 +179,7 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// <summary>
     /// Gets or sets how many spaces a tab stop is, and what the Tab key inserts. Two-way: the status bar's picker writes the choice back.
     /// </summary>
-    [UIComponentProperty(
-        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
-        DefaultBindingMode = UIBindingMode.TwoWay,
-        DefaultValue = 4,
-        GenerateSetter = false)]
+    [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = 4, GenerateSetter = false)]
     public int? TabSize { get; set; }
 
     /// <summary>
@@ -206,20 +201,14 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// Gets or sets the encoding the application writes the text out as — one of <see cref="UICodeEncodings"/>.
     /// </summary>
     /// <remarks>The field only holds text: the browser ignores this value, and the status bar offers the choice.</remarks>
-    [UIComponentProperty(
-        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
-        DefaultBindingMode = UIBindingMode.TwoWay,
-        DefaultValue = UICodeEncodings.Utf8)]
+    [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = UICodeEncodings.Utf8)]
     public string? Encoding { get; set; }
 
     /// <summary>
     /// Gets or sets the line break the value is written with — <see cref="UICodeLineEndings"/>. Unset, the field keeps the value's
     /// own line break; a choice converts the text on the next commit.
     /// </summary>
-    [UIComponentProperty(
-        BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource,
-        DefaultBindingMode = UIBindingMode.TwoWay,
-        DefaultValue = null)]
+    [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = null)]
     public string? LineEnding { get; set; }
 
     /// <summary>
@@ -228,13 +217,21 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     [UIComponentProperty(DefaultValue = 12, GenerateSetter = false)]
     public int? Rows { get; set; }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// What the status bar offers: a tab stop of one to <see cref="UICodeInputStrings.MaxTabSize"/> spaces, a listed encoding and
+    /// language, LF or CRLF (or none, the value's own). Render-time only.
+    /// </remarks>
+    [UIComponentProperty(Contract = typeof(IClientWriteCheckComponent), IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public UIClientWriteCheck? ClientWriteCheck => CodeInputWriteCheck.Instance;
+
     /// <summary>
-    /// Sets how many spaces a tab stop is, from one to eight.
+    /// Sets how many spaces a tab stop is, from one to <see cref="UICodeInputStrings.MaxTabSize"/>.
     /// </summary>
     public T SetTabSize(int tabSize)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(tabSize, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(tabSize, 8);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(tabSize, UICodeInputStrings.MaxTabSize);
 
         TabSize = tabSize;
         return Self;
@@ -260,6 +257,10 @@ public abstract partial class CodeInputComponent<T> : FieldInputComponentBase<T,
     /// <summary>Its save submits its form, so an <c>OnSubmit</c> value goes before the command (<c>code-input.ts</c> registers it so).</summary>
     public bool SubmitsForm(string eventName)
         => eventName == CodeInputEvents.Save;
+
+    /// <summary>A multi-line field keeps its caption on top whatever <c>TitlePlacement</c> asks, as its renderer draws it.</summary>
+    public override UISize? CaptionRowBox(UIResponsiveTier tier)
+        => InputCaptionRow.Box(this, tier, honoursInside: false);
 }
 
 /// <summary>
@@ -269,4 +270,41 @@ public sealed class CodeInputComponent(string? id = null) : CodeInputComponent<C
 {
     /// <inheritdoc/>
     public static string ComponentTypeKey => "codeinput.input.code";
+}
+
+/// <summary>The status bar's offer, which the page's writes to a code field's settings are held to.</summary>
+internal sealed class CodeInputWriteCheck : UIClientWriteCheck
+{
+    public static CodeInputWriteCheck Instance { get; } = new();
+
+    /// <inheritdoc/>
+    public override bool Accepts(UIProperty property, object? value)
+    {
+        if (property == CodeInputComponent.TabSizeProperty)
+            return value is int and >= 1 and <= UICodeInputStrings.MaxTabSize;
+
+        if (property == CodeInputComponent.EncodingProperty)
+            return value is string encoding && IsListed(UICodeEncodings.All, encoding);
+
+        // Unset is a line ending's own choice: the value keeps the line break it came with.
+        if (property == CodeInputComponent.LineEndingProperty)
+            return value is null or UICodeLineEndings.Lf or UICodeLineEndings.CrLf;
+
+        // Every language the registry lists, shipped or registered, as the status bar lists them.
+        if (property == CodeInputComponent.LanguageProperty)
+            return value is string language && IsListed(UICodeLanguages.All, language);
+
+        return true;
+    }
+
+    private static bool IsListed(IReadOnlyList<KeyValuePair<string, string>> listed, string id)
+    {
+        foreach (KeyValuePair<string, string> entry in listed)
+        {
+            if (string.Equals(entry.Key, id, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
 }

@@ -10,7 +10,8 @@ import type { Edit, SelectionSet } from "./selections.ts";
 import { applyEdits, mapPosition, singleSelection } from "./selections.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { GutterDigitsVariable, LineClass, PositionWord, TabSizeVariable } from "./code-editor-dom.ts";
+import { GutterDigitsVariable, LineClass, PositionWord, SaveEvent, TabSizeVariable } from "./code-editor-dom.ts";
+import { readTabSize } from "./indent.ts";
 import { languages } from "./languages/index.ts";
 
 export type SurfaceParts = {
@@ -37,6 +38,7 @@ export class CodeEditorSurface {
     private readonly getLanguage: () => string;
     private readonly selections: SelectionAccess;
     private readonly notifyTextChanged: (fromServer: boolean) => void;
+    private readonly isInert: (element: Element) => boolean;
     private readonly history = new EditHistory();
     private highlighter: Highlighter;
 
@@ -46,7 +48,7 @@ export class CodeEditorSurface {
     /** The carets as they stood when the browser was about to make an edit of its own. */
     private pendingBefore: SelectionSet | null = null;
 
-    public constructor(parts: SurfaceParts, strings: Strings, getLanguage: () => string, selections: SelectionAccess, notifyTextChanged: (fromServer: boolean) => void) {
+    public constructor(parts: SurfaceParts, strings: Strings, getLanguage: () => string, selections: SelectionAccess, notifyTextChanged: (fromServer: boolean) => void, isInert: (element: Element) => boolean = () => false) {
         this.root = parts.root;
         this.textarea = parts.textarea;
         this.highlight = parts.highlight;
@@ -55,8 +57,33 @@ export class CodeEditorSurface {
         this.getLanguage = getLanguage;
         this.selections = selections;
         this.notifyTextChanged = notifyTextChanged;
+        this.isInert = isInert;
         this.highlighter = new Highlighter(languages.get(getLanguage()));
         this.lastValue = parts.textarea.value;
+    }
+
+    /** Whether the field refuses edits and saves right now — read-only, disabled, or loading. */
+    public get isLocked(): boolean {
+        return this.textarea.readOnly || this.isInert(this.textarea);
+    }
+
+    /** The field's `maxlength` attribute when set to a non-negative integer; null otherwise. */
+    private get maxLength(): number | null {
+        const raw = this.textarea.getAttribute("maxlength");
+
+        if (raw === null || raw.length === 0)
+            return null;
+
+        const parsed = Number(raw);
+
+        return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+    }
+
+    /** Whether a replacement of `nextLength` units runs past `MaxLength` (still allowing a controller-set over-limit text to shrink). */
+    private exceedsMaxLength(nextLength: number, currentLength: number): boolean {
+        const limit = this.maxLength;
+
+        return limit !== null && nextLength > limit && nextLength > currentLength;
     }
 
     public renderAll(): void {
@@ -120,9 +147,7 @@ export class CodeEditorSurface {
     }
 
     public get tabSize(): number {
-        const size = Number.parseInt(getComputedStyle(this.root).getPropertyValue(TabSizeVariable), 10);
-
-        return Number.isFinite(size) && size > 0 ? size : 4;
+        return readTabSize(getComputedStyle(this.root).getPropertyValue(TabSizeVariable));
     }
 
     /** The caret's line and column, one-based; a selection reads at its end. */
@@ -147,11 +172,11 @@ export class CodeEditorSurface {
 
     /** Ctrl+S: the value goes to the server now, ahead of any debounce or blur, and then the field's `save` event is raised. */
     public save(): void {
-        if (this.textarea.readOnly)
+        if (this.isLocked)
             return;
 
         this.textarea.dispatchEvent(new Event("change", { bubbles: true }));
-        this.textarea.dispatchEvent(new Event("save", { bubbles: true }));
+        this.textarea.dispatchEvent(new Event(SaveEvent, { bubbles: true }));
     }
 
     /** The browser is about to edit the text itself — a keystroke, an input method, a drop: the carets it starts from, for the history. */
@@ -200,7 +225,7 @@ export class CodeEditorSurface {
 
     /** Makes sorted, non-overlapping edits as one step of the history and puts the carets where `after` says; answers the change recorded. */
     public apply(edits: readonly Edit[], after: SelectionSet, kind: EditKind): Change | null {
-        if (this.textarea.readOnly)
+        if (this.isLocked)
             return null;
 
         this.adoptOutsideValue();
@@ -212,10 +237,15 @@ export class CodeEditorSurface {
         }
 
         const value = this.textarea.value;
+        const next = applyEdits(value, edits);
+
+        if (this.exceedsMaxLength(next.length, value.length))
+            return null;
+
         const change: Change = { edits, removed: edits.map(edit => value.slice(edit.from, edit.to)), before: this.selections.read(), after };
 
         this.history.record(change, kind);
-        this.commit(applyEdits(value, edits), edits.length === 1 ? edits[0] : null, after, kind === "typing", true);
+        this.commit(next, edits.length === 1 ? edits[0] : null, after, kind === "typing", true);
         return change;
     }
 
@@ -225,12 +255,17 @@ export class CodeEditorSurface {
      * is no step at all. The carets stay where the reader has them, moved along by the edit, and the view stays where it is.
      */
     public applyFor(anchor: Change, edit: Edit): void {
-        if (this.textarea.readOnly)
+        if (this.isLocked)
             return;
 
         this.adoptOutsideValue();
 
         const value = this.textarea.value;
+        const next = applyEdits(value, [edit]);
+
+        if (this.exceedsMaxLength(next.length, value.length))
+            return;
+
         const before = this.selections.read();
         const after: SelectionSet = { ranges: before.ranges.map(range => ({ anchor: mapPosition(range.anchor, [edit]), head: mapPosition(range.head, [edit]) })), primary: before.primary };
         const change: Change = { edits: [edit], removed: [value.slice(edit.from, edit.to)], before, after };
@@ -238,7 +273,7 @@ export class CodeEditorSurface {
         if (!this.history.retract(change, anchor))
             this.history.recordFor(change, anchor);
 
-        this.commit(applyEdits(value, [edit]), edit, after, false, false);
+        this.commit(next, edit, after, false, false);
     }
 
     /** A value that changed with no edit and no push — a form reset — leaves the history nothing it can still undo. */
@@ -268,8 +303,8 @@ export class CodeEditorSurface {
     }
 
     /** Replaces one span and leaves the caret after it — find and replace's edit. */
-    public replaceRange(from: number, to: number, text: string): void {
-        this.apply([{ from, to, text }], singleSelection(from + text.length), "other");
+    public replaceRange(from: number, to: number, text: string): boolean {
+        return this.apply([{ from, to, text }], singleSelection(from + text.length), "other") !== null;
     }
 
     /** Selects one span, whatever carets there were — find's step to a match. */
@@ -286,14 +321,15 @@ export class CodeEditorSurface {
     }
 
     private restore(take: (text: string) => Restore | null): void {
-        if (this.textarea.readOnly)
+        if (this.isLocked)
             return;
 
         this.adoptOutsideValue();
 
-        const restored = take(this.textarea.value);
+        const current = this.textarea.value;
+        const restored = take(current);
 
-        if (restored !== null)
+        if (restored !== null && !this.exceedsMaxLength(restored.text.length, current.length))
             this.commit(restored.text, null, restored.selections, false, true);
     }
 

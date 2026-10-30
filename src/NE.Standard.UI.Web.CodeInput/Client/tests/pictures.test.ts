@@ -4,7 +4,7 @@ import test from "node:test";
 import type { ValidationWords } from "ne-standard-ui";
 
 import type { CodeEditorCarets } from "../src/code-editor-carets.ts";
-import { CoreWords, PictureUploadEvent, PicturesAttribute } from "../src/code-editor-dom.ts";
+import { CoreWords, ImageUploadEvent, ImagesAttribute } from "../src/code-editor-dom.ts";
 import { CodeEditorPictures, insertPicture, pictureUploadCompleted } from "../src/code-editor-pictures.ts";
 import type { PictureUploadDetail } from "../src/code-editor-pictures.ts";
 import type { CodeEditorSurface } from "../src/code-editor-surface.ts";
@@ -38,7 +38,7 @@ function setUp(options: { language?: string; maxSize?: number; accept?: string }
         selectionEnd: 0,
         focus: () => {},
         dispatchEvent: (event: Event) => {
-            if (event.type === PictureUploadEvent)
+            if (event.type === ImageUploadEvent)
                 events.push((event as CustomEvent<PictureUploadDetail>).detail);
             else if (event.type === "change")
                 committed.push(textarea.value);
@@ -48,8 +48,8 @@ function setUp(options: { language?: string; maxSize?: number; accept?: string }
     };
     const root = {
         isConnected: true,
-        hasAttribute: (name: string) => name === PicturesAttribute,
-        getAttribute: (name: string) => name === "data-ui-code-picture-accept" ? options.accept ?? null : null,
+        hasAttribute: (name: string) => name === ImagesAttribute,
+        getAttribute: (name: string) => name === "data-ui-code-image-accept" ? options.accept ?? null : null,
         classList: { add: () => {}, remove: () => {} }
     };
     // The surface's two edits, on the text alone; the history is EditHistory's own test.

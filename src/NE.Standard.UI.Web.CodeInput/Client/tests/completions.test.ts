@@ -7,6 +7,9 @@ import type { CompletionContext, CompletionItem } from "../src/completions.ts";
 import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
 import { renderSegments } from "../src/highlighter.ts";
 
+// A degrade here warns once on the console; degrade-warnings.test.ts asserts the words, so these runs stay quiet.
+console.warn = () => {};
+
 function context(overrides: Partial<CompletionContext> = {}): CompletionContext {
     return { text: "", offset: 0, line: 0, column: 0, prefix: "", languageId: "plain-text", ...overrides };
 }

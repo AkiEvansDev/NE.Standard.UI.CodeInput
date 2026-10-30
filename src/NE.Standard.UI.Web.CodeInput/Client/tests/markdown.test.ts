@@ -12,7 +12,7 @@ import type { MarkdownPictureSources, MarkdownUrls } from "../src/markdown-rende
 import { NoMarkdownStyles, NoPictureSources, renderMarkdown } from "../src/markdown-render.ts";
 
 // The framework's names as the plugin surface hands them over.
-const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly" } as const;
+const names = { sourceLine: "data-ui-source-line", readOnlyClass: "ui-readonly", checkboxClass: "ui-checkbox", checkboxInputClass: "ui-checkbox__input", checkboxBoxClass: "ui-checkbox__box", smallInputClass: "ui-input--small" } as const;
 
 // The framework's one address rule, as the plugin surface hands it over.
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../..");

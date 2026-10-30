@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyTab, lineBreakText } from "../src/indent.ts";
+import { applyTab, lineBreakText, MaxTabSize, readTabSize } from "../src/indent.ts";
 import { applyEdits, singleSelection } from "../src/selections.ts";
 import { marked, parse } from "./marked.ts";
 
@@ -89,4 +89,12 @@ test("Enter keeps the indent, and opens a stop after a bracket or Python's colon
     assert.equal(lineBreakText("  if {", 6, 4, false), "\n      ");
     assert.equal(lineBreakText("def f():", 8, 4, true), "\n    ");
     assert.equal(lineBreakText("def f():", 8, 4, false), "\n");
+});
+
+test("a tab stop is held to the one to eight spaces the status bar offers; none, or one past them, reads as four", () => {
+    assert.equal(readTabSize("2"), 2);
+    assert.equal(readTabSize(String(MaxTabSize)), MaxTabSize);
+    assert.equal(readTabSize(String(MaxTabSize + 1)), 4);
+    assert.equal(readTabSize("0"), 4);
+    assert.equal(readTabSize(""), 4);
 });
