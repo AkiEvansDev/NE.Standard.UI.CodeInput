@@ -2,7 +2,7 @@
 // The popup, the `CompletionsSource` fetch and the list's keys live in `code-editor-completions.ts`.
 
 import { tokenClass } from "./highlighter.ts";
-import { WordCharacter, wordAt } from "./motion.ts";
+import { codePointBefore, WordCharacter, wordAt } from "./motion.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import { TokenKinds } from "./tokenizer.ts";
 import { warnOnce } from "./warn-once.ts";
@@ -42,8 +42,14 @@ export type CompletionsFile = {
 export function prefixStart(text: string, offset: number): number {
     let start = offset;
 
-    while (start > 0 && WordCharacter.test(text.charAt(start - 1)))
-        start--;
+    while (start > 0) {
+        const ch = codePointBefore(text, start);
+
+        if (!WordCharacter.test(ch))
+            break;
+
+        start -= ch.length;
+    }
 
     return start;
 }

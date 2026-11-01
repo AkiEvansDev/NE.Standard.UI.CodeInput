@@ -180,10 +180,22 @@ export function findOccurrences(text: string, needle: string): number[] {
 export function nextOccurrence(text: string, set: SelectionSet): number {
     const primary = set.ranges[set.primary];
     const needle = text.slice(rangeStart(primary), rangeEnd(primary));
-    const taken = new Set(set.ranges.map(rangeStart));
-    const occurrences = findOccurrences(text, needle).filter(at => !taken.has(at) && !overlapsAny(set.ranges, at, at + needle.length));
 
-    return occurrences.find(at => at >= rangeEnd(primary)) ?? occurrences[0] ?? -1;
+    if (needle.length === 0)
+        return -1;
+
+    const after = firstFreeOccurrence(text, needle, rangeEnd(primary), text.length, set.ranges);
+
+    return after >= 0 ? after : firstFreeOccurrence(text, needle, 0, rangeStart(primary), set.ranges);
+}
+
+function firstFreeOccurrence(text: string, needle: string, from: number, until: number, ranges: readonly Selection[]): number {
+    for (let at = text.indexOf(needle, from); at >= 0 && at + needle.length <= until; at = text.indexOf(needle, at + 1)) {
+        if (!overlapsAny(ranges, at, at + needle.length))
+            return at;
+    }
+
+    return -1;
 }
 
 function overlapsAny(ranges: readonly Selection[], from: number, to: number): boolean {

@@ -33,6 +33,9 @@ test("the word at a caret is the run around it", () => {
     assert.deepEqual(wordAt("let value = 1", 6), { from: 4, to: 9 });
     assert.deepEqual(wordAt("let value = 1", 9), { from: 4, to: 9 });
     assert.equal(wordAt("a = b", 2), null);
+    assert.deepEqual(wordAt("foo𠮷bar", 5), { from: 0, to: 8 });
+    assert.equal(wordRight("foo𠮷bar baz", 0), 9);
+    assert.equal(wordLeft("foo𠮷bar baz", 8), 0);
 });
 
 test("Home goes to the indent, and from there to the line's start", () => {

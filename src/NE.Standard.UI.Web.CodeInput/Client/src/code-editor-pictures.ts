@@ -31,9 +31,9 @@ type PendingPicture = {
     readonly placeholder: string;
     /** The paste's own change, which the address or the removal joins in the history. */
     readonly anchor: Change;
-    /** The line break between two placeholders of one paste, taken out with this one: after it, or before the last. */
-    readonly breakAfter: boolean;
-    readonly breakBefore: boolean;
+    /** This picture's place in the pasted batch, and which siblings still stand in the text (so only the batch's own line breaks are removed). */
+    readonly index: number;
+    readonly alive: boolean[];
 };
 
 /** The pictures uploaded and waiting for their command's answer, by selection: page-wide, as the answer's effect is. */
@@ -182,9 +182,10 @@ export class CodeEditorPictures {
             return true;
 
         const last = within.length - 1;
+        const alive = within.map(() => true);
 
         for (let index = 0; index <= last; index++) {
-            const pending: PendingPicture = { owner: this, fileName: within[index].name, placeholder: made[index], anchor, breakAfter: index < last, breakBefore: index > 0 && index === last };
+            const pending: PendingPicture = { owner: this, fileName: within[index].name, placeholder: made[index], anchor, index, alive };
 
             void this.upload(within[index], pending);
         }
@@ -220,7 +221,13 @@ export class CodeEditorPictures {
         if (at < 0)
             return;
 
-        this.surface.applyFor(pending.anchor, { from: at, to: at + pending.placeholder.length, text: pictureText(pending.fileName, address) });
+        if ((this.surface.applyFor(pending.anchor, { from: at, to: at + pending.placeholder.length, text: pictureText(pending.fileName, address) }) as boolean | undefined) === false) {
+            if (this.root.isConnected)
+                this.fail(pending, { key: CoreWords.fileFailed });
+
+            return;
+        }
+
         this.settle();
     }
 
@@ -229,14 +236,18 @@ export class CodeEditorPictures {
         const text = this.textarea.value;
         let from = text.indexOf(pending.placeholder);
 
+        pending.alive[pending.index] = false;
+
         if (from < 0)
             return;
 
         let to = from + pending.placeholder.length;
+        const hasAliveAfter = pending.alive.slice(pending.index + 1).some(Boolean);
+        const hasAliveBefore = pending.alive.slice(0, pending.index).some(Boolean);
 
-        if (pending.breakAfter && text[to] === "\n")
+        if (hasAliveAfter && text[to] === "\n")
             to++;
-        else if (pending.breakBefore && from > 0 && text[from - 1] === "\n")
+        else if (!hasAliveAfter && hasAliveBefore && from > 0 && text[from - 1] === "\n")
             from--;
 
         this.surface.applyFor(pending.anchor, { from, to, text: "" });

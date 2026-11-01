@@ -71,6 +71,8 @@ test("whole word knows a word in any script, and a word's edge is not a boundary
     assert.equal(findMatches("$scope.x", compileQuery("$scope", whole)).length, 1);
     assert.deepEqual(findMatches("aab ab", compileQuery("a+b", { ...whole, regex: true })), [{ from: 0, to: 3 }, { from: 4, to: 6 }]);
     assert.equal(replaceAll("мир мирный мир", compileQuery("мир", whole), "world", false), "world мирный world");
+    assert.deepEqual(findMatches("foo𠮷bar foo foo𠮷", compileQuery("foo", whole)), [{ from: 9, to: 12 }]);
+    assert.deepEqual(findMatches("foo𠮷bar 𠮷", compileQuery("𠮷", whole)), [{ from: 9, to: 11 }]);
 });
 
 test("a single replacement reads its match in the whole text, as Replace all does", () => {

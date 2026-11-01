@@ -161,6 +161,17 @@ test("MaxLength blocks programmatic edits that exceed the cap while permitting s
     assert.equal(stage.value, "abcdef");
     assert.equal(stage.surface.replaceRange(6, 6, "g"), false);
     assert.equal(stage.value, "abcdef");
+
+    // `applyFor` completes anchored picture edits even while inert, and refuses edits that exceed MaxLength.
+    const fresh = makeSurface("", "8");
+    const anchor = fresh.surface.apply([{ from: 0, to: 0, text: "[p]" }], singleSelection(3), "typing");
+
+    assert.notEqual(anchor, null);
+    fresh.inert = true;
+    assert.equal(fresh.surface.applyFor(anchor!, { from: 0, to: 3, text: "![a](/12345)" }), false);
+    assert.equal(fresh.value, "[p]");
+    assert.equal(fresh.surface.applyFor(anchor!, { from: 0, to: 3, text: "![a](/1)" }), true);
+    assert.equal(fresh.value, "![a](/1)");
 });
 
 test("CodeInputEngine and MarkdownDisplayEngine dispose observers, subscriptions, and selectionchange listener", () => {

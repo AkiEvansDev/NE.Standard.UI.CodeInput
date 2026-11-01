@@ -254,9 +254,9 @@ export class CodeEditorSurface {
      * undo takes it back with `anchor` while nothing came between (`EditHistory.recordFor`), and a removal that leaves nothing to undo
      * is no step at all. The carets stay where the reader has them, moved along by the edit, and the view stays where it is.
      */
-    public applyFor(anchor: Change, edit: Edit): void {
-        if (this.isLocked)
-            return;
+    public applyFor(anchor: Change, edit: Edit): boolean {
+        if (this.root.isConnected === false)
+            return false;
 
         this.adoptOutsideValue();
 
@@ -264,7 +264,7 @@ export class CodeEditorSurface {
         const next = applyEdits(value, [edit]);
 
         if (this.exceedsMaxLength(next.length, value.length))
-            return;
+            return false;
 
         const before = this.selections.read();
         const after: SelectionSet = { ranges: before.ranges.map(range => ({ anchor: mapPosition(range.anchor, [edit]), head: mapPosition(range.head, [edit]) })), primary: before.primary };
@@ -274,6 +274,7 @@ export class CodeEditorSurface {
             this.history.recordFor(change, anchor);
 
         this.commit(next, edit, after, false, false);
+        return true;
     }
 
     /** A value that changed with no edit and no push — a form reset — leaves the history nothing it can still undo. */

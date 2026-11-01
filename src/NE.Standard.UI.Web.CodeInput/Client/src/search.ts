@@ -1,6 +1,6 @@
 // Find and replace over the text alone: what the panel asks, answered as ranges the editor then marks, selects and rewrites.
 
-import { WordCharacter } from "./motion.ts";
+import { codePointAt, codePointBefore, WordCharacter } from "./motion.ts";
 
 export type SearchOptions = {
     readonly matchCase: boolean;
@@ -84,7 +84,7 @@ function* execAll(text: string, query: SearchQuery): Generator<RegExpExecArray> 
 
 // The editor's own word rather than `\b`, which knows only ASCII: a Cyrillic or accented word would have no boundary at all.
 function standsAlone(text: string, from: number, to: number): boolean {
-    return (from === 0 || !WordCharacter.test(text.charAt(from - 1))) && (to >= text.length || !WordCharacter.test(text.charAt(to)));
+    return (from === 0 || !WordCharacter.test(codePointBefore(text, from))) && (to >= text.length || !WordCharacter.test(codePointAt(text, to)));
 }
 
 /** The match at or after a position, wrapping to the first; -1 when there is none. */

@@ -18,6 +18,8 @@ test("the prefix is the identifier immediately before the offset", () => {
     assert.equal(prefixAt("foo.ba", 6), "ba");
     assert.equal(prefixAt("foo.", 4), "");
     assert.equal(prefixStart("foo.ba", 6), 4);
+    assert.equal(prefixStart("x.foo𠮷ba", 9), 2);
+    assert.equal(prefixAt("x.foo𠮷ba", 9), "foo𠮷ba");
 });
 
 test("ranking puts a case-agreeing prefix match first, then one that only agrees ignoring case, then a substring", () => {

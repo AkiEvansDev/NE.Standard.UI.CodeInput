@@ -66,6 +66,8 @@ test("occurrences are found apart, and the next one wraps past the ranges alread
     assert.equal(nextOccurrence(text, set), 6);
     assert.equal(nextOccurrence("ab [ab]".replace(/[[\]]/g, ""), parse("ab [ab]").set), 0);
     assert.equal(nextOccurrence("[ab]", parse("[ab]").set), -1);
+    assert.equal(nextOccurrence("aaaaa", parse("a[aa]aa").set), 3);
+    assert.equal(nextOccurrence("aaaaa", parse("aa[aa]a").set), 0);
 });
 
 test("a paste deals out what a copy from as many ranges held, or a line each, or the whole to every caret", () => {

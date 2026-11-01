@@ -185,8 +185,8 @@ function embedded(stream: Stream, state: HtmlState, kind: "script" | "style"): T
     return token;
 }
 
-const ClosingScript = /<\/script/gi;
-const ClosingStyle = /<\/style/gi;
+const ClosingScript = /<\/script(?=[\s>/]|$)/gi;
+const ClosingStyle = /<\/style(?=[\s>/]|$)/gi;
 
 function indexOfIgnoringCase(stream: Stream, needle: RegExp): number {
     needle.lastIndex = stream.pos;

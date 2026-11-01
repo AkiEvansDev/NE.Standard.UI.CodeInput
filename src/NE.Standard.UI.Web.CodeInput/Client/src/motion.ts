@@ -71,6 +71,30 @@ const LineBreak = 3;
 /** The editor's word: what Ctrl+arrows stop at, what completions complete and what a whole-word search stands apart from. */
 export const WordCharacter = /[\p{L}\p{N}_]/u;
 
+/** The full Unicode code point starting at `index` (two UTF-16 units for a surrogate pair, one otherwise). */
+export function codePointAt(text: string, index: number): string {
+    const code = text.codePointAt(index);
+
+    return code === undefined ? "" : code > 0xFFFF ? text.slice(index, index + 2) : text[index];
+}
+
+/** The full Unicode code point ending at `index` (immediately before `index`). */
+export function codePointBefore(text: string, index: number): string {
+    if (index <= 0)
+        return "";
+
+    const low = text.charCodeAt(index - 1);
+
+    if (low >= 0xDC00 && low <= 0xDFFF && index >= 2) {
+        const high = text.charCodeAt(index - 2);
+
+        if (high >= 0xD800 && high <= 0xDBFF)
+            return text.slice(index - 2, index);
+    }
+
+    return text[index - 1];
+}
+
 function classify(character: string): number {
     if (character === "\n")
         return LineBreak;
@@ -90,15 +114,27 @@ export function wordRight(text: string, position: number): number {
         return position + 1;
 
     let i = position;
-    const first = classify(text[i]);
+    const first = classify(codePointAt(text, i));
 
     if (first !== Space) {
-        while (i < text.length && classify(text[i]) === first)
-            i++;
+        while (i < text.length) {
+            const ch = codePointAt(text, i);
+
+            if (classify(ch) !== first)
+                break;
+
+            i += ch.length;
+        }
     }
 
-    while (i < text.length && classify(text[i]) === Space)
-        i++;
+    while (i < text.length) {
+        const ch = codePointAt(text, i);
+
+        if (classify(ch) !== Space)
+            break;
+
+        i += ch.length;
+    }
 
     return i;
 }
@@ -113,30 +149,54 @@ export function wordLeft(text: string, position: number): number {
 
     let i = position;
 
-    while (i > 0 && classify(text[i - 1]) === Space)
-        i--;
+    while (i > 0) {
+        const ch = codePointBefore(text, i);
+
+        if (classify(ch) !== Space)
+            break;
+
+        i -= ch.length;
+    }
 
     if (i === 0 || text[i - 1] === "\n")
         return i;
 
-    const run = classify(text[i - 1]);
+    const run = classify(codePointBefore(text, i));
 
-    while (i > 0 && classify(text[i - 1]) === run)
-        i--;
+    while (i > 0) {
+        const ch = codePointBefore(text, i);
+
+        if (classify(ch) !== run)
+            break;
+
+        i -= ch.length;
+    }
 
     return i;
 }
 
 /** The word a caret touches, or null when it stands between two characters that are not a word's. */
 export function wordAt(text: string, position: number): { readonly from: number; readonly to: number } | null {
-    let from = position;
-    let to = position;
+    let from = position > 0 && position < text.length && codePointBefore(text, position + 1).length === 2 ? position - 1 : position;
+    let to = from;
 
-    while (from > 0 && classify(text[from - 1]) === Word)
-        from--;
+    while (from > 0) {
+        const ch = codePointBefore(text, from);
 
-    while (to < text.length && classify(text[to]) === Word)
-        to++;
+        if (classify(ch) !== Word)
+            break;
+
+        from -= ch.length;
+    }
+
+    while (to < text.length) {
+        const ch = codePointAt(text, to);
+
+        if (classify(ch) !== Word)
+            break;
+
+        to += ch.length;
+    }
 
     return from === to ? null : { from, to };
 }

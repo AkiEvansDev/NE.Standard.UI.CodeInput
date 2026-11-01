@@ -25,7 +25,7 @@ const accepts = (accept: string, file: File): boolean => {
 type Upload = { readonly file: File; resolve(selectionId: string): void; reject(): void };
 
 /** One field: its text and carets, the uploads it started, the marks it made and the events it raised — no page around it. */
-function setUp(options: { language?: string; maxSize?: number; accept?: string } = {}) {
+function setUp(options: { language?: string; maxSize?: number; accept?: string; maxLength?: number } = {}) {
     const uploads: Upload[] = [];
     const marks: (ValidationWords | null)[] = [];
     const events: PictureUploadDetail[] = [];
@@ -61,9 +61,15 @@ function setUp(options: { language?: string; maxSize?: number; accept?: string }
             selections = after;
             return change;
         },
-        applyFor: (_anchor: Change, edit: Edit): void => {
-            textarea.value = applyEdits(textarea.value, [edit]);
+        applyFor: (_anchor: Change, edit: Edit): boolean => {
+            const next = applyEdits(textarea.value, [edit]);
+
+            if (options.maxLength !== undefined && next.length > options.maxLength && next.length > textarea.value.length)
+                return false;
+
+            textarea.value = next;
             selections = { ranges: selections.ranges.map(range => ({ anchor: mapPosition(range.anchor, [edit]), head: mapPosition(range.head, [edit]) })), primary: selections.primary };
+            return true;
         }
     };
     const carets = { read: () => selections };
@@ -270,4 +276,42 @@ test("only pictures that Accept takes are pictures to the field", () => {
     assert.deepEqual(pictureFiles(files, "", accepts).map(file => file.name), ["a.png", "b.jpg"]);
     assert.deepEqual(pictureFiles(files, ".jpg", accepts).map(file => file.name), ["b.jpg"]);
     assert.deepEqual(pictureFiles(files, "application/pdf", accepts).map(file => file.name), []);
+});
+
+test("a picture whose final markdown exceeds MaxLength removes its placeholder and marks failure", async () => {
+    const field = setUp({ maxLength: 24 });
+
+    field.paste([png("a.png")]);
+    field.uploads[0].resolve("s1");
+    await settled();
+
+    insertPicture("s1", "/pictures/very-long-address.png");
+
+    assert.equal(field.textarea.value, "");
+    assert.deepEqual(field.marks, [null, { key: CoreWords.fileFailed }]);
+});
+
+test("failed multi-picture batches remove only batch-inserted separators without eating user newlines or leaving orphan breaks", () => {
+    const surrounded = setUp();
+
+    surrounded.textarea.value = "head\n\ntail";
+    surrounded.select(singleSelection(5));
+    surrounded.paste([png("a.png"), png("b.png")]);
+    surrounded.uploads[0].reject();
+    surrounded.uploads[1].reject();
+
+    return settled().then(() => {
+        assert.equal(surrounded.textarea.value, "head\n\ntail");
+
+        const triple = setUp();
+
+        triple.paste([png("a.png"), png("b.png"), png("c.png")]);
+        triple.uploads[1].reject();
+        triple.uploads[2].reject();
+        triple.uploads[0].reject();
+
+        return settled().then(() => {
+            assert.equal(triple.textarea.value, "");
+        });
+    });
 });

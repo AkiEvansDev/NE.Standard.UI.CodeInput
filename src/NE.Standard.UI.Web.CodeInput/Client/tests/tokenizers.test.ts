@@ -388,3 +388,15 @@ test("csharp and python tokenize escaped closing braces }} after literal text in
     assert.deepEqual(cs.filter(token => token.kind === "escape").map(token => token.text), ["{{", "}}", "}}"]);
     assert.deepEqual(py.filter(token => token.kind === "escape").map(token => token.text), ["{{", "}}", "}}"]);
 });
+
+test("html keeps tokenizing script and style blocks past longer prefix lookalikes like </scripture> and </stylesheet>", () => {
+    const scriptTokens = tokensOf(htmlTokenizer, "<script>const label = \"</scripture>\"; const ok = 42;</script>");
+    const styleTokens = tokensOf(htmlTokenizer, "<style>.a::after { content: \"</stylesheet>\"; color: #006E64; }</style>");
+
+    assert.equal(kindOf(scriptTokens, "const"), "keyword");
+    assert.equal(kindOf(scriptTokens, "42"), "number");
+    assert.equal(kindOf(scriptTokens, "</script"), "tag");
+    assert.equal(kindOf(styleTokens, "color"), "attribute");
+    assert.equal(kindOf(styleTokens, "#006E64"), "value");
+    assert.equal(kindOf(styleTokens, "</style"), "tag");
+});
