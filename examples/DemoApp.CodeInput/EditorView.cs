@@ -31,6 +31,7 @@ internal sealed class EditorView : CodeInputDemoView, IUIViewDefinition
                 .SetDefaults<SelectComponent>(static c => c.SetAppearance(UIInputAppearance.Filled).SetVerticalAlignment(UIAlignment.Center))
                 .SetDefaults<SwitchComponent>(static c => c.SetVerticalAlignment(UIAlignment.Center))
                 .AddChild(new SelectComponent()
+                    .SetAccessibleName(UICodeInputStrings.Language)
                     // The languages the status bar lists, a registered one included: a name as written, plain text's word looked up.
                     .SetOptions([.. UICodeLanguages.All.Select(language => new OptionItem { Id = language.Key, Title = language.Value, IsContent = !UICodeInputStrings.IsWord(language.Value) })])
                     .BindValue<CodeInputController>(static c => c.Language)

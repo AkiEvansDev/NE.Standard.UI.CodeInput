@@ -291,6 +291,7 @@ export class CodeEditor {
 
         this.completions.close();
         this.formatBar.close();
+        this.findReplace?.replaceHidden();
     }
 
     /** The language or a switch may have been patched; anything else the observer reports is this editor's own writing. */

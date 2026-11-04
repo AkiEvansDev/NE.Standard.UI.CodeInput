@@ -110,8 +110,8 @@ export class CodeEditorFindReplace {
 
         this.panel.hidden = false;
 
-        // Ctrl+H folds the replace row out; Ctrl+F leaves it as it was, so a reader who replaces keeps their row.
-        if (replace)
+        // Ctrl+H folds the replace row out when the field is editable; Ctrl+F leaves it as it was, so a reader who replaces keeps their row.
+        if (replace && !this.surface.isLocked)
             this.showReplace(true);
 
         if (selected.length > 0 && !selected.includes("\n"))
