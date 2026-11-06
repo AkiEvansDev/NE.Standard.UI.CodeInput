@@ -14,3 +14,7 @@ const css = (await less.render(readFileSync(source, "utf8"), { filename: source 
 test("a blockquote's stroke is the framework's quote stroke in its neutral colour", () => {
     assert.match(css, /\.ui-markdown[^{]*blockquote \{[^}]*border-left: 3px solid var\(--ui-color-border\);/);
 });
+
+test("the last block in a markdown body leaves no trailing bottom margin", () => {
+    assert.match(css, /\.ui-markdown__body > :last-child \{\s*margin-bottom: 0;\s*\}/);
+});
