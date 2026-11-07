@@ -6,7 +6,9 @@ import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { changedBlocks } from "../src/markdown-display-engine.ts";
+import type { PluginEngineContext } from "ne-standard-ui";
+
+import { changedBlocks, MarkdownDisplayEngine, patchElement } from "../src/markdown-display-engine.ts";
 import { parseInlines } from "../src/markdown-inlines.ts";
 import type { MarkdownStyles, MarkdownUrls } from "../src/markdown-render.ts";
 import { NoMarkdownStyles, NoPictureSources, renderMarkdown, renderMarkdownBlocks } from "../src/markdown-render.ts";
@@ -111,4 +113,361 @@ test("a display whose line breaks are switched replaces only the blocks that hol
     const after = renderMarkdownBlocks(source, () => null, names, urls, NoMarkdownStyles, NoPictureSources, true);
 
     assert.deepEqual(changedBlocks(before, after), { start: 1, removeEnd: 2, insertEnd: 2 });
+});
+
+const VoidTags = new Set(["BR", "HR", "IMG", "INPUT"]);
+
+type FakeNode = FakeElement | FakeText;
+
+class FakeText {
+    public readonly nodeType = 3 as const;
+    public parent: FakeElement | null = null;
+    public nodeValue: string;
+
+    public constructor(text: string) {
+        this.nodeValue = text;
+    }
+
+    public remove(): void {
+        if (this.parent === null)
+            return;
+
+        const index = this.parent.childNodes.indexOf(this);
+
+        if (index >= 0)
+            this.parent.childNodes.splice(index, 1);
+
+        this.parent = null;
+    }
+
+    public isEqualNode(other: FakeNode): boolean {
+        return other.nodeType === 3 && other.nodeValue === this.nodeValue;
+    }
+}
+
+class FakeElement {
+    public readonly nodeType = 1 as const;
+    public readonly nodeValue: string | null = null;
+    public readonly tagName: string;
+    public parent: FakeElement | null = null;
+    public readonly attributes = new Map<string, string>();
+    public readonly childNodes: FakeNode[] = [];
+    public checked = false;
+
+    public constructor(tagName: string) {
+        this.tagName = tagName.toUpperCase();
+    }
+
+    public get children(): FakeElement[] {
+        return this.childNodes.filter((child): child is FakeElement => child.nodeType === 1);
+    }
+
+    public get firstElementChild(): FakeElement | null {
+        return this.children[0] ?? null;
+    }
+
+    public get lastChild(): FakeNode | null {
+        return this.childNodes[this.childNodes.length - 1] ?? null;
+    }
+
+    public get innerHTML(): string {
+        return this.childNodes.map(serializeNode).join("");
+    }
+
+    public set innerHTML(markup: string) {
+        for (const child of [...this.childNodes])
+            child.remove();
+
+        parseInto(this, markup);
+    }
+
+    public getAttributeNames(): string[] {
+        return [...this.attributes.keys()];
+    }
+
+    public hasAttribute(name: string): boolean {
+        return this.attributes.has(name);
+    }
+
+    public getAttribute(name: string): string | null {
+        return this.attributes.get(name) ?? null;
+    }
+
+    public setAttribute(name: string, value: string): void {
+        this.attributes.set(name, value);
+
+        if (name === "checked")
+            this.checked = true;
+    }
+
+    public removeAttribute(name: string): void {
+        this.attributes.delete(name);
+
+        if (name === "checked")
+            this.checked = false;
+    }
+
+    public appendChild(node: FakeNode): FakeNode {
+        if (node.nodeType === 1 && node.tagName === "#FRAGMENT") {
+            for (const child of [...node.childNodes])
+                this.appendChild(child);
+
+            return node;
+        }
+
+        node.remove();
+        node.parent = this;
+        this.childNodes.push(node);
+
+        return node;
+    }
+
+    public replaceChild(next: FakeNode, current: FakeNode): FakeNode {
+        const index = this.childNodes.indexOf(current);
+
+        next.remove();
+        next.parent = this;
+        current.parent = null;
+        this.childNodes[index] = next;
+
+        return current;
+    }
+
+    public insertBefore(node: FakeNode, reference: FakeNode | null): FakeNode {
+        if (reference === null)
+            return this.appendChild(node);
+
+        if (node.nodeType === 1 && node.tagName === "#FRAGMENT") {
+            for (const child of [...node.childNodes])
+                this.insertBefore(child, reference);
+
+            return node;
+        }
+
+        node.remove();
+        node.parent = this;
+
+        const index = this.childNodes.indexOf(reference);
+
+        this.childNodes.splice(index, 0, node);
+
+        return node;
+    }
+
+    public remove(): void {
+        if (this.parent === null)
+            return;
+
+        const index = this.parent.childNodes.indexOf(this);
+
+        if (index >= 0)
+            this.parent.childNodes.splice(index, 1);
+
+        this.parent = null;
+    }
+
+    public isEqualNode(other: FakeNode): boolean {
+        if (other.nodeType !== 1 || other.tagName !== this.tagName || other.attributes.size !== this.attributes.size || other.childNodes.length !== this.childNodes.length)
+            return false;
+
+        for (const [key, value] of this.attributes) {
+            if (other.attributes.get(key) !== value)
+                return false;
+        }
+
+        return this.childNodes.every((child, index) => child.isEqualNode(other.childNodes[index]));
+    }
+}
+
+function serializeNode(node: FakeNode): string {
+    if (node.nodeType === 3)
+        return node.nodeValue;
+
+    const tag = node.tagName.toLowerCase();
+    const attrs = [...node.attributes.entries()].map(([name, value]) => value === "" && name === "checked" ? " checked" : ` ${name}="${value}"`).join("");
+
+    if (VoidTags.has(node.tagName))
+        return `<${tag}${attrs}>`;
+
+    return `<${tag}${attrs}>${node.innerHTML}</${tag}>`;
+}
+
+function parseInto(root: FakeElement, markup: string): void {
+    const stack: FakeElement[] = [root];
+    const tokens = markup.matchAll(/<\/([a-z0-9]+)>|<([a-z0-9]+)([^>]*)>|([^<]+)/gi);
+
+    for (const match of tokens) {
+        const [, closeTag, openTag, rawAttrs, text] = match;
+        const current = stack[stack.length - 1];
+
+        if (closeTag !== undefined) {
+            if (stack.length > 1)
+                stack.pop();
+        }
+        else if (openTag !== undefined) {
+            const element = new FakeElement(openTag);
+
+            for (const attr of (rawAttrs ?? "").matchAll(/([a-z0-9-]+)(?:="([^"]*)")?/gi))
+                element.setAttribute(attr[1], attr[2] ?? "");
+
+            current.appendChild(element);
+
+            if (!VoidTags.has(element.tagName))
+                stack.push(element);
+        }
+        else if (text !== undefined) {
+            current.appendChild(new FakeText(text));
+        }
+    }
+}
+
+function parseElement(markup: string): Element {
+    const holder = new FakeElement("#FRAGMENT");
+
+    holder.innerHTML = markup;
+
+    return holder.firstElementChild as unknown as Element;
+}
+
+test("patchElement updates growing paragraphs and lists in place while keeping existing nodes and text nodes alive", () => {
+    const paragraph = parseElement("<p data-ui-source-line=\"1\">Hello</p>") as unknown as FakeElement;
+    const initialText = paragraph.childNodes[0];
+
+    patchElement(paragraph as unknown as Element, parseElement("<p data-ui-source-line=\"1\">Hello <strong>world</strong></p>"));
+
+    assert.equal(paragraph.innerHTML, "Hello <strong>world</strong>");
+    assert.equal(paragraph.childNodes[0], initialText);
+    assert.equal(initialText.nodeValue, "Hello ");
+
+    const strong = paragraph.children[0];
+
+    patchElement(paragraph as unknown as Element, parseElement("<p data-ui-source-line=\"1\">Hello <strong>world</strong> again</p>"));
+
+    assert.equal(paragraph.innerHTML, "Hello <strong>world</strong> again");
+    assert.equal(paragraph.childNodes[0], initialText);
+    assert.equal(paragraph.children[0], strong);
+
+    const list = parseElement("<ul><li data-ui-source-line=\"1\">first</li><li data-ui-source-line=\"2\">sec</li></ul>") as unknown as FakeElement;
+    const firstItem = list.children[0];
+    const secondItem = list.children[1];
+    const secondText = secondItem.childNodes[0];
+
+    patchElement(list as unknown as Element, parseElement("<ul><li data-ui-source-line=\"1\">first</li><li data-ui-source-line=\"2\">second</li><li data-ui-source-line=\"3\">third</li></ul>"));
+
+    assert.equal(list.children[0], firstItem);
+    assert.equal(list.children[1], secondItem);
+    assert.equal(secondItem.childNodes[0], secondText);
+    assert.equal(secondText.nodeValue, "second");
+    assert.equal(list.children.length, 3);
+    assert.equal(list.children[2].innerHTML, "third");
+});
+
+test("a streaming display paces incremental updates across animation frames and patches the active block in place", () => {
+    let source = "Hello";
+    let changed: ((roots: Iterable<HTMLElement>) => void) | undefined;
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 1;
+    const body = new FakeElement("div");
+    const root = {
+        isConnected: true,
+        getAttribute: (name: string) => name === "data-ui-markdown-source" ? source : null,
+        hasAttribute: () => false,
+        querySelector: () => body,
+        closest: () => null
+    } as unknown as HTMLElement;
+    const context = {
+        names,
+        urls,
+        root: { querySelectorAll: () => [root] },
+        observeComponents: (_root: unknown, _selector: string, _options: unknown, callback: (roots: Iterable<HTMLElement>) => void) => {
+            changed = callback;
+        }
+    } as unknown as PluginEngineContext;
+    const globals = globalThis as {
+        document?: unknown;
+        requestAnimationFrame?: typeof requestAnimationFrame;
+        cancelAnimationFrame?: typeof cancelAnimationFrame;
+    };
+    const previousDocument = globals.document;
+    const previousRaf = globals.requestAnimationFrame;
+    const previousCancel = globals.cancelAnimationFrame;
+
+    globals.document = {
+        baseURI: "https://app.test/",
+        createElement: () => {
+            const content = new FakeElement("#FRAGMENT");
+
+            return {
+                content,
+                get innerHTML(): string {
+                    return content.innerHTML;
+                },
+                set innerHTML(markup: string) {
+                    content.innerHTML = markup;
+                }
+            };
+        }
+    };
+    globals.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+        const id = nextFrameId++;
+
+        frames.set(id, callback);
+
+        return id;
+    };
+    globals.cancelAnimationFrame = (id: number): void => {
+        frames.delete(id);
+    };
+
+    try {
+        const engine = new MarkdownDisplayEngine(context);
+
+        // Initial render draws the full starting document immediately with no animation frame queued.
+        assert.equal(body.innerHTML, "<p data-ui-source-line=\"1\">Hello</p>");
+        assert.equal(frames.size, 0);
+
+        const paragraph = body.children[0];
+        const textNode = paragraph.childNodes[0] as FakeText;
+
+        // A streamed append queues progressive frame delivery instead of jumping straight to the end or recreating the paragraph.
+        source = "Hello world 👋!";
+        changed?.([root]);
+
+        assert.equal(body.innerHTML, "<p data-ui-source-line=\"1\">Hello</p>");
+        assert.equal(frames.size, 1);
+
+        const steps: string[] = [];
+
+        while (frames.size > 0) {
+            const [id, callback] = frames.entries().next().value!;
+
+            frames.delete(id);
+            callback(16);
+            steps.push(textNode.nodeValue);
+            assert.equal(body.children[0], paragraph);
+            assert.equal(paragraph.childNodes[0], textNode);
+            // Surrogate pair for 👋 must never be split across frames.
+            assert.equal(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(textNode.nodeValue), false);
+        }
+
+        assert.ok(steps.length >= 2, `expected multiple progressive steps, got ${steps.length}`);
+        assert.equal(textNode.nodeValue, "Hello world 👋!");
+
+        // A non-prefix replacement cancels any active stream and renders immediately.
+        source = "Hello world 👋! More text arriving";
+        changed?.([root]);
+        assert.equal(frames.size, 1);
+
+        source = "Replaced outright";
+        changed?.([root]);
+        assert.equal(frames.size, 0);
+        assert.equal(textNode.nodeValue, "Replaced outright");
+
+        engine.dispose();
+    }
+    finally {
+        globals.document = previousDocument;
+        globals.requestAnimationFrame = previousRaf;
+        globals.cancelAnimationFrame = previousCancel;
+    }
 });
