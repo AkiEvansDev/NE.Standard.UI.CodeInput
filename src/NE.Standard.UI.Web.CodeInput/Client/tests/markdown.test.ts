@@ -225,8 +225,8 @@ test("lists: tight, loose, nested, ordered and tasks", () => {
     assert.equal(html("3. three\n4. four"), "<ol start=\"3\"><li>three</li><li>four</li></ol>");
     assert.equal(html("- [x] done\n- [ ] open"),
         "<ul class=\"ui-markdown__tasks\">" +
-        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\" checked><span class=\"ui-checkbox__box\"></span></span>done</li>" +
-        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" tabindex=\"-1\" aria-readonly=\"true\"><span class=\"ui-checkbox__box\"></span></span>open</li></ul>");
+        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" name=\"ui-markdown-task\" tabindex=\"-1\" aria-readonly=\"true\" checked><span class=\"ui-checkbox__box\"></span></span>done</li>" +
+        "<li class=\"ui-markdown__task\"><span class=\"ui-checkbox ui-input--small ui-readonly ui-markdown__check\"><input class=\"ui-checkbox__input\" type=\"checkbox\" name=\"ui-markdown-task\" tabindex=\"-1\" aria-readonly=\"true\"><span class=\"ui-checkbox__box\"></span></span>open</li></ul>");
     assert.equal(html("text\n2. not a list\n- but this is"), "<p>text\n2. not a list</p><ul><li>but this is</li></ul>");
     assert.equal(html("- a\n- b\n+ c"), "<ul><li>a</li><li>b</li></ul><ul><li>c</li></ul>");
 });

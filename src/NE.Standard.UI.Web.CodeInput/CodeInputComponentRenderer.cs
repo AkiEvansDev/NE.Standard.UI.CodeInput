@@ -242,6 +242,7 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
             _ = picker.Element("input", carrier =>
             {
                 _ = carrier.Attribute("type", "hidden");
+                NativeInputRendererBase.RenderFieldName(context, carrier, region);
                 _ = carrier.Attribute(attribute);
                 renderCarrier(carrier);
             });

@@ -150,7 +150,7 @@ function renderList(ordered: boolean, start: number, tight: boolean, items: read
         const checked = item.checked ? " checked" : "";
         const box = `${rendering.names.checkboxClass} ${rendering.names.smallInputClass} ${rendering.names.readOnlyClass} ${ClassName}__check`;
 
-        html += `<li class="${ClassName}__task"${sourceLine(item.line, rendering)}><span class="${box}"><input class="${rendering.names.checkboxInputClass}" type="checkbox" tabindex="-1" aria-readonly="true"${checked}><span class="${rendering.names.checkboxBoxClass}"></span></span>${content}</li>`;
+        html += `<li class="${ClassName}__task"${sourceLine(item.line, rendering)}><span class="${box}"><input class="${rendering.names.checkboxInputClass}" type="checkbox" name="ui-markdown-task" tabindex="-1" aria-readonly="true"${checked}><span class="${rendering.names.checkboxBoxClass}"></span></span>${content}</li>`;
     }
 
     return `${html}</${tag}>`;
