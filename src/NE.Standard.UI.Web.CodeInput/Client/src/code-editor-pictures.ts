@@ -207,6 +207,11 @@ export class CodeEditorPictures {
         if (!this.root.isConnected)
             return;
 
+        for (const [key, entry] of awaiting) {
+            if (!entry.owner.root.isConnected)
+                awaiting.delete(key);
+        }
+
         awaiting.set(selection, pending);
 
         const detail: PictureUploadDetail = { keys: [selection, file.name] };

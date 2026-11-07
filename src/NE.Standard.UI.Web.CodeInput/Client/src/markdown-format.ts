@@ -252,14 +252,35 @@ function foundEmphasis(text: string, from: number, to: number, emphasis: Emphasi
     const trailing = runBefore(inner, inner.length, emphasis.character);
 
     // Inside: the selection took the marks with the words.
-    if (leading < inner.length && emphasis.holds(leading) && emphasis.holds(trailing))
+    if (leading < inner.length && emphasis.holds(leading) && emphasis.holds(trailing) && !hasRun(inner.slice(leading, inner.length - trailing), emphasis.character, emphasis.holds))
         return { from, to, inner: inner.slice(emphasis.length, inner.length - emphasis.length) };
 
     // Just outside: the words alone were selected.
-    if (emphasis.holds(runBefore(text, from, emphasis.character)) && emphasis.holds(runAfter(text, to, emphasis.character)))
+    if (emphasis.holds(runBefore(text, from, emphasis.character)) && emphasis.holds(runAfter(text, to, emphasis.character)) && !hasRun(inner, emphasis.character, emphasis.holds))
         return { from: from - emphasis.length, to: to + emphasis.length, inner };
 
     return null;
+}
+
+/** Whether `text` contains a contiguous run of `character` that satisfies `matches`. */
+function hasRun(text: string, character: string, matches: (run: number) => boolean): boolean {
+    let index = 0;
+
+    while (index < text.length) {
+        if (text[index] !== character) {
+            index++;
+            continue;
+        }
+
+        const run = runAfter(text, index, character);
+
+        if (matches(run))
+            return true;
+
+        index += run;
+    }
+
+    return false;
 }
 
 /** A code span the selection is, or stands in, its fence's runs equal and the space a fence pads its text with taken off too. */
@@ -267,7 +288,7 @@ function foundCode(text: string, from: number, to: number): Found | null {
     const inner = text.slice(from, to);
     const leading = runAfter(inner, 0, Backtick);
 
-    if (leading > 0 && leading * 2 < inner.length && runBefore(inner, inner.length, Backtick) === leading)
+    if (leading > 0 && leading * 2 < inner.length && runBefore(inner, inner.length, Backtick) === leading && !hasRun(inner.slice(leading, inner.length - leading), Backtick, run => run === leading))
         return { from, to, inner: unpadded(inner.slice(leading, inner.length - leading)) };
 
     const padded = text[from - 1] === " " && text[to] === " " && text[from - 2] === Backtick && text[to + 1] === Backtick;
@@ -275,7 +296,7 @@ function foundCode(text: string, from: number, to: number): Found | null {
     const end = padded ? to + 1 : to;
     const fence = runBefore(text, start, Backtick);
 
-    return fence > 0 && runAfter(text, end, Backtick) === fence ? { from: start - fence, to: end + fence, inner } : null;
+    return fence > 0 && runAfter(text, end, Backtick) === fence && !hasRun(inner, Backtick, run => run === fence) ? { from: start - fence, to: end + fence, inner } : null;
 }
 
 function unpadded(code: string): string {
