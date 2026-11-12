@@ -9,8 +9,10 @@ import { MarkdownBodyClass, MarkdownImageSourcesAttribute, MarkdownLineBreaksAtt
 import { escapeHtml, renderSegments } from "./highlighter.ts";
 import { languages } from "./languages/index.ts";
 import { fenceLanguageId } from "./languages/markdown.ts";
-import { NoMarkdownStyles, renderMarkdownBlocks } from "./markdown-render.ts";
+import { parseMarkdown } from "./markdown-blocks.ts";
+import { renderMarkdownBlocks, renderParsedBlocks } from "./markdown-render.ts";
 import type { MarkdownPictureSources, MarkdownStyles, MarkdownUrls } from "./markdown-render.ts";
+import { parseMarkdownStyles } from "./markdown-syntax.ts";
 import type { Token } from "./tokenizer.ts";
 import { warnOnce } from "./warn-once.ts";
 
@@ -18,6 +20,8 @@ const RootSelector = `.${MarkdownRootClass}`;
 const BodySelector = `.${MarkdownBodyClass}`;
 // An empty display that receives a short first chunk is starting a stream; one given a whole document at once draws it immediately.
 const MaxInitialStreamChunk = 160;
+const MaxHighlightCache = 256;
+const highlightCache = new Map<string, string | null>();
 
 /** Which of a body's blocks a new render replaces: those from `start` to `removeEnd` of the old, by `start` to `insertEnd` of the new. */
 export type BlockChange = {
@@ -40,6 +44,10 @@ type StreamState = {
     readonly lineBreaks: boolean;
     readonly insideLink: boolean;
     frame: number;
+    settledLine: number;
+    settledOffset: number;
+    settledHtml: readonly string[];
+    unsettledReferences: boolean;
 };
 
 export class MarkdownDisplayEngine {
@@ -58,8 +66,18 @@ export class MarkdownDisplayEngine {
         this.urls = context.urls;
 
         // Watching first: a document that fails to render must not leave every display on the page without its watch.
-        const observer = context.observeComponents(context.root, RootSelector, { childList: true, attributeFilter: [MarkdownSourceAttribute, MarkdownLineBreaksAttribute] }, roots => this.renderAll(roots, false));
-        const stopLanguages = languages.onRegistered(() => this.renderAll([...this.live], true));
+        const observer = context.observeComponents(context.root, RootSelector, { childList: true, addedOnly: true, attributeFilter: [MarkdownSourceAttribute, MarkdownLineBreaksAttribute] }, roots => this.renderAll(roots, false));
+        const stopLanguages = languages.onRegistered(() => {
+            highlightCache.clear();
+
+            for (const stream of this.streams.values()) {
+                stream.settledLine = 1;
+                stream.settledOffset = 0;
+                stream.settledHtml = [];
+            }
+
+            this.renderAll([...this.live], true);
+        });
 
         this.cleanups.push(() => observer?.disconnect(), stopLanguages);
         this.renderAll(context.root.querySelectorAll<HTMLElement>(RootSelector), false);
@@ -137,7 +155,17 @@ export class MarkdownDisplayEngine {
             return;
         }
 
-        const stream: StreamState = { target, shown: previousLength, lineBreaks, insideLink, frame: 0 };
+        const stream: StreamState = {
+            target,
+            shown: previousLength,
+            lineBreaks,
+            insideLink,
+            frame: 0,
+            settledLine: 1,
+            settledOffset: 0,
+            settledHtml: [],
+            unsettledReferences: false
+        };
 
         this.streams.set(root, stream);
         stream.frame = requestAnimationFrame(() => this.stepStream(root, body));
@@ -166,7 +194,7 @@ export class MarkdownDisplayEngine {
         }
 
         stream.shown = nextShown;
-        this.draw(body, renderSafely(stream.target.slice(0, nextShown), readStyles(root), readPictureSources(root), stream.lineBreaks, stream.insideLink, this.names, this.urls));
+        this.draw(body, renderStreamSafely(stream.target.slice(0, nextShown), stream, readStyles(root), readPictureSources(root), this.names, this.urls));
 
         if (nextShown < stream.target.length)
             stream.frame = requestAnimationFrame(() => this.stepStream(root, body));
@@ -268,8 +296,7 @@ export function patchElement(existing: Element, incoming: Element): void {
                 current.nodeValue = next.nodeValue;
         }
         else if (current.nodeType === 1 && next.nodeType === 1 && (current as Element).tagName === (next as Element).tagName) {
-            if (!current.isEqualNode(next))
-                patchElement(current as Element, next as Element);
+            patchElement(current as Element, next as Element);
         }
         else {
             existing.replaceChild(next, current);
@@ -292,27 +319,106 @@ function renderSafely(source: string, styles: MarkdownStyles, pictures: Markdown
     }
 }
 
+/**
+ * Renders `slice` during progressive streaming, caching closed blocks that precede the active tail so long replies do not re-parse
+ * from byte 0 on every animation frame. Falls back to full parsing whenever carriage returns or link reference definitions appear.
+ */
+function renderStreamSafely(slice: string, stream: StreamState, styles: MarkdownStyles, pictures: MarkdownPictureSources, names: MarkdownNames, urls: MarkdownUrls): string[] {
+    if (stream.unsettledReferences || slice.includes("\r"))
+        return renderSafely(slice, styles, pictures, stream.lineBreaks, stream.insideLink, names, urls);
+
+    try {
+        const tail = slice.slice(stream.settledOffset);
+        const tailDocument = parseMarkdown(tail, stream.settledLine);
+
+        if (tailDocument.references.size > 0) {
+            stream.unsettledReferences = true;
+            stream.settledLine = 1;
+            stream.settledOffset = 0;
+            stream.settledHtml = [];
+            return renderMarkdownBlocks(slice, highlightCode, names, urls, styles, pictures, stream.lineBreaks, stream.insideLink);
+        }
+
+        const tailHtml = renderParsedBlocks(tailDocument.blocks, tailDocument.references, highlightCode, names, urls, styles, pictures, stream.lineBreaks, stream.insideLink);
+        const combined = stream.settledHtml.length === 0 ? tailHtml : [...stream.settledHtml, ...tailHtml];
+
+        if (tailDocument.blocks.length >= 3) {
+            let cut = tailDocument.blocks.length - 2;
+
+            while (cut > 0 && (tailDocument.blocks[cut - 1].type === "list" || tailDocument.blocks[cut - 1].type === "quote"))
+                cut--;
+
+            if (cut > 0) {
+                const cutLine = tailDocument.blocks[cut].line;
+                const cutOffset = offsetOfLine(tail, cutLine - stream.settledLine);
+
+                if (cutOffset > 0 && tail.includes("\n", cutOffset)) {
+                    stream.settledHtml = [...stream.settledHtml, ...tailHtml.slice(0, cut)];
+                    stream.settledOffset += cutOffset;
+                    stream.settledLine = cutLine;
+                }
+            }
+        }
+
+        return combined;
+    }
+    catch (error) {
+        console.warn("NE.Standard.UI.Web.CodeInput: a Markdown document could not be rendered; its source is shown instead.", error);
+
+        return [`<pre class="${MarkdownRootClass}__code"><code>${escapeHtml(slice)}</code></pre>`];
+    }
+}
+
+function offsetOfLine(text: string, deltaLines: number): number {
+    let offset = 0;
+
+    for (let count = 0; count < deltaLines; count++) {
+        const next = text.indexOf("\n", offset);
+
+        if (next < 0)
+            return -1;
+
+        offset = next + 1;
+    }
+
+    return offset;
+}
+
 /** A code block's text in the editor's colours, by the language its info string names; null when no such language is registered. */
 function highlightCode(text: string, info: string): string | null {
-    const tokenizer = languages.get(fenceLanguageId(info));
+    const languageId = fenceLanguageId(info);
+    const tokenizer = languages.get(languageId);
 
     if (tokenizer === null)
         return null;
+
+    const cacheKey = `${languageId}\0${text}`;
+    const cached = highlightCache.get(cacheKey);
+
+    if (cached !== undefined)
+        return cached;
 
     let state = tokenizer.initialState;
 
     // A package's tokenizer that throws leaves this block plain rather than the whole document unrendered.
     try {
-        return text.split("\n").map(line => {
+        const html = text.split("\n").map(line => {
             const tokens: Token[] = [];
 
             state = tokenizer.tokenizeLine(line, state, (from, to, kind) => tokens.push({ from, to, kind }));
 
             return renderSegments(line, tokens, []);
         }).join("\n");
+
+        if (highlightCache.size >= MaxHighlightCache)
+            highlightCache.clear();
+
+        highlightCache.set(cacheKey, html);
+
+        return html;
     }
     catch (error) {
-        warnOnce(tokenizer, `the tokenizer of '${fenceLanguageId(info)}' threw; the code blocks it fails on are shown plain.`, error);
+        warnOnce(tokenizer, `the tokenizer of '${languageId}' threw; the code blocks it fails on are shown plain.`, error);
 
         return null;
     }
@@ -327,17 +433,7 @@ function readStyles(root: HTMLElement): MarkdownStyles {
     if (cached !== undefined)
         return cached;
 
-    const json = root.getAttribute(MarkdownStylesAttribute);
-    let styles = NoMarkdownStyles;
-
-    // Written by the server; one that cannot be read leaves the document in the display's own styles rather than unrendered.
-    try {
-        if (json !== null)
-            styles = JSON.parse(json) as MarkdownStyles;
-    }
-    catch (error) {
-        console.warn("NE.Standard.UI.Web.CodeInput: a Markdown display's styles could not be read; it is drawn without them.", error);
-    }
+    const styles = parseMarkdownStyles(root.getAttribute(MarkdownStylesAttribute));
 
     styleCache.set(root, styles);
 

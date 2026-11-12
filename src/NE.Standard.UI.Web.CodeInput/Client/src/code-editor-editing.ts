@@ -5,7 +5,7 @@ import type { ShortcutWords } from "ne-standard-ui";
 import { caseChangeEdits } from "./case-change.ts";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
-import { prefixStart } from "./completions.ts";
+import { completionRange } from "./completions.ts";
 import type { EditKind } from "./history.ts";
 import { applyTab, lineBreakText } from "./indent.ts";
 import { nextCharacter, previousCharacter, wordLeft, wordRight } from "./motion.ts";
@@ -248,10 +248,17 @@ export class CodeEditorEditing {
         this.replaceEach((_, index) => pieces?.[index] ?? text, "other");
     }
 
-    /** Completions' accept: replaces the identifier immediately before every caret with `insert`, as one step. */
-    public acceptCompletion(insert: string): void {
+    /** Completions' accept: replaces the identifier (and any matching trigger prefix) immediately before every caret with `insert`, as one step. */
+    public acceptCompletion(insert: string, triggers: readonly string[] = []): void {
         const text = this.textarea.value;
-        const { edits, after } = editRanges(this.carets.read(), range => isCaret(range) ? { from: prefixStart(text, range.head), to: range.head, text: insert, caret: insert.length } : null);
+        const { edits, after } = editRanges(this.carets.read(), range => {
+            if (!isCaret(range))
+                return null;
+
+            const span = completionRange(text, range.head, insert, triggers);
+
+            return { from: span.from, to: span.to, text: insert, caret: insert.length };
+        });
 
         this.surface.apply(edits, after, "other");
     }

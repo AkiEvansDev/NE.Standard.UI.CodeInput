@@ -1,4 +1,5 @@
-import { closesFence, MaxNesting, openFence, QuoteMarker, TableDelimiter, ThematicBreak } from "../markdown-syntax.ts";
+import type { MarkdownSpanRule } from "../markdown-syntax.ts";
+import { closesFence, findSpanRanges, MaxNesting, openFence, QuoteMarker, TableDelimiter, ThematicBreak } from "../markdown-syntax.ts";
 import type { EmitToken, LineState, TokenKind, Tokenizer } from "../tokenizer.ts";
 
 // Markdown a line at a time: the block a line opens (heading, fence, quote, list item, rule) and the inline spans inside it. A span
@@ -61,27 +62,27 @@ const HtmlTag = /<\/?[A-Za-z][\w-]*(?:\s[^<>]*)?\/?>/y;
 const BareUrl = /(?:https?:\/\/|www\.)[^\s<]*[^\s<?!.,:*_~)]/y;
 
 /** A tokenizer for Markdown whose fenced blocks are read by whatever `resolve` finds for their language. */
-export function markdownTokenizer(resolve: (id: string) => Tokenizer | null): Tokenizer {
+export function markdownTokenizer(resolve: (id: string) => Tokenizer | null, spans: readonly MarkdownSpanRule[] = []): Tokenizer {
     return {
         initialState: InitialState,
         tokenizeLine(line, state, emit) {
             const current = state as MarkdownState;
 
             if (current.fence.length > 0)
-                return fencedLine(line, current, emit, resolve);
+                return fencedLine(line, current, emit, resolve, spans);
 
-            return blockLine(line, current, emit, resolve);
+            return blockLine(line, current, emit, resolve, spans);
         }
     };
 }
 
-function fencedLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null): MarkdownState {
+function fencedLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null, spans: readonly MarkdownSpanRule[]): MarkdownState {
     const quotes = readQuotes(line, state.quotes);
 
     // A fence inside a quote ends with the quote, as the display's parser reads it: a line short of the markers is read afresh,
     // and no line carries on a fenced block lazily.
     if (quotes.marks.length < state.quotes)
-        return blockLine(line, InitialState, emit, resolve);
+        return blockLine(line, InitialState, emit, resolve, spans);
 
     emitQuotes(quotes, emit);
 
@@ -139,7 +140,7 @@ function emitQuotes(quotes: QuotePrefix, emit: EmitToken): void {
         emit(mark, mark + 1, "quote");
 }
 
-function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null): MarkdownState {
+function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve: (id: string) => Tokenizer | null, spans: readonly MarkdownSpanRule[]): MarkdownState {
     let from = 0;
 
     if (state.comment) {
@@ -203,11 +204,11 @@ function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve:
         }
     }
 
-    return { ...InitialState, comment: containerLine(line, from, emit) };
+    return { ...InitialState, comment: containerLine(line, from, emit, spans) };
 }
 
 /** The quote and list markers a line opens with, then a heading or the line's inline spans; true when a comment is left open. */
-function containerLine(line: string, from: number, emit: EmitToken): boolean {
+function containerLine(line: string, from: number, emit: EmitToken, spans: readonly MarkdownSpanRule[]): boolean {
     let position = from;
     let quoted = false;
 
@@ -249,7 +250,7 @@ function containerLine(line: string, from: number, emit: EmitToken): boolean {
         return false;
     }
 
-    return inlineSpans(line, position, quoted ? "quote" : null, emit);
+    return inlineSpans(line, position, quoted ? "quote" : null, emit, spans);
 }
 
 function skipSpaces(line: string, from: number): number {
@@ -262,10 +263,10 @@ function skipSpaces(line: string, from: number): number {
 }
 
 /** Emits one line's inline spans from `from`, text between them as `base` or nothing; true when an HTML comment opened and stayed open. */
-function inlineSpans(line: string, from: number, base: TokenKind | null, emit: EmitToken): boolean {
+function inlineSpans(line: string, from: number, base: TokenKind | null, emit: EmitToken, spans: readonly MarkdownSpanRule[]): boolean {
     let plain = from;
     let i = from;
-    const searches: LineSearches = { from, closes: new Map(), pairs: new Map() };
+    const searches: LineSearches = { from, spans, scopes: undefined, closes: new Map(), pairs: new Map() };
 
     const span = (start: number, end: number, kind: TokenKind): void => {
         if (base !== null && start > plain)
@@ -388,6 +389,10 @@ function inlineSpans(line: string, from: number, base: TokenKind | null, emit: E
 type LineSearches = {
     /** Where the line's inline spans start, which is where its brackets are paired from. */
     readonly from: number;
+    /** Custom span rules configured on the field, used to scope emphasis within closed spans. */
+    readonly spans: readonly MarkdownSpanRule[];
+    /** Per-character span scope ids on the line, computed on first emphasis check when `spans` is non-empty. */
+    scopes: Int32Array | null | undefined;
     /** The last closing run found for each character and length (`*2`), and where that search started. */
     readonly closes: Map<string, { readonly from: number; readonly close: number }>;
     /** Every opening bracket of a kind (`[` or `(`) and the one closing it, paired in one pass the first time the kind is asked about. */
@@ -427,7 +432,7 @@ function emphasisEnd(line: string, at: number, character: string, searches: Line
     const run = runLength(line, at, character);
     const length = character === "~" ? run : Math.min(run, 3);
 
-    if (character === "~" && run > 2)
+    if (character === "~" && run !== 2)
         return -1;
 
     const after = line.charAt(at + run);
@@ -438,17 +443,88 @@ function emphasisEnd(line: string, at: number, character: string, searches: Line
     if (character === "_" && at > 0 && /[\p{L}\p{N}]/u.test(line.charAt(at - 1)))
         return -1;
 
-    const close = closingRun(line, at + run, character, length, searches);
+    const scopes = lineScopes(line, searches);
+    const scope = scopes === null ? 0 : scopes[at];
+
+    if (scope < 0)
+        return -1;
+
+    const close = closingRun(line, at + run, character, length, scope, scopes, searches);
 
     return close < 0 ? -1 : close + length;
+}
+
+function lineScopes(line: string, searches: LineSearches): Int32Array | null {
+    if (searches.scopes !== undefined)
+        return searches.scopes;
+
+    if (searches.spans.length === 0) {
+        searches.scopes = null;
+
+        return null;
+    }
+
+    const masked = maskInlineCodeAndEscapes(line, searches.from);
+    const ranges = findSpanRanges(masked, searches.spans, searches.from, line.length);
+
+    if (ranges.length === 0) {
+        searches.scopes = null;
+
+        return null;
+    }
+
+    const scopes = new Int32Array(line.length);
+
+    for (const range of ranges) {
+        scopes.fill(-1, range.openStart, range.openEnd);
+        scopes.fill(-1, range.closeStart, range.closeEnd);
+        scopes.fill(range.id, range.openEnd, range.closeStart);
+    }
+
+    searches.scopes = scopes;
+
+    return scopes;
+}
+
+function maskInlineCodeAndEscapes(line: string, from: number): string {
+    let masked = from > 0 ? "\0".repeat(from) : "";
+    let i = from;
+
+    while (i < line.length) {
+        const character = line.charAt(i);
+
+        if (character === "\\" && Escapable.test(line.charAt(i + 1))) {
+            masked += "\0\0";
+            i += 2;
+            continue;
+        }
+
+        if (character === "`") {
+            const run = runLength(line, i, "`");
+            const close = findRun(line, i + run, "`", run);
+
+            if (close >= 0) {
+                const end = close + run;
+
+                masked += "\0".repeat(end - i);
+                i = end;
+                continue;
+            }
+        }
+
+        masked += character;
+        i++;
+    }
+
+    return masked;
 }
 
 /**
  * Where the first run that may close a span of `length` of `character` starts at or after `from`, or -1. Whether a run closes
  * depends on the run and its neighbours alone, never on the opener, so the last search's answer stands for a later one it covers.
  */
-function closingRun(line: string, from: number, character: string, length: number, searches: LineSearches): number {
-    const key = character + length;
+function closingRun(line: string, from: number, character: string, length: number, scope: number, scopes: Int32Array | null, searches: LineSearches): number {
+    const key = `${scope}:${character}${length}`;
     const known = searches.closes.get(key);
 
     if (known !== undefined && known.from <= from && (known.close < 0 || known.close >= from))
@@ -468,7 +544,7 @@ function closingRun(line: string, from: number, character: string, length: numbe
         const inWord = character === "_" && /[\p{L}\p{N}]/u.test(line.charAt(at + closeRun));
 
         // A run of another length is some other span's (`*a **b** c*`), so the search goes past it.
-        if (flanked && !inWord && closeRun === length) {
+        if (flanked && !inWord && closeRun === length && (scopes === null || scopes[at] === scope)) {
             close = at;
             break;
         }

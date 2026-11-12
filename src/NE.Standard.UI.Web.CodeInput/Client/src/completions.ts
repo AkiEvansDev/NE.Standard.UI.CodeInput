@@ -60,6 +60,90 @@ export function prefixAt(text: string, offset: number): string {
 }
 
 /**
+ * The longest configured trigger standing immediately before the current identifier at `offset` (or at `offset` when no
+ * identifier has been started yet); null when none stands there.
+ */
+export function activeTrigger(text: string, offset: number, triggers: readonly string[]): string | null {
+    const start = prefixStart(text, offset);
+    let best: string | null = null;
+
+    for (const trigger of triggers) {
+        if (trigger.length === 0)
+            continue;
+
+        const matchesBeforeWord = start >= trigger.length && text.startsWith(trigger, start - trigger.length);
+        const matchesAtCaret = offset >= trigger.length && text.startsWith(trigger, offset - trigger.length);
+
+        if ((matchesBeforeWord || matchesAtCaret) && (best === null || trigger.length > best.length))
+            best = trigger;
+    }
+
+    return best;
+}
+
+/**
+ * The range a completion replaces at `caret`: the identifier prefix before `caret`, plus a preceding trigger when `insert`
+ * itself starts with that trigger (so completing `{{user}}` after `{{` or `{{u` does not double the opening `{{`), and any
+ * matching closing delimiter already standing immediately after `caret`.
+ */
+export function completionRange(text: string, caret: number, insert: string, triggers: readonly string[] = []): { readonly from: number; readonly to: number } {
+    let from = prefixStart(text, caret);
+    let to = caret;
+    const trigger = activeTrigger(text, caret, triggers);
+
+    if (trigger !== null && insert.startsWith(trigger)) {
+        if (from >= trigger.length && text.startsWith(trigger, from - trigger.length))
+            from -= trigger.length;
+        else if (caret >= trigger.length && text.startsWith(trigger, caret - trigger.length))
+            from = caret - trigger.length;
+
+        const close = closingSuffixOf(trigger, insert);
+
+        if (close.length > 0 && text.startsWith(close, caret))
+            to += close.length;
+    }
+
+    return { from, to };
+}
+
+const ClosingBrackets: Readonly<Record<string, string>> = {
+    "{": "}",
+    "[": "]",
+    "(": ")",
+    "<": ">",
+    "\u00AB": "\u00BB"
+};
+const SymmetricDelimiterChars = new Set(["%", "$", ":", "/", "|", "!", "?", "=", "*", "_", "~", "\"", "'", "`"]);
+
+function closingSuffixOf(trigger: string, insert: string): string {
+    let mirrored = "";
+    let validMirrored = trigger.length > 0;
+
+    for (let index = trigger.length - 1; index >= 0; index--) {
+        const ch = trigger.charAt(index);
+        const paired = Object.hasOwn(ClosingBrackets, ch) ? ClosingBrackets[ch] : SymmetricDelimiterChars.has(ch) ? ch : null;
+
+        if (paired === null) {
+            validMirrored = false;
+            break;
+        }
+
+        mirrored += paired;
+    }
+
+    if (validMirrored && insert.length > trigger.length + mirrored.length && insert.endsWith(mirrored))
+        return mirrored;
+
+    const lastChar = trigger.charAt(trigger.length - 1);
+    const trailingClose = Object.hasOwn(ClosingBrackets, lastChar) ? ClosingBrackets[lastChar] : "";
+
+    if (trailingClose.length > 0 && insert.length > trigger.length + trailingClose.length && insert.endsWith(trailingClose))
+        return trailingClose;
+
+    return "";
+}
+
+/**
  * Every source's items in one list, in source order: a fixed list as is, a provider awaited. A provider that throws contributes
  * nothing rather than failing the rest.
  */

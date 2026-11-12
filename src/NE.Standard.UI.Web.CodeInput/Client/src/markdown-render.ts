@@ -10,8 +10,12 @@ import type { Block, ListItem, TableAlignment } from "./markdown-blocks.ts";
 import { parseMarkdown } from "./markdown-blocks.ts";
 import type { Inline, LinkTarget } from "./markdown-inlines.ts";
 import { parseInlines } from "./markdown-inlines.ts";
-import type { MarkdownSpanRule } from "./markdown-spans.ts";
 import { markSpans } from "./markdown-spans.ts";
+import type { MarkdownMark, MarkdownStyles } from "./markdown-syntax.ts";
+import { NoMarkdownStyles } from "./markdown-syntax.ts";
+
+export type { MarkdownStyles } from "./markdown-syntax.ts";
+export { NoMarkdownStyles } from "./markdown-syntax.ts";
 
 /** Highlights a code block's text as the language its info string names, as HTML; null leaves it plain. */
 export type CodeHighlighter = (text: string, info: string) => string | null;
@@ -20,25 +24,6 @@ const ClassName = MarkdownRootClass;
 
 /** The framework's address rule, as the plugin surface hands it over: a link's and a picture's, and whether a link leaves the page. */
 export type MarkdownUrls = Pick<Urls, "isSafeLink" | "isExternalLink" | "isImageSource" | "asBrowserReads">;
-
-/** A run Markdown itself marks, by its type in the inline tree, which the author may style (UIMarkdownMark). */
-type MarkdownMark = "strong" | "emphasis" | "strikethrough" | "code" | "link";
-
-/** An author's own run and the declarations it is drawn with. */
-type MarkdownSpanStyle = MarkdownSpanRule & {
-    readonly css: string;
-};
-
-/**
- * The display's styles, as MarkdownDisplayComponentRenderer writes them: the CSS declarations of Markdown's own runs and of the
- * author's, built by the server from a theme's colours and a checked font list, so the markup only carries them.
- */
-export type MarkdownStyles = {
-    readonly marks: Readonly<Partial<Record<MarkdownMark, string>>>;
-    readonly spans: readonly MarkdownSpanStyle[];
-};
-
-export const NoMarkdownStyles: MarkdownStyles = { marks: {}, spans: [] };
 
 /**
  * Where the display fetches a picture from besides an image data address and the framework's content route: the author's sources
@@ -82,9 +67,15 @@ export function renderMarkdown(source: string, highlight: CodeHighlighter, names
 /** The document as HTML block by block, one element each, so a display drawn before keeps the blocks that come out the same. */
 export function renderMarkdownBlocks(source: string, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false, insideLink = false): string[] {
     const document = parseMarkdown(source);
-    const rendering: Rendering = { references: document.references, highlight, styles, pictures, lineBreaks, insideLink, names, urls };
 
-    return document.blocks.map(block => renderBlock(block, rendering, false));
+    return renderParsedBlocks(document.blocks, document.references, highlight, names, urls, styles, pictures, lineBreaks, insideLink);
+}
+
+/** Renders already-parsed top-level blocks against `references`, used when streaming only the unsettled tail of a document. */
+export function renderParsedBlocks(blocks: readonly Block[], references: ReadonlyMap<string, LinkTarget>, highlight: CodeHighlighter, names: MarkdownNames, urls: MarkdownUrls, styles = NoMarkdownStyles, pictures = NoPictureSources, lineBreaks = false, insideLink = false): string[] {
+    const rendering: Rendering = { references, highlight, styles, pictures, lineBreaks, insideLink, names, urls };
+
+    return blocks.map(block => renderBlock(block, rendering, false));
 }
 
 function renderBlocks(blocks: readonly Block[], rendering: Rendering, tight: boolean): string {
@@ -196,7 +187,7 @@ function renderTable(line: number, alignments: readonly TableAlignment[], head: 
 
 /** A block's inline tree, the author's own runs wrapped in it. */
 function inlines(text: string, rendering: Rendering): Inline {
-    const root = parseInlines(text, rendering.references);
+    const root = parseInlines(text, rendering.references, rendering.styles.spans);
 
     if (rendering.styles.spans.length > 0)
         markSpans(root, rendering.styles.spans);

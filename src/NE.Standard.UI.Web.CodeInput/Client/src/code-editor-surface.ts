@@ -10,9 +10,12 @@ import type { Edit, SelectionSet } from "./selections.ts";
 import { applyEdits, mapPosition, singleSelection } from "./selections.ts";
 import type { TokenKind } from "./tokenizer.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { GutterDigitsVariable, LineClass, PositionWord, SaveEvent, TabSizeVariable } from "./code-editor-dom.ts";
+import { GutterDigitsVariable, LineClass, PositionWord, SaveEvent, StylesAttribute, TabSizeVariable } from "./code-editor-dom.ts";
 import { readTabSize } from "./indent.ts";
 import { languages } from "./languages/index.ts";
+import { markdownTokenizer } from "./languages/markdown.ts";
+import type { MarkdownStyles } from "./markdown-syntax.ts";
+import { parseMarkdownStyles } from "./markdown-syntax.ts";
 
 export type SurfaceParts = {
     readonly root: HTMLElement;
@@ -39,6 +42,7 @@ export class CodeEditorSurface {
     private readonly selections: SelectionAccess;
     private readonly notifyTextChanged: (fromServer: boolean) => void;
     private readonly isInert: (element: Element) => boolean;
+    private readonly styles: MarkdownStyles;
     private readonly history = new EditHistory();
     private highlighter: Highlighter;
 
@@ -58,7 +62,8 @@ export class CodeEditorSurface {
         this.selections = selections;
         this.notifyTextChanged = notifyTextChanged;
         this.isInert = isInert;
-        this.highlighter = new Highlighter(languages.get(getLanguage()));
+        this.styles = parseMarkdownStyles(typeof parts.root.getAttribute === "function" ? parts.root.getAttribute(StylesAttribute) : null);
+        this.highlighter = createHighlighter(getLanguage(), this.styles);
         this.lastValue = parts.textarea.value;
     }
 
@@ -166,7 +171,7 @@ export class CodeEditorSurface {
 
     /** Rebuilds the highlighter for the language `getLanguage` now names, and redraws everything under it. */
     public setLanguage(): void {
-        this.highlighter = new Highlighter(languages.get(this.getLanguage()));
+        this.highlighter = createHighlighter(this.getLanguage(), this.styles);
         this.renderAll();
     }
 
@@ -385,4 +390,13 @@ function nativeKind(domEvent: Event): EditKind {
         return "typing";
 
     return inputType === "deleteContentBackward" || inputType === "deleteContentForward" ? "deleting" : "other";
+}
+
+function createHighlighter(languageId: string, styles: MarkdownStyles): Highlighter {
+    const normalized = languageId.trim().toLowerCase();
+    const tokenizer = normalized === "markdown" && styles.spans.length > 0
+        ? markdownTokenizer(id => languages.get(id), styles.spans)
+        : languages.get(languageId);
+
+    return new Highlighter(tokenizer, styles);
 }

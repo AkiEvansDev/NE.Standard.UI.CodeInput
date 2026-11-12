@@ -11,6 +11,7 @@ import { htmlTokenizer } from "../src/languages/html.ts";
 import { javascriptTokenizer } from "../src/languages/javascript.ts";
 import { jsonTokenizer } from "../src/languages/json.ts";
 import { languages } from "../src/languages/index.ts";
+import { markdownTokenizer } from "../src/languages/markdown.ts";
 import { pythonTokenizer } from "../src/languages/python.ts";
 
 type Tagged = { readonly text: string; readonly kind: TokenKind };
@@ -399,4 +400,20 @@ test("html keeps tokenizing script and style blocks past longer prefix lookalike
     assert.equal(kindOf(styleTokens, "color"), "attribute");
     assert.equal(kindOf(styleTokens, "#006E64"), "value");
     assert.equal(kindOf(styleTokens, "</style"), "tag");
+});
+
+test("markdown single tilde stays plain while double tilde is strikethrough, and custom spans scope inline delimiters", () => {
+    const plainTilde = tokensOf(languages.get("markdown")!, "\"Phrase!~\" *action* \"Phrase~\" ~~gone~~");
+
+    assert.equal(kindOf(plainTilde, "*action*"), "emphasis");
+    assert.equal(kindOf(plainTilde, "~~gone~~"), "strikethrough");
+    assert.equal(plainTilde.some(token => token.kind === "strikethrough" && token.text.includes("Phrase")), false);
+
+    const scoped = markdownTokenizer(id => languages.get(id), [{ open: "\"", close: "\"" }]);
+
+    for (const sample of ["\"Phrase!*\" *action* \"Phrase*\"", "\"*Phrase\" *action* \"Phrase*\"", "\"Phrase!~~\" *action* \"Phrase~~\""]) {
+        const tokens = tokensOf(scoped, sample);
+
+        assert.deepEqual(tokens, [{ text: "*action*", kind: "emphasis" }]);
+    }
 });

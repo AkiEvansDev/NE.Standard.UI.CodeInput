@@ -96,6 +96,40 @@ test("runs that close in a later node go on in the text after the close", () => 
     assert.equal(html("x «y» \"z\" «w"), `<p>x <span class="ui-markdown__span" style="font-style: italic">«y»</span> ${speech("&quot;z&quot;")} «w</p>`);
 });
 
+test("single tilde stays literal text while double tilde strikes through", () => {
+    assert.equal(html("Wait~ really~"), "<p>Wait~ really~</p>");
+    assert.equal(html("~~struck~~ and ~kept~"), "<p><del>struck</del> and ~kept~</p>");
+});
+
+test("unclosed inline marks inside custom spans never bridge across span boundaries or invert quote pairing", () => {
+    const styles: MarkdownStyles = {
+        marks: { emphasis: "color: var(--ui-color-secondary-ink); font-style: italic;" },
+        spans: [{ open: "\"", close: "\"", css: "color: var(--ui-color-primary-ink);" }]
+    };
+    const quote = (words: string): string => `<span class="ui-markdown__span" style="color: var(--ui-color-primary-ink);">${words}</span>`;
+    const action = "<em style=\"color: var(--ui-color-secondary-ink); font-style: italic;\">action</em>";
+
+    assert.equal(html("\"Phrase!~\" *action* \"Phrase~\"", styles), `<p>${quote("&quot;Phrase!~&quot;")} ${action} ${quote("&quot;Phrase~&quot;")}</p>`);
+    assert.equal(html("\"Phrase!*\" *action* \"Phrase*\"", styles), `<p>${quote("&quot;Phrase!*&quot;")} ${action} ${quote("&quot;Phrase*&quot;")}</p>`);
+    assert.equal(html("\"*Phrase\" *action* \"Phrase*\"", styles), `<p>${quote("&quot;*Phrase&quot;")} ${action} ${quote("&quot;Phrase*&quot;")}</p>`);
+    assert.equal(html("\"Phrase!~~\" *action* \"Phrase~~\"", styles), `<p>${quote("&quot;Phrase!~~&quot;")} ${action} ${quote("&quot;Phrase~~&quot;")}</p>`);
+});
+
+test("standalone token rules with an empty close wrap exact literals outside code", () => {
+    const styles: MarkdownStyles = {
+        marks: {},
+        spans: [
+            { open: "<START>", close: "", css: "color: var(--ui-color-warning-ink); font-weight: 600;" },
+            { open: "\"", close: "\"", css: "color: var(--ui-color-primary-ink);" }
+        ]
+    };
+
+    assert.equal(
+        html("<START>\n\n\"Hello!\" `<START>`", styles),
+        "<p><span class=\"ui-markdown__span\" style=\"color: var(--ui-color-warning-ink); font-weight: 600;\">&lt;START&gt;</span></p><p><span class=\"ui-markdown__span\" style=\"color: var(--ui-color-primary-ink);\">&quot;Hello!&quot;</span> <code>&lt;START&gt;</code></p>"
+    );
+});
+
 test("a document drawn again replaces only the blocks between the runs both renders share", () => {
     const before = renderMarkdownBlocks("one\n\ntwo\n\nthr", () => null, names, urls);
     const after = renderMarkdownBlocks("one\n\ntwo\n\nthree and more", () => null, names, urls);
@@ -463,6 +497,151 @@ test("a streaming display paces incremental updates across animation frames and 
         assert.equal(frames.size, 0);
         assert.equal(textNode.nodeValue, "Replaced outright");
 
+        engine.dispose();
+    }
+    finally {
+        globals.document = previousDocument;
+        globals.requestAnimationFrame = previousRaf;
+        globals.cancelAnimationFrame = previousCancel;
+    }
+});
+
+test("custom span scoping isolates unclosed emphasis across links and bare URLs", () => {
+    const braces: MarkdownStyles = {
+        marks: {},
+        spans: [{ open: "{{", close: "}}", css: "color: teal" }]
+    };
+
+    assert.equal(
+        html("{{ *a [docs](https://x.test \"title\") }} *b*", braces),
+        "<p><span class=\"ui-markdown__span\" style=\"color: teal\">{{ *a <a href=\"https://x.test\" title=\"title\" target=\"_blank\" rel=\"noopener noreferrer\">docs</a> }}</span> <em>b</em></p>"
+    );
+    assert.equal(
+        html("{{ *a https://x.test/path}} b*", braces),
+        "<p>{{ <em>a <a href=\"https://x.test/path}}\" target=\"_blank\" rel=\"noopener noreferrer\">https://x.test/path}}</a> b</em></p>"
+    );
+});
+
+test("streaming multi-block documents with code fences, lists and late reference definitions matches full render at every frame", () => {
+    let source = "# Start";
+    let changed: ((roots: Iterable<HTMLElement>) => void) | undefined;
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 1;
+    const body = new FakeElement("div");
+    const root = {
+        isConnected: true,
+        getAttribute: (name: string) => name === "data-ui-markdown-source" ? source : null,
+        hasAttribute: () => false,
+        querySelector: () => body,
+        closest: () => null
+    } as unknown as HTMLElement;
+    const context = {
+        names,
+        urls,
+        root: { querySelectorAll: () => [root] },
+        observeComponents: (_root: unknown, _selector: string, _options: unknown, callback: (roots: Iterable<HTMLElement>) => void) => {
+            changed = callback;
+        }
+    } as unknown as PluginEngineContext;
+    const globals = globalThis as {
+        document?: unknown;
+        requestAnimationFrame?: typeof requestAnimationFrame;
+        cancelAnimationFrame?: typeof cancelAnimationFrame;
+    };
+    const previousDocument = globals.document;
+    const previousRaf = globals.requestAnimationFrame;
+    const previousCancel = globals.cancelAnimationFrame;
+
+    globals.document = {
+        baseURI: "https://app.test/",
+        createElement: () => {
+            const content = new FakeElement("#FRAGMENT");
+
+            return {
+                content,
+                get innerHTML(): string {
+                    return content.innerHTML;
+                },
+                set innerHTML(markup: string) {
+                    content.innerHTML = markup;
+                }
+            };
+        }
+    };
+    globals.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+        const id = nextFrameId++;
+
+        frames.set(id, callback);
+        return id;
+    };
+    globals.cancelAnimationFrame = (id: number): void => {
+        frames.delete(id);
+    };
+
+    const settledBlocksDocument = [
+        "# Start",
+        "",
+        "First paragraph.",
+        "",
+        "```json",
+        "{\"ok\": true}",
+        "```",
+        "",
+        "Second paragraph.",
+        "",
+        "- item one",
+        "",
+        "- item two",
+        "",
+        "Third paragraph."
+    ].join("\n");
+    const lateRefDocument = `${settledBlocksDocument}\n\nSee [guide][ref].\n\n[ref]: https://x.test/guide`;
+
+    try {
+        const engine = new MarkdownDisplayEngine(context);
+
+        source = settledBlocksDocument;
+        changed?.([root]);
+
+        while (frames.size > 0) {
+            const [id, callback] = frames.entries().next().value!;
+
+            frames.delete(id);
+            callback(16);
+        }
+
+        assert.match(body.innerHTML, /<li data-ui-source-line="11"><p data-ui-source-line="11">item one<\/p><\/li><li data-ui-source-line="13"><p data-ui-source-line="13">item two<\/p><\/li>/);
+        assert.match(body.innerHTML, /<p data-ui-source-line="15">Third paragraph\.<\/p>/);
+
+        source = lateRefDocument;
+        changed?.([root]);
+
+        while (frames.size > 0) {
+            const [id, callback] = frames.entries().next().value!;
+
+            frames.delete(id);
+            callback(16);
+        }
+
+        const freshBody = new FakeElement("div");
+        const freshRoot = {
+            isConnected: true,
+            getAttribute: (name: string) => name === "data-ui-markdown-source" ? lateRefDocument : null,
+            hasAttribute: () => false,
+            querySelector: () => freshBody,
+            closest: () => null
+        } as unknown as HTMLElement;
+        const freshEngine = new MarkdownDisplayEngine({
+            names,
+            urls,
+            root: { querySelectorAll: () => [freshRoot] },
+            observeComponents: () => undefined
+        } as unknown as PluginEngineContext);
+
+        assert.equal(body.innerHTML, freshBody.innerHTML);
+        assert.match(body.innerHTML, /<a href="https:\/\/x\.test\/guide"/);
+
+        freshEngine.dispose();
         engine.dispose();
     }
     finally {

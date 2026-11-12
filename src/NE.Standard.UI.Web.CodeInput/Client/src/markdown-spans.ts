@@ -3,12 +3,10 @@
 // reaches into code.
 
 import { Inline, mergeText } from "./markdown-inlines.ts";
+import type { MarkdownSpanRule } from "./markdown-syntax.ts";
+import { firstOpening } from "./markdown-syntax.ts";
 
-/** An author's run: the marks that open and close it. */
-export type MarkdownSpanRule = {
-    readonly open: string;
-    readonly close: string;
-};
+export type { MarkdownSpanRule } from "./markdown-syntax.ts";
 
 /** A run wrapped: its span, and the text after its closing mark, which the walk goes on in. */
 type Wrapped = {
@@ -69,23 +67,6 @@ function markInText(node: Inline, rules: readonly MarkdownSpanRule[], closeless:
     }
 }
 
-/** The rule whose opening mark comes first, -1 for none; of two at one place, the longer, so `«` and `<<` cannot both claim one run. */
-function firstOpening(openings: readonly number[], rules: readonly MarkdownSpanRule[]): number {
-    let found = -1;
-
-    for (let rule = 0; rule < openings.length; rule++) {
-        const at = openings[rule];
-
-        if (at < 0)
-            continue;
-
-        if (found < 0 || at < openings[found] || (at === openings[found] && rules[rule].open.length > rules[found].open.length))
-            found = rule;
-    }
-
-    return found;
-}
-
 /**
  * Wraps the run an opening mark starts, if a closing mark follows it in this text node or in a later sibling's; the siblings between
  * — emphasis, a link, a line break — go into the run whole, and any run of another rule inside it is wrapped in turn. Null where
@@ -94,6 +75,26 @@ function firstOpening(openings: readonly number[], rules: readonly MarkdownSpanR
 function wrapRun(node: Inline, at: number, ruleIndex: number, rules: readonly MarkdownSpanRule[]): Wrapped | null {
     const rule = rules[ruleIndex];
     const contentStart = at + rule.open.length;
+
+    if (rule.close.length === 0) {
+        const rest = node.literal.slice(contentStart);
+        const span = new Inline("span");
+
+        span.rule = ruleIndex;
+        span.appendChild(new Inline("text", rule.open));
+        node.literal = node.literal.slice(0, at);
+        node.insertAfter(span);
+
+        if (rest.length === 0)
+            return { span, after: null, cut: -1 };
+
+        const after = new Inline("text", rest);
+
+        span.insertAfter(after);
+
+        return { span, after, cut: contentStart };
+    }
+
     let closingNode: Inline | null = null;
     let closingIndex = node.literal.indexOf(rule.close, contentStart);
 

@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { Highlighter, renderSegments } from "../src/highlighter.ts";
+import { languages } from "../src/languages/index.ts";
 import { javascriptTokenizer } from "../src/languages/javascript.ts";
+import { markdownTokenizer } from "../src/languages/markdown.ts";
+import type { MarkdownStyles } from "../src/markdown-render.ts";
 
 // A degrade here warns once on the console; degrade-warnings.test.ts asserts the words, so these runs stay quiet.
 console.warn = () => {};
@@ -185,4 +188,42 @@ test("an empty line renders a break so it keeps its height", () => {
     highlighter.update("a\n\nb");
 
     assert.equal(highlighter.renderLine(1), "<span class=\"ui-code-input__code\"><br></span>");
+});
+
+test("mark and span styles apply inline declarations to Markdown and plain-text lines without reaching into code", () => {
+    const styles: MarkdownStyles = {
+        marks: {
+            emphasis: "color: var(--ui-color-secondary-ink); font-style: italic;",
+            strong: "color: var(--ui-color-accent-ink); font-weight: 700;"
+        },
+        spans: [
+            { open: "\"", close: "\"", css: "color: var(--ui-color-primary-ink);" },
+            { open: "{{", close: "}}", css: "color: var(--ui-color-info-ink); font-weight: 600;" },
+            { open: "<START>", close: "", css: "color: var(--ui-color-warning-ink); font-weight: 600;" }
+        ]
+    };
+    const mdHighlighter = new Highlighter(markdownTokenizer(id => languages.get(id), styles.spans), styles);
+
+    mdHighlighter.update("<START>\n*She nods.* \"Hello, {{user}}!\" `\"code\" <START>`\n```\n\"fenced\" <START>\n```");
+
+    assert.equal(
+        mdHighlighter.renderLine(0),
+        "<span class=\"ui-code-input__code\"><span class=\"ui-tk-span\" style=\"color: var(--ui-color-warning-ink); font-weight: 600;\">&lt;START&gt;</span></span>"
+    );
+    assert.equal(
+        mdHighlighter.renderLine(1),
+        "<span class=\"ui-code-input__code\"><span class=\"ui-tk-emphasis\" style=\"color: var(--ui-color-secondary-ink); font-style: italic;\">*She nods.*</span> <span class=\"ui-tk-span\" style=\"color: var(--ui-color-primary-ink);\">&quot;Hello, </span><span class=\"ui-tk-span\" style=\"color: var(--ui-color-info-ink); font-weight: 600;\">{{user}}</span><span class=\"ui-tk-span\" style=\"color: var(--ui-color-primary-ink);\">!&quot;</span> <span class=\"ui-tk-code\">`&quot;code&quot; &lt;START&gt;`</span></span>"
+    );
+    assert.equal(
+        mdHighlighter.renderLine(3),
+        "<span class=\"ui-code-input__code\"><span class=\"ui-tk-code\">&quot;fenced&quot; &lt;START&gt;</span></span>"
+    );
+
+    const plainHighlighter = new Highlighter(null, styles);
+
+    plainHighlighter.update("Hello {{user}}!");
+    assert.equal(
+        plainHighlighter.renderLine(0),
+        "<span class=\"ui-code-input__code\">Hello <span class=\"ui-tk-span\" style=\"color: var(--ui-color-info-ink); font-weight: 600;\">{{user}}</span>!</span>"
+    );
 });

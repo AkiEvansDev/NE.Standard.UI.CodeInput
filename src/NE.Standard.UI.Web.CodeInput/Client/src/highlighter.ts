@@ -1,4 +1,6 @@
-import { CodeClass, CurrentMatchClass, MatchClass } from "./code-editor-dom.ts";
+import { CodeClass, CurrentMatchClass, MatchClass, SpanTokenClass } from "./code-editor-dom.ts";
+import type { MarkdownSpanRule, MarkdownStyles, SpanRange } from "./markdown-syntax.ts";
+import { findSpanRanges, NoMarkdownStyles } from "./markdown-syntax.ts";
 import type { LineState, Token, TokenKind, Tokenizer } from "./tokenizer.ts";
 import { statesEqual } from "./tokenizer.ts";
 import { warnOnce } from "./warn-once.ts";
@@ -15,6 +17,7 @@ type CachedLine = {
     readonly startState: LineState;
     readonly endState: LineState;
     readonly tokens: readonly Token[];
+    readonly spans: readonly SpanRange[];
     marks: readonly Mark[];
 };
 
@@ -27,6 +30,7 @@ export type LineChange = {
 
 const EmptyState: LineState = {};
 const NoTokens: readonly Token[] = [];
+const NoSpans: readonly SpanRange[] = [];
 const NoMarks: readonly Mark[] = [];
 
 /**
@@ -35,13 +39,15 @@ const NoMarks: readonly Mark[] = [];
  */
 export class Highlighter {
     private readonly tokenizer: Tokenizer | null;
+    private readonly styles: MarkdownStyles;
     private lines: CachedLine[] = [];
 
     /** The offset each line starts at, so an absolute match position finds its line. */
     private starts: number[] = [0];
 
-    public constructor(tokenizer: Tokenizer | null) {
+    public constructor(tokenizer: Tokenizer | null, styles: MarkdownStyles = NoMarkdownStyles) {
         this.tokenizer = tokenizer;
+        this.styles = styles;
     }
 
     public get lineCount(): number {
@@ -166,7 +172,7 @@ export class Highlighter {
 
     private tokenize(text: string, startState: LineState): CachedLine {
         if (this.tokenizer === null)
-            return { text, startState: EmptyState, endState: EmptyState, tokens: NoTokens, marks: NoMarks };
+            return { text, startState: EmptyState, endState: EmptyState, tokens: NoTokens, spans: findLineSpans(text, NoTokens, EmptyState, EmptyState, this.styles.spans), marks: NoMarks };
 
         const tokens: Token[] = [];
 
@@ -174,13 +180,14 @@ export class Highlighter {
         // textarea, so a line not drawn is a line the reader types blind.
         try {
             const endState = this.tokenizer.tokenizeLine(text, startState, (from, to, kind) => tokens.push({ from, to, kind }));
+            const spans = findLineSpans(text, tokens, startState, endState, this.styles.spans);
 
-            return { text, startState, endState, tokens, marks: NoMarks };
+            return { text, startState, endState, tokens, spans, marks: NoMarks };
         }
         catch (error) {
             warnOnce(this.tokenizer, "a language's tokenizer threw; the lines it fails on are drawn plain.", error);
 
-            return { text, startState, endState: startState, tokens: NoTokens, marks: NoMarks };
+            return { text, startState, endState: startState, tokens: NoTokens, spans: NoSpans, marks: NoMarks };
         }
     }
 
@@ -256,8 +263,50 @@ export class Highlighter {
         if (line === undefined)
             return "";
 
-        return line.text.length === 0 ? `<span class="${CodeClass}"><br></span>` : `<span class="${CodeClass}">${renderSegments(line.text, line.tokens, line.marks)}</span>`;
+        return line.text.length === 0 ? `<span class="${CodeClass}"><br></span>` : `<span class="${CodeClass}">${renderSegments(line.text, line.tokens, line.marks, this.styles, line.spans)}</span>`;
     }
+}
+
+function findLineSpans(text: string, tokens: readonly Token[], startState: LineState, endState: LineState, rules: readonly MarkdownSpanRule[]): readonly SpanRange[] {
+    if (rules.length === 0 || text.length === 0 || isFencedState(startState) || isFencedState(endState))
+        return NoSpans;
+
+    if (tokens.length === 0)
+        return findSpanRanges(text, rules);
+
+    let masked = "";
+    let cursor = 0;
+
+    for (const token of tokens) {
+        if (!blocksCustomSpan(token.kind))
+            continue;
+
+        if (token.from > cursor)
+            masked += text.slice(cursor, token.from);
+
+        if (token.to > cursor) {
+            masked += "\0".repeat(token.to - Math.max(cursor, token.from));
+            cursor = token.to;
+        }
+    }
+
+    if (cursor === 0)
+        return findSpanRanges(text, rules);
+
+    if (cursor < text.length)
+        masked += text.slice(cursor);
+
+    return findSpanRanges(masked, rules);
+}
+
+function isFencedState(state: LineState): boolean {
+    const fence = (state as { readonly fence?: unknown }).fence;
+
+    return typeof fence === "string" && fence.length > 0;
+}
+
+function blocksCustomSpan(kind: TokenKind): boolean {
+    return kind === "code" || kind === "comment" || kind === "escape" || kind === "string" || kind === "link";
 }
 
 // How far apart two walks may part and still be found meeting again; past it, the lines are replaced one for one until they meet.
@@ -304,8 +353,8 @@ function marksEqual(a: readonly Mark[], b: readonly Mark[]): boolean {
 }
 
 /** Tokens and marks cut into one run of spans: a span for every stretch where the token under it and the mark over it are constant. */
-export function renderSegments(text: string, tokens: readonly Token[], marks: readonly Mark[]): string {
-    if (tokens.length === 0 && marks.length === 0)
+export function renderSegments(text: string, tokens: readonly Token[], marks: readonly Mark[], styles: MarkdownStyles = NoMarkdownStyles, spans: readonly SpanRange[] = NoSpans): string {
+    if (tokens.length === 0 && marks.length === 0 && spans.length === 0)
         return escapeHtml(text);
 
     const cuts = new Set<number>([0, text.length]);
@@ -318,6 +367,11 @@ export function renderSegments(text: string, tokens: readonly Token[], marks: re
     for (const mark of marks) {
         cuts.add(mark.from);
         cuts.add(mark.to);
+    }
+
+    for (const span of spans) {
+        cuts.add(span.openStart);
+        cuts.add(span.closeEnd);
     }
 
     const points = [...cuts].sort((a, b) => a - b);
@@ -335,19 +389,45 @@ export function renderSegments(text: string, tokens: readonly Token[], marks: re
         while (markIndex < marks.length && marks[markIndex].to <= from)
             markIndex++;
 
-        const kind = tokenIndex < tokens.length && tokens[tokenIndex].from <= from ? tokens[tokenIndex].kind : null;
+        const rawKind = tokenIndex < tokens.length && tokens[tokenIndex].from <= from ? tokens[tokenIndex].kind : null;
         const mark = markIndex < marks.length && marks[markIndex].from <= from ? marks[markIndex] : null;
+        const span = rawKind === "code" ? null : innermostSpan(spans, from, to);
+        const kind = span !== null && rawKind === "tag" ? null : rawKind;
         const piece = escapeHtml(text.slice(from, to));
 
-        if (kind === null && mark === null) {
+        if (kind === null && mark === null && span === null) {
             html += piece;
             continue;
         }
 
-        html += `<span class="${classesFor(kind, mark)}">${piece}</span>`;
+        const css = segmentCss(kind, span, styles);
+        const style = css.length > 0 ? ` style="${escapeHtml(css)}"` : "";
+
+        html += `<span class="${classesFor(kind, mark, span !== null)}"${style}>${piece}</span>`;
     }
 
     return html;
+}
+
+function innermostSpan(spans: readonly SpanRange[], from: number, to: number): SpanRange | null {
+    let active: SpanRange | null = null;
+
+    for (const span of spans) {
+        if (span.openStart <= from && to <= span.closeEnd)
+            active = span;
+    }
+
+    return active;
+}
+
+function segmentCss(kind: TokenKind | null, span: SpanRange | null, styles: MarkdownStyles): string {
+    const spanCss = span === null ? undefined : styles.spans[span.rule]?.css;
+    const markCss = kind === null ? undefined : (styles.marks as Readonly<Partial<Record<TokenKind, string>>>)[kind];
+
+    if (spanCss !== undefined && spanCss.length > 0 && markCss !== undefined && markCss.length > 0)
+        return `${spanCss} ${markCss}`;
+
+    return markCss ?? spanCss ?? "";
 }
 
 /** The class a token of `kind` wears, which the palette colours: the text's, and a completion's label of that kind. */
@@ -355,8 +435,11 @@ export function tokenClass(kind: TokenKind): string {
     return `ui-tk-${kind}`;
 }
 
-function classesFor(kind: TokenKind | null, mark: Mark | null): string {
-    let classes = kind === null ? "" : tokenClass(kind);
+function classesFor(kind: TokenKind | null, mark: Mark | null, hasSpan = false): string {
+    let classes = kind === null ? (hasSpan ? SpanTokenClass : "") : tokenClass(kind);
+
+    if (kind !== null && hasSpan)
+        classes += ` ${SpanTokenClass}`;
 
     if (mark !== null)
         classes += (classes.length > 0 ? " " : "") + (mark.current ? `${MatchClass} ${CurrentMatchClass}` : MatchClass);

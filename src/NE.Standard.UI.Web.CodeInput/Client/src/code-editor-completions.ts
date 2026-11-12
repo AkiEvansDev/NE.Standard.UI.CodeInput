@@ -5,9 +5,9 @@ import type { PluginEngineContext, PopupHandle } from "ne-standard-ui";
 import type { CodeEditorCarets } from "./code-editor-carets.ts";
 import type { CodeEditorEditing } from "./code-editor-editing.ts";
 import type { CodeEditorSurface } from "./code-editor-surface.ts";
-import { ActiveCompletionClass, CompletionAnchorClass, CompletionListClass, CompletionRowClass, CompletionsAttribute, CompletionsSourceAttribute, SuggestionsWord } from "./code-editor-dom.ts";
+import { ActiveCompletionClass, CompletionAnchorClass, CompletionItemsAttribute, CompletionListClass, CompletionRowClass, CompletionsAttribute, CompletionsSourceAttribute, SuggestionsWord } from "./code-editor-dom.ts";
 import type { CompletionContext, CompletionItem, CompletionSource, CompletionsFile } from "./completions.ts";
-import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
+import { activeTrigger, collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, rankCompletions } from "./completions.ts";
 import { completionsRegistry } from "./completions-registry.ts";
 import { languages } from "./languages/index.ts";
 import { warnOnce } from "./warn-once.ts";
@@ -75,6 +75,7 @@ export class CodeEditorCompletions {
     /** The caret this concern last showed or filtered at; a `selectionchange` that lands anywhere else closes the list. */
     private lastKnownCaret = -1;
 
+    private readonly inlineCompletions: CompletionsFile;
     private sourceUrl: string | null = null;
     private loadedFile: CompletionsFile | null = null;
 
@@ -87,6 +88,7 @@ export class CodeEditorCompletions {
         this.editing = editing;
         this.carets = carets;
         this.getLanguage = getLanguage;
+        this.inlineCompletions = readInlineCompletions(parts.root);
 
         this.anchor = document.createElement("span");
         this.anchor.className = CompletionAnchorClass;
@@ -170,7 +172,7 @@ export class CodeEditorCompletions {
         const text = this.textarea.value;
         const position = this.textarea.selectionStart;
         const prefix = prefixAt(text, position);
-        const ready = prefix.length > 0 || this.triggers().includes(text.charAt(position - 1));
+        const ready = prefix.length > 0 || activeTrigger(text, position, this.triggers()) !== null;
 
         if (this.isOpen) {
             if (!ready) {
@@ -206,11 +208,20 @@ export class CodeEditorCompletions {
     }
 
     private triggers(): readonly string[] {
-        return this.loadedFile?.triggers ?? [];
+        const inline = this.inlineCompletions.triggers;
+        const loaded = this.loadedFile?.triggers ?? [];
+
+        if (inline.length === 0)
+            return loaded;
+
+        return loaded.length === 0 ? inline : [...inline, ...loaded];
     }
 
-    /** Whether the field has anything to complete from beyond the document's own words — a file, a script's source, or keywords. */
+    /** Whether the field has anything to complete from beyond the document's own words — inline items, a file, a script's source, or keywords. */
     private hasExtraSource(languageId: string): boolean {
+        if (this.inlineCompletions.items.length > 0 || this.inlineCompletions.triggers.length > 0)
+            return true;
+
         if (this.sourceUrl !== null && this.sourceUrl.length > 0)
             return true;
 
@@ -250,15 +261,18 @@ export class CodeEditorCompletions {
         if (requestId !== this.requestId || !this.textarea.isConnected || document.activeElement !== this.textarea || this.textarea.selectionStart !== position)
             return;
 
-        const ranked = rankCompletions(collected, prefix);
+        const trigger = activeTrigger(this.textarea.value, position, this.triggers());
+        const includeTrigger = trigger !== null && !prefix.startsWith(trigger) && collected.some(item => item.label.startsWith(trigger));
+        const filterPrefix = includeTrigger ? trigger + prefix : prefix;
+        const ranked = rankCompletions(collected, filterPrefix);
 
         // Nothing to offer, or only the word already typed out in full.
-        if (ranked.length === 0 || (ranked.length === 1 && ranked[0].label === prefix)) {
+        if (ranked.length === 0 || (ranked.length === 1 && ranked[0].label === filterPrefix)) {
             this.close();
             return;
         }
 
-        this.show(ranked, position - prefix.length);
+        this.show(ranked, position - filterPrefix.length);
     }
 
     private buildContext(prefix: string, position: number, languageId: string): CompletionContext {
@@ -270,6 +284,9 @@ export class CodeEditorCompletions {
 
     private sourcesFor(languageId: string): CompletionSource[] {
         const sources: CompletionSource[] = [];
+
+        if (this.inlineCompletions.items.length > 0)
+            sources.push(this.inlineCompletions.items);
 
         if (this.loadedFile !== null && this.loadedFile.items.length > 0)
             sources.push(this.loadedFile.items);
@@ -455,9 +472,11 @@ export class CodeEditorCompletions {
         if (item === undefined)
             return;
 
+        const triggers = this.triggers();
+
         // Closed first: the accepted edit raises `input`, which an open list would take for a keystroke to filter on.
         this.close();
-        this.editing.acceptCompletion(item.insert ?? item.label);
+        this.editing.acceptCompletion(item.insert ?? item.label, triggers);
     }
 
     /** A `selectionchange` the field itself did not just cause — a click, an arrow key, Home or End — closes the list. */
@@ -503,5 +522,21 @@ export class CodeEditorCompletions {
         this.textarea.removeAttribute("aria-autocomplete");
         this.textarea.removeAttribute("aria-controls");
         this.textarea.removeAttribute("aria-activedescendant");
+    }
+}
+
+function readInlineCompletions(root: HTMLElement): CompletionsFile {
+    const json = typeof root.getAttribute === "function" ? root.getAttribute(CompletionItemsAttribute) : null;
+
+    if (json === null || json.length === 0)
+        return { items: [], triggers: [] };
+
+    try {
+        return parseCompletionsFile(JSON.parse(json));
+    }
+    catch (error) {
+        warnOnce(root, "a code field's inline completions could not be read; the field offers the rest.", error);
+
+        return { items: [], triggers: [] };
     }
 }

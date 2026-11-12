@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.Json;
 using NE.Standard.UI.Abstractions.Binding.Properties;
 using NE.Standard.UI.Authoring.Components;
 using NE.Standard.UI.CodeInput;
@@ -38,6 +39,12 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
     /// <summary>On the root: the address of a JSON file of completions, when one is set.</summary>
     public const string CompletionsSourceAttribute = "data-ui-code-completions-source";
+
+    /// <summary>On the root: the inline completion items and trigger prefixes configured on the field, as JSON.</summary>
+    public const string CompletionItemsAttribute = "data-ui-code-completion-items";
+
+    /// <summary>On the root: the styles of Markdown's own runs and of the author's custom spans, as JSON.</summary>
+    public const string StylesAttribute = "data-ui-code-styles";
 
     /// <summary>On the root while the status bar shows.</summary>
     public const string StatusBarAttribute = "data-ui-code-status";
@@ -106,12 +113,22 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         _ = root.Attribute(DetectedLineEndingAttribute, DetectLineEnding(context));
 
         RenderImages(context, root);
+        RenderStyles(context, root);
+        RenderCompletionItems(context, root);
 
         _ = RenderProperty<int?>(context, root, CodeInputComponent.RowsProperty, static (target, value) =>
         {
             if (value is int rows and > 0)
                 _ = target.Style(RowsVariable, rows.ToString(CultureInfo.InvariantCulture));
         }, [WebDomOperation.Style(RowsVariable, converter: WebDomConverters.PositiveCount)]);
+    }
+
+    /// <summary>The line break the value came with: the browser holds every break as LF, so only the render can tell.</summary>
+    private static string DetectLineEnding(WebRenderContext context)
+    {
+        _ = ResolveRenderValue(context, IInputComponent.ValueProperty, out string? text, out _);
+
+        return text?.Contains("\r\n", StringComparison.Ordinal) == true ? UICodeLineEndings.CrLf : UICodeLineEndings.Lf;
     }
 
     /// <summary>
@@ -134,12 +151,34 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
         }, [WebDomOperation.Attribute(ImageAcceptAttribute, converter: WebDomConverters.TrimmedText)]);
     }
 
-    /// <summary>The line break the value came with: the browser holds every break as LF, so only the render can tell.</summary>
-    private static string DetectLineEnding(WebRenderContext context)
+    // Render-time only: the styles are how the field is built.
+    private static void RenderStyles(WebRenderContext context, IHtmlElementBuilder root)
     {
-        _ = ResolveRenderValue(context, IInputComponent.ValueProperty, out string? text, out _);
+        IReadOnlyList<UIMarkdownMarkStyle> marks = ReadRenderValue<IReadOnlyList<UIMarkdownMarkStyle>?>(context, CodeInputComponent.MarkStylesProperty, null) ?? [];
+        IReadOnlyList<UIMarkdownSpanStyle> spans = ReadRenderValue<IReadOnlyList<UIMarkdownSpanStyle>?>(context, CodeInputComponent.SpanStylesProperty, null) ?? [];
 
-        return text?.Contains("\r\n", StringComparison.Ordinal) == true ? UICodeLineEndings.CrLf : UICodeLineEndings.Lf;
+        if (MarkdownDisplayComponentRenderer.SerializeStyles(marks, spans) is string json)
+            _ = root.Attribute(StylesAttribute, json);
+    }
+
+    // Render-time only: the inline completions and triggers are sent once on the root and merged with CompletionsSource on the client.
+    private static void RenderCompletionItems(WebRenderContext context, IHtmlElementBuilder root)
+    {
+        IReadOnlyList<UICodeCompletion> items = ReadRenderValue<IReadOnlyList<UICodeCompletion>?>(context, CodeInputComponent.CompletionItemsProperty, null) ?? [];
+        IReadOnlyList<string> triggers = ReadRenderValue<IReadOnlyList<string>?>(context, CodeInputComponent.CompletionTriggersProperty, null) ?? [];
+
+        if (items.Count == 0 && triggers.Count == 0)
+            return;
+
+        List<CompletionItemModel> itemModels = [with(items.Count)];
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            UICodeCompletion item = items[i];
+            itemModels.Add(new CompletionItemModel(item.Label, item.InsertText, item.Detail, item.Kind));
+        }
+
+        _ = root.Attribute(CompletionItemsAttribute, JsonSerializer.Serialize(new CompletionsModel(itemModels, triggers), WebWireJson.Options));
     }
 
     private void RenderField(WebRenderContext context, IHtmlElementBuilder root)
@@ -347,4 +386,8 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
             _ = part.Attribute(attribute);
             RenderRegion(context, part, region, exposed);
         });
+
+    private sealed record CompletionsModel(IReadOnlyList<CompletionItemModel> Items, IReadOnlyList<string> Triggers);
+
+    private sealed record CompletionItemModel(string Label, string? Insert, string? Detail, string? Kind);
 }

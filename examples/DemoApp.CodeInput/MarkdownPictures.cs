@@ -23,7 +23,7 @@ public sealed class MarkdownPictures(IUIContentAddressResolver addresses) : IUIC
     private const int MostPictures = 64;
 
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, Picture> _pictures = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Picture> _pictures = [with(StringComparer.Ordinal)];
     private readonly Queue<string> _order = new();
 
     /// <summary>

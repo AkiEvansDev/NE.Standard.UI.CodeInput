@@ -49,6 +49,8 @@ new CodeInputComponent()
 | `MultiCaret` | Whether the field takes more than one caret — see *Several carets* (on by default). |
 | `Completions` | Whether Ctrl+Space and typing open a completion list — see *Completions* (on by default). |
 | `CompletionsSource` | The URL of a JSON file of completion items and trigger characters the client loads once — see *Completions*. |
+| `CompletionItems`, `CompletionTriggers` | Completion items (`AddCompletion`, `SetCompletionItems`) and trigger prefixes (`SetCompletionTriggers`, e.g. `"{{"`) declared directly on the component — see *Completions*. |
+| `MarkStyles`, `SpanStyles` | Styles (`SetMarkStyle`) for Markdown's own runs and custom delimited or standalone token spans (`AddSpanStyle`, `AddTokenStyle`) layered over the field's language — see *Markdown display*. |
 | `FormatBar` | Whether a Markdown field offers its format bar and keys — see *Formatting Markdown* (on by default). |
 | `MaxLength` | The longest text the field takes: the textarea's `maxlength`, and refused by the server past it. |
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
@@ -244,9 +246,19 @@ keeps for the page:
 highlighter knows (`keyword`, `type`, `function`, `variable`, `property`, `string`, `number`, `regex`, `meta`, `tag`, `attribute`, …)
 or `text`, and colours the label with the very ink a token of that kind wears in the text — a language that paints its names as
 `regex` offers them as `regex`, and they look alike in both; `text`, or no kind, is plain.
-`triggers` is optional: characters that open the list themselves, right after they are typed. Serve the file as a plain static
+`triggers` is optional: characters or multi-character prefixes (such as `"."` or `"{{"`) that open the list themselves, right after they are typed, and replace the trigger prefix cleanly when an item is accepted. Serve the file as a plain static
 asset — a file under the host's own `wwwroot` with `app.UseStaticFiles()`, as the demo does — there is nothing of the framework's
 to build for it: `WebAssetDescriptor` is the framework's own way of shipping a package's script and stylesheet, not a host's file.
+
+An application may also declare completion items and trigger prefixes directly in C# on the component, merged ahead of or beside `CompletionsSource`:
+
+```csharp
+new CodeInputComponent()
+    .SetLanguage(UICodeLanguages.Markdown)
+    .AddCompletion("{{user}}", detail: "User's display name", kind: "variable")
+    .AddCompletion("{{char}}", detail: "Character's display name", kind: "variable")
+    .SetCompletionTriggers("{{")
+```
 
 A script may add words of its own instead, or beside the file:
 
@@ -323,16 +335,17 @@ new MarkdownDisplayComponent()
     .BindText(nameof(ChatMessage.Text))
 ```
 
-A display may draw runs in styles of its own — a colour, followed through the light and the dark theme, a font list, a weight,
+A display or an editor may draw runs in styles of its own — a colour, followed through the light and the dark theme, a font list, a weight,
 a slant. `SetMarkStyle` styles Markdown's own runs (strong, emphasis, strikethrough, inline code, a link's words);
-`AddSpanStyle` styles words from an opening mark to the next closing one within a paragraph, the marks included — quoted
-speech, say. A mark never closed styles nothing, as an unclosed `**` does not, and a mark inside code is the code's. The styles
-are how the display is built, not values to bind:
+`AddSpanStyle` styles words from an opening mark to the next closing one within a paragraph or line, the marks included — quoted
+speech or `{{macro}}` tokens, say — and `AddTokenStyle` styles standalone literal tokens such as `<START>`. Inline emphasis and strikethrough delimiters are scoped inside custom spans so a mark inside quotes never pairs across a span boundary, and a mark never closed styles nothing, as an unclosed `**` does not, while a mark inside code is the code's. The styles
+are how the display or the editor is built, not values to bind:
 
 ```csharp
 new MarkdownDisplayComponent()
     .SetMarkStyle(UIMarkdownMark.Strong, new UIMarkdownTextStyle { Color = UIThemeColor.Primary })
     .AddSpanStyle("\"", "\"", new UIMarkdownTextStyle { Color = UIThemeColor.Accent, Italic = true })
+    .AddTokenStyle("<START>", new UIMarkdownTextStyle { Color = UIThemeColor.Warning, FontWeight = 600 })
     .BindText(nameof(ChatMessage.Text))
 ```
 

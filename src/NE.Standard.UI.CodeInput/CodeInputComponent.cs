@@ -37,6 +37,10 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     private const UIInputAppearance DefaultAppearance = UIInputAppearance.Ghost;
 
     private readonly Dictionary<string, IVisualComponent> _regions = CreateParts();
+    private readonly List<UIMarkdownMarkStyle> _markStyles = [];
+    private readonly List<UIMarkdownSpanStyle> _spanStyles = [];
+    private readonly List<UICodeCompletion> _completionItems = [];
+    private readonly List<string> _completionTriggers = [];
 
     /// <summary>
     /// Gets the framework's own components the field shows — the find panel's fields, buttons and switches, the status bar's pickers —
@@ -80,7 +84,7 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     // A listed name (`UTF-8`, `C#`) is content, prefixes or not; only the package's own words are looked up.
     private static List<OptionItem> Options(IReadOnlyList<KeyValuePair<string, string>> named)
     {
-        List<OptionItem> options = new(named.Count);
+        List<OptionItem> options = [with(named.Count)];
 
         foreach (KeyValuePair<string, string> entry in named)
             options.Add(Option(entry.Key, entry.Value, content: !UICodeInputStrings.IsWord(entry.Value)));
@@ -163,8 +167,8 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     /// Gets or sets whether the field offers completions (Ctrl+Space, or while typing).
     /// </summary>
     /// <remarks>
-    /// Words come from <see cref="CompletionsSource"/>, script registrations, the language's keywords and the document; the field
-    /// ships none of its own.
+    /// Words come from <see cref="CompletionItems"/>, <see cref="CompletionsSource"/>, script registrations, the language's keywords
+    /// and the document; the field ships none of its own.
     /// </remarks>
     [UIComponentProperty(DefaultValue = true)]
     public bool? Completions { get; set; }
@@ -175,6 +179,37 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     /// </summary>
     [UIComponentProperty(DefaultValue = null)]
     public string? CompletionsSource { get; set; }
+
+    /// <summary>
+    /// Gets the inline completion items offered by the field, added by <see cref="AddCompletion(UICodeCompletion)"/> or
+    /// <see cref="SetCompletionItems"/>.
+    /// </summary>
+    /// <remarks>Render-time only: the items are sent with the field and merged with <see cref="CompletionsSource"/> on the client.</remarks>
+    [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public IReadOnlyList<UICodeCompletion> CompletionItems => _completionItems;
+
+    /// <summary>
+    /// Gets the characters or prefixes (such as <c>"."</c> or <c>"{{"</c>) that open the completion list as soon as they are typed,
+    /// set by <see cref="SetCompletionTriggers(IEnumerable{string})"/>.
+    /// </summary>
+    /// <remarks>Render-time only, as <see cref="CompletionItems"/>.</remarks>
+    [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public IReadOnlyList<string> CompletionTriggers => _completionTriggers;
+
+    /// <summary>
+    /// Gets the styles Markdown's own runs are drawn in when the field highlights Markdown, set by <see cref="SetMarkStyle"/>.
+    /// </summary>
+    /// <remarks>Render-time only: the styles are how the field is built.</remarks>
+    [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public IReadOnlyList<UIMarkdownMarkStyle> MarkStyles => _markStyles;
+
+    /// <summary>
+    /// Gets the author's own runs and their styles, added by <see cref="AddSpanStyle(string, string?, UIMarkdownTextStyle)"/> or
+    /// <see cref="AddTokenStyle"/>.
+    /// </summary>
+    /// <remarks>Render-time only, as <see cref="MarkStyles"/>.</remarks>
+    [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
+    public IReadOnlyList<UIMarkdownSpanStyle> SpanStyles => _spanStyles;
 
     /// <summary>
     /// Gets or sets how many spaces a tab stop is, and what the Tab key inserts. Two-way: the status bar's picker writes the choice back.
@@ -253,6 +288,122 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     /// </summary>
     public T SetWrapLines()
         => SetWrapLines(true);
+
+    /// <summary>
+    /// Draws one of Markdown's own runs — <c>**strong**</c>, <c>*emphasis*</c>, … — in a style; a mark styled again takes the new one.
+    /// </summary>
+    public T SetMarkStyle(UIMarkdownMark mark, UIMarkdownTextStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+
+        if (!Enum.IsDefined(mark))
+            throw new ArgumentOutOfRangeException(nameof(mark), mark, "Not a run Markdown marks.");
+
+        style.Validate();
+        _ = _markStyles.RemoveAll(existing => existing.Mark == mark);
+        _markStyles.Add(new UIMarkdownMarkStyle { Mark = mark, Style = style });
+        return Self;
+    }
+
+    /// <summary>
+    /// Draws the words from <paramref name="open"/> to the next <paramref name="close"/> on a line in a style, the marks included —
+    /// <c>AddSpanStyle("\"", "\"", style)</c> for quoted speech, or an empty <paramref name="close"/> for a standalone token.
+    /// An opening mark with a closing mark that is never reached on the line styles nothing.
+    /// </summary>
+    public T AddSpanStyle(string open, string? close, UIMarkdownTextStyle style)
+        => AddSpanStyle(new UIMarkdownSpanStyle { Open = open, Close = close ?? string.Empty, Style = style });
+
+    /// <summary>
+    /// Adds an author's own run as it stands; one opening mark opens one run only.
+    /// </summary>
+    public T AddSpanStyle(UIMarkdownSpanStyle span)
+    {
+        ArgumentNullException.ThrowIfNull(span);
+        ArgumentException.ThrowIfNullOrWhiteSpace(span.Open);
+        ArgumentNullException.ThrowIfNull(span.Close);
+
+        if (span.Close.Length > 0 && string.IsNullOrWhiteSpace(span.Close))
+            throw new ArgumentException("A closing mark cannot be whitespace.", nameof(span));
+
+        ArgumentNullException.ThrowIfNull(span.Style);
+
+        span.Style.Validate();
+
+        for (var i = 0; i < _spanStyles.Count; i++)
+        {
+            if (string.Equals(_spanStyles[i].Open, span.Open, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Code input '{Id}' already has a run opened by '{span.Open}'.");
+        }
+
+        _spanStyles.Add(span);
+        return Self;
+    }
+
+    /// <summary>
+    /// Draws every occurrence of <paramref name="literal"/> outside code in <paramref name="style"/> — a standalone marker such as
+    /// <c>&lt;START&gt;</c>.
+    /// </summary>
+    public T AddTokenStyle(string literal, UIMarkdownTextStyle style)
+        => AddSpanStyle(new UIMarkdownSpanStyle { Open = literal, Close = string.Empty, Style = style });
+
+    /// <summary>
+    /// Adds an inline completion item offered by the field.
+    /// </summary>
+    public T AddCompletion(string label, string? insertText = null, string? detail = null, string? kind = null)
+        => AddCompletion(new UICodeCompletion(label, insertText, detail, kind));
+
+    /// <summary>
+    /// Adds an inline completion item offered by the field.
+    /// </summary>
+    public T AddCompletion(UICodeCompletion completion)
+    {
+        ArgumentNullException.ThrowIfNull(completion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(completion.Label);
+
+        _completionItems.Add(completion);
+        return Self;
+    }
+
+    /// <summary>
+    /// Replaces the field's inline completion items with <paramref name="items"/>.
+    /// </summary>
+    public T SetCompletionItems(IEnumerable<UICodeCompletion> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        _completionItems.Clear();
+
+        foreach (UICodeCompletion item in items)
+            _ = AddCompletion(item);
+
+        return Self;
+    }
+
+    /// <summary>
+    /// Sets the characters or prefixes (such as <c>"."</c> or <c>"{{"</c>) that open the completion list as soon as they are typed.
+    /// </summary>
+    public T SetCompletionTriggers(params string[] triggers)
+        => SetCompletionTriggers((IEnumerable<string>)triggers);
+
+    /// <summary>
+    /// Sets the characters or prefixes (such as <c>"."</c> or <c>"{{"</c>) that open the completion list as soon as they are typed.
+    /// </summary>
+    public T SetCompletionTriggers(IEnumerable<string> triggers)
+    {
+        ArgumentNullException.ThrowIfNull(triggers);
+
+        _completionTriggers.Clear();
+
+        foreach (var trigger in triggers)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(trigger);
+
+            if (!_completionTriggers.Contains(trigger))
+                _completionTriggers.Add(trigger);
+        }
+
+        return Self;
+    }
 
     /// <summary>Its save submits its form, so an <c>OnSubmit</c> value goes before the command (<c>code-input.ts</c> registers it so).</summary>
     public bool SubmitsForm(string eventName)

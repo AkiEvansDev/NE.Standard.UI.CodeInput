@@ -42,11 +42,11 @@ const TaskBox = /^\[([ xX])\](?:[ \t]+|$)/;
 const ReferenceDefinition = /^ {0,3}\[((?:[^\]\\]|\\.){1,999})\]:[ \t]*(<[^>\n]*>|\S+)(?:[ \t]+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\)))?[ \t]*$/;
 
 /** Reads a document's blocks and the reference definitions among them. */
-export function parseMarkdown(source: string): MarkdownDocument {
+export function parseMarkdown(source: string, firstLine = 1): MarkdownDocument {
     const references = new Map<string, LinkTarget>();
     const lines = source.replace(/\r\n?/g, "\n").split("\n").map(expandTabs);
 
-    return { blocks: parseLines(lines, 1, references, null, 0), references };
+    return { blocks: parseLines(lines, firstLine, references, null, 0), references };
 }
 
 /** Leading tabs as spaces to the next stop of four, so every indentation below is counted in columns. */

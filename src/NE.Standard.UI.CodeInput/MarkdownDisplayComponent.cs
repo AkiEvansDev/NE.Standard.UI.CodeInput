@@ -38,7 +38,8 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     public IReadOnlyList<UIMarkdownMarkStyle> MarkStyles => _markStyles;
 
     /// <summary>
-    /// Gets the author's own runs and their styles, added by <see cref="AddSpanStyle(string, string, UIMarkdownTextStyle)"/>.
+    /// Gets the author's own runs and their styles, added by <see cref="AddSpanStyle(string, string?, UIMarkdownTextStyle)"/> or
+    /// <see cref="AddTokenStyle"/>.
     /// </summary>
     /// <remarks>Render-time only, as <see cref="MarkStyles"/>.</remarks>
     [UIComponentProperty(IsBindable = false, GenerateSetter = false, DefaultValue = null)]
@@ -70,10 +71,11 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
 
     /// <summary>
     /// Draws the words from <paramref name="open"/> to the next <paramref name="close"/> in a style, the marks included —
-    /// <c>AddSpanStyle("\"", "\"", style)</c> for quoted speech. An opening mark never closed styles nothing.
+    /// <c>AddSpanStyle("\"", "\"", style)</c> for quoted speech, or an empty <paramref name="close"/> for a standalone token.
+    /// An opening mark with a closing mark that is never reached styles nothing.
     /// </summary>
-    public T AddSpanStyle(string open, string close, UIMarkdownTextStyle style)
-        => AddSpanStyle(new UIMarkdownSpanStyle { Open = open, Close = close, Style = style });
+    public T AddSpanStyle(string open, string? close, UIMarkdownTextStyle style)
+        => AddSpanStyle(new UIMarkdownSpanStyle { Open = open, Close = close ?? string.Empty, Style = style });
 
     /// <summary>
     /// Adds an author's own run as it stands; one opening mark opens one run only.
@@ -82,7 +84,11 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     {
         ArgumentNullException.ThrowIfNull(span);
         ArgumentException.ThrowIfNullOrWhiteSpace(span.Open);
-        ArgumentException.ThrowIfNullOrWhiteSpace(span.Close);
+        ArgumentNullException.ThrowIfNull(span.Close);
+
+        if (span.Close.Length > 0 && string.IsNullOrWhiteSpace(span.Close))
+            throw new ArgumentException("A closing mark cannot be whitespace.", nameof(span));
+
         ArgumentNullException.ThrowIfNull(span.Style);
 
         span.Style.Validate();
@@ -96,6 +102,13 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
         _spanStyles.Add(span);
         return Self;
     }
+
+    /// <summary>
+    /// Draws every occurrence of <paramref name="literal"/> outside code in <paramref name="style"/> — a standalone marker such as
+    /// <c>&lt;START&gt;</c>.
+    /// </summary>
+    public T AddTokenStyle(string literal, UIMarkdownTextStyle style)
+        => AddSpanStyle(new UIMarkdownSpanStyle { Open = literal, Close = string.Empty, Style = style });
 
     /// <summary>
     /// Lets the display fetch pictures from under <paramref name="source"/>: an origin (<c>https://cdn.example.com</c>), an address

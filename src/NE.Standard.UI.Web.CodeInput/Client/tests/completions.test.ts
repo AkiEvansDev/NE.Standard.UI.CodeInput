@@ -4,7 +4,7 @@ import test from "node:test";
 import { loadCompletionsFile } from "../src/code-editor-completions.ts";
 import { CompletionsRegistry } from "../src/completions-registry.ts";
 import type { CompletionContext, CompletionItem } from "../src/completions.ts";
-import { collectCompletions, completionKindClass, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
+import { activeTrigger, collectCompletions, completionKindClass, completionRange, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
 import { renderSegments } from "../src/highlighter.ts";
 
 // A degrade here warns once on the console; degrade-warnings.test.ts asserts the words, so these runs stay quiet.
@@ -155,4 +155,27 @@ test("a completions file whose fetch failed is not kept: the next field to name 
     finally {
         globalThis.fetch = realFetch;
     }
+});
+
+test("multi-character triggers match before or at the caret and replace the trigger prefix without doubling it", () => {
+    const triggers = [".", "::", "{{"];
+
+    assert.equal(activeTrigger("Hello {", 7, triggers), null);
+    assert.equal(activeTrigger("Hello {{", 8, triggers), "{{");
+    assert.equal(activeTrigger("Hello {{us", 10, triggers), "{{");
+    assert.equal(activeTrigger("Hello {{ us", 11, triggers), null);
+    assert.equal(activeTrigger("std::vec", 8, triggers), "::");
+
+    assert.deepEqual(completionRange("Hello {{", 8, "{{user}}", triggers), { from: 6, to: 8 });
+    assert.deepEqual(completionRange("Hello {{us", 10, "{{user}}", triggers), { from: 6, to: 10 });
+    assert.deepEqual(completionRange("Hello {{us}}", 10, "{{user}}", triggers), { from: 6, to: 12 });
+    assert.deepEqual(completionRange("obj.wr", 6, "writeLine", triggers), { from: 4, to: 6 });
+
+    const customTriggers = ["[[", "{", "<%", "${", "%%"];
+
+    assert.deepEqual(completionRange("See [[pa]]", 8, "[[page]]", customTriggers), { from: 4, to: 10 });
+    assert.deepEqual(completionRange("Hi {us}", 6, "{user}", customTriggers), { from: 3, to: 7 });
+    assert.deepEqual(completionRange("<%it%>", 4, "<%item%>", customTriggers), { from: 0, to: 6 });
+    assert.deepEqual(completionRange("${na}", 4, "${name}", customTriggers), { from: 0, to: 5 });
+    assert.deepEqual(completionRange("%%va%%", 4, "%%value%%", customTriggers), { from: 0, to: 6 });
 });

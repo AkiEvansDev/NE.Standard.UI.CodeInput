@@ -2,6 +2,9 @@
 // escapes, breaks) plus GitHub's strikethrough and bare links, and the author's own runs a later pass wraps (markdown-spans.ts). Raw
 // HTML stays text, so a document can't inject elements of its own.
 
+import type { MarkdownSpanRule } from "./markdown-syntax.ts";
+import { findSpanRanges } from "./markdown-syntax.ts";
+
 export type InlineType =
     | "root"
     | "text"
@@ -96,8 +99,9 @@ type Delimiter = {
     readonly character: string;
     count: number;
     readonly original: number;
-    readonly canOpen: boolean;
-    readonly canClose: boolean;
+    canOpen: boolean;
+    canClose: boolean;
+    scope: number;
     previous: Delimiter | null;
     next: Delimiter | null;
 };
@@ -136,10 +140,10 @@ const BareLink = /(?:https?:\/\/|www\.)[^\s<]+/g;
 const MaxAddressNesting = 32;
 
 /** Parses one block's inline text into a tree under a root node. */
-export function parseInlines(text: string, references: ReadonlyMap<string, LinkTarget>): Inline {
+export function parseInlines(text: string, references: ReadonlyMap<string, LinkTarget>, spans: readonly MarkdownSpanRule[] = []): Inline {
     const root = new Inline("root");
 
-    new InlineParser(text, references).parse(root);
+    new InlineParser(text, references, spans).parse(root);
     linkBareAddresses(root);
 
     return root;
@@ -148,13 +152,15 @@ export function parseInlines(text: string, references: ReadonlyMap<string, LinkT
 class InlineParser {
     private readonly text: string;
     private readonly references: ReadonlyMap<string, LinkTarget>;
+    private readonly spans: readonly MarkdownSpanRule[];
     private position = 0;
     private delimiters: Delimiter | null = null;
     private brackets: Bracket | null = null;
 
-    public constructor(text: string, references: ReadonlyMap<string, LinkTarget>) {
+    public constructor(text: string, references: ReadonlyMap<string, LinkTarget>, spans: readonly MarkdownSpanRule[] = []) {
         this.text = text;
         this.references = references;
+        this.spans = spans;
     }
 
     public parse(root: Inline): void {
@@ -276,8 +282,8 @@ class InlineParser {
 
         root.appendChild(node);
 
-        // Strikethrough is one tilde or two; a longer run is text.
-        if (character === "~" && count > 2)
+        // Strikethrough is two tildes; a single tilde or a longer run is text.
+        if (character === "~" && count !== 2)
             return;
 
         const before = start === 0 ? "\n" : this.text.charAt(start - 1);
@@ -293,7 +299,7 @@ class InlineParser {
         const canOpen = character === "_" ? leftFlanking && (!rightFlanking || beforePunctuation) : leftFlanking;
         const canClose = character === "_" ? rightFlanking && (!leftFlanking || afterPunctuation) : rightFlanking;
 
-        const delimiter: Delimiter = { node, character, count, original: count, canOpen, canClose, previous: this.delimiters, next: null };
+        const delimiter: Delimiter = { node, character, count, original: count, canOpen, canClose, scope: 0, previous: this.delimiters, next: null };
 
         if (this.delimiters !== null)
             this.delimiters.next = delimiter;
@@ -607,11 +613,17 @@ class InlineParser {
 
     /** CommonMark's emphasis pass over the delimiters above `bottom`: each closer finds the nearest opener it may pair with. */
     private processEmphasis(bottom: Delimiter | null): void {
+        if (this.delimiters === null || this.delimiters === bottom)
+            return;
+
         const openersBottom = new Map<string, Delimiter | null>();
-        let closer = this.delimiters;
+        let closer: Delimiter | null = this.delimiters;
 
         while (closer !== null && closer.previous !== bottom)
             closer = closer.previous;
+
+        if (closer !== null && this.spans.length > 0 && closer.node.parent !== null)
+            scopeDelimiters(closer.node.parent, closer, this.spans);
 
         while (closer !== null) {
             if (!closer.canClose) {
@@ -620,7 +632,7 @@ class InlineParser {
             }
 
             const character = closer.character;
-            const key = `${character}${closer.canOpen ? 1 : 0}${closer.original % 3}`;
+            const key = `${closer.scope}:${character}${closer.canOpen ? 1 : 0}${closer.original % 3}`;
             const floor = openersBottom.has(key) ? openersBottom.get(key) ?? null : bottom;
             let opener = closer.previous;
             let found = false;
@@ -629,7 +641,7 @@ class InlineParser {
                 // The rule of three: a run that can both open and close pairs with another only when their lengths do not sum to a multiple of three.
                 const oddMatch = character !== "~" && (closer.canOpen || opener.canClose) && closer.original % 3 !== 0 && (opener.original + closer.original) % 3 === 0;
 
-                if (opener.character === character && opener.canOpen && !oddMatch && (character !== "~" || opener.count === closer.count)) {
+                if (opener.scope === closer.scope && opener.character === character && opener.canOpen && !oddMatch && (character !== "~" || opener.count === closer.count)) {
                     found = true;
                     break;
                 }
@@ -696,6 +708,86 @@ class InlineParser {
         else
             delimiter.next.previous = delimiter.previous;
     }
+}
+
+/**
+ * Assigns each emphasis delimiter under `parent` the id of the innermost closed custom span containing it, so an unclosed
+ * delimiter inside a custom span never bridges across the span's boundary into another span or surrounding text.
+ */
+function scopeDelimiters(parent: Inline, first: Delimiter, rules: readonly MarkdownSpanRule[]): void {
+    const positions = new Map<Inline, number>();
+    let masked = "";
+
+    for (let child = parent.firstChild; child !== null; child = child.next) {
+        if (child.type === "text") {
+            positions.set(child, masked.length);
+            masked += child.literal;
+        }
+        else
+            masked += "\0";
+    }
+
+    if (parent.type !== "link" && parent.type !== "image")
+        masked = maskBareAddresses(masked);
+
+    const ranges = findSpanRanges(masked, rules);
+
+    for (let delimiter: Delimiter | null = first; delimiter !== null; delimiter = delimiter.next) {
+        const start = positions.get(delimiter.node);
+
+        if (start === undefined)
+            continue;
+
+        const end = start + delimiter.node.literal.length;
+        let scope = 0;
+
+        for (const range of ranges) {
+            if ((start < range.openEnd && end > range.openStart) || (start < range.closeEnd && end > range.closeStart)) {
+                delimiter.canOpen = false;
+                delimiter.canClose = false;
+                scope = -1;
+                break;
+            }
+
+            if (start >= range.openEnd && end <= range.closeStart)
+                scope = range.id;
+        }
+
+        delimiter.scope = scope;
+    }
+}
+
+/** Replaces bare addresses in `text` with NULs of equal length so span marks inside autolinked URLs do not pair with surrounding prose. */
+function maskBareAddresses(text: string): string {
+    if (!text.includes("http://") && !text.includes("https://") && !text.includes("www."))
+        return text;
+
+    let result = "";
+    let last = 0;
+
+    BareLink.lastIndex = 0;
+
+    for (let found = BareLink.exec(text); found !== null; found = BareLink.exec(text)) {
+        if (found.index > 0 && !/[\s(*_~]/.test(text.charAt(found.index - 1)))
+            continue;
+
+        const raw = found[0];
+        const nul = raw.indexOf("\0");
+        const candidate = nul >= 0 ? raw.slice(0, nul) : raw;
+        const address = trimAddress(candidate);
+
+        if (!/^(?:https?:\/\/|www\.)[^./]/.test(address))
+            continue;
+
+        if (found.index > last)
+            result += text.slice(last, found.index);
+
+        result += "\0".repeat(address.length);
+        last = found.index + address.length;
+        BareLink.lastIndex = last;
+    }
+
+    return last === 0 ? text : result + text.slice(last);
 }
 
 /** A backslash escape's character without its backslash, for every ASCII punctuation mark CommonMark lets be escaped. */

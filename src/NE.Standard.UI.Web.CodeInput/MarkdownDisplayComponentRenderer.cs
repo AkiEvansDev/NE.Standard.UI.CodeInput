@@ -65,11 +65,18 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         IReadOnlyList<UIMarkdownMarkStyle> marks = ReadRenderValue<IReadOnlyList<UIMarkdownMarkStyle>?>(context, MarkdownDisplayComponent.MarkStylesProperty, null) ?? [];
         IReadOnlyList<UIMarkdownSpanStyle> spans = ReadRenderValue<IReadOnlyList<UIMarkdownSpanStyle>?>(context, MarkdownDisplayComponent.SpanStylesProperty, null) ?? [];
 
+        if (SerializeStyles(marks, spans) is string json)
+            _ = root.Attribute(StylesAttribute, json);
+    }
+
+    /// <summary>Serializes mark and span styles into the wire JSON shared by Markdown displays and code inputs.</summary>
+    internal static string? SerializeStyles(IReadOnlyList<UIMarkdownMarkStyle> marks, IReadOnlyList<UIMarkdownSpanStyle> spans)
+    {
         if (marks.Count == 0 && spans.Count == 0)
-            return;
+            return null;
 
         Dictionary<string, string> markCss = [];
-        List<SpanModel> spanModels = new(spans.Count);
+        List<SpanModel> spanModels = [with(spans.Count)];
 
         for (var i = 0; i < marks.Count; i++)
             markCss[MarkKey(marks[i].Mark)] = Declarations(marks[i].Style);
@@ -77,7 +84,7 @@ public sealed class MarkdownDisplayComponentRenderer : WebComponentRendererBase
         for (var i = 0; i < spans.Count; i++)
             spanModels.Add(new SpanModel(spans[i].Open, spans[i].Close, Declarations(spans[i].Style)));
 
-        _ = root.Attribute(StylesAttribute, JsonSerializer.Serialize(new StylesModel(markCss, spanModels), WebWireJson.Options));
+        return JsonSerializer.Serialize(new StylesModel(markCss, spanModels), WebWireJson.Options);
     }
 
     // The client's names for the runs, as its inline tree types them (markdown-inlines.ts).

@@ -21,6 +21,8 @@ export const SearchAttribute = "data-ui-code-search";
 export const MultiCaretAttribute = "data-ui-code-multi-caret";
 export const CompletionsAttribute = "data-ui-code-completions";
 export const CompletionsSourceAttribute = "data-ui-code-completions-source";
+export const CompletionItemsAttribute = "data-ui-code-completion-items";
+export const StylesAttribute = "data-ui-code-styles";
 export const StatusBarAttribute = "data-ui-code-status";
 export const FormatBarAttribute = "data-ui-code-format-bar";
 export const DetectedLineEndingAttribute = "data-ui-code-eol";
@@ -98,6 +100,7 @@ export const CoreWords = {
 // Drawn by this client, for its stylesheet.
 export const LineClass = "ui-code-input__line";
 export const CodeClass = "ui-code-input__code";
+export const SpanTokenClass = "ui-tk-span";
 export const GutterDigitsVariable = "--ui-code-gutter-digits";
 export const CaretLayerClass = "ui-code-input__carets";
 export const CaretClass = "ui-code-input__caret";
