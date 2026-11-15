@@ -17,6 +17,8 @@ export const StatusPickerClass = "ui-code-input__status-picker";
 
 // Drawn by the renderer: the root's settings.
 export const LanguageAttribute = "data-ui-code-language";
+export const LineNumbersAttribute = "data-ui-code-line-numbers";
+export const WrapLinesAttribute = "data-ui-code-wrap";
 export const SearchAttribute = "data-ui-code-search";
 export const MultiCaretAttribute = "data-ui-code-multi-caret";
 export const CompletionsAttribute = "data-ui-code-completions";

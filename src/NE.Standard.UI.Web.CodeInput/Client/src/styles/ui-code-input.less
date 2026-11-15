@@ -13,6 +13,7 @@
     display: flex;
     flex-direction: column;
     gap: @ui-space-1;
+    .ui-responsive-property(height, --ui-height, auto);
     .ui-responsive-property(max-width, --ui-max-width, 100%);
     font: inherit;
 
@@ -72,6 +73,12 @@
     // What the sticky line numbers paint over text scrolled under them: whatever the field paints at the moment.
     --ui-code-ground: var(--ui-field-fill);
 }
+
+    // Given an explicit height, expanded into a modal dialog, or filling a full-height dialog's cell (UIDialogs.Fill), the box fills the root.
+    :is(.ui-code-input[style*="--ui-height"], .ui-code-input[data-ui-field-expanded], .ui-dialog__surface > .ui-container > .ui-container > .ui-code-input:not([style*="--ui-align-v: start"], [style*="--ui-align-v: center"], [style*="--ui-align-v: end"])) > .ui-code-input__field {
+        flex: 1 1 0;
+        height: auto;
+    }
 
     // The half padding Ghost and Underline give a row's field is a row's; the box has its air inside the scroller.
     .ui-input--ghost > .ui-code-input__field,

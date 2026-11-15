@@ -6,7 +6,7 @@ import type { DomNames, PluginEngineContext, ShortcutWords } from "ne-standard-u
 import { CodeEditorCarets } from "./code-editor-carets.ts";
 import { CodeEditorCompletions } from "./code-editor-completions.ts";
 import type { Strings } from "./code-editor-dom.ts";
-import { CloseAttribute, ContentClass, CountAttribute, CrLf, DetectedLineEndingAttribute, EncodingAttribute, FindAttribute, HighlightClass, LanguageAttribute, LineEndingAttribute, MatchCaseAttribute, NextAttribute, PositionAttribute, PreviousAttribute, RegexAttribute, ReplaceAllAttribute, ReplaceAttribute, ReplaceOneAttribute, ReplaceRowClass, ScrollerClass, SearchAttribute, SearchPanelClass, SearchPartClass, StatusBarAttribute, StatusBarClass, StatusPickerClass, TabSizeAttribute, TextClass, ToggleReplaceAttribute, WholeWordAttribute } from "./code-editor-dom.ts";
+import { CloseAttribute, ContentClass, CountAttribute, CrLf, DetectedLineEndingAttribute, EncodingAttribute, FindAttribute, HighlightClass, LanguageAttribute, LineEndingAttribute, LineNumbersAttribute, MatchCaseAttribute, NextAttribute, PositionAttribute, PreviousAttribute, RegexAttribute, ReplaceAllAttribute, ReplaceAttribute, ReplaceOneAttribute, ReplaceRowClass, ScrollerClass, SearchAttribute, SearchPanelClass, SearchPartClass, StatusBarAttribute, StatusBarClass, StatusPickerClass, TabSizeAttribute, TextClass, ToggleReplaceAttribute, WholeWordAttribute, WrapLinesAttribute } from "./code-editor-dom.ts";
 import { CodeEditorEditing } from "./code-editor-editing.ts";
 import { CodeEditorFindReplace } from "./code-editor-find-replace.ts";
 import { CodeEditorFormatBar } from "./code-editor-format-bar.ts";
@@ -57,6 +57,8 @@ export class CodeEditor {
     private readonly readOnlyClass: string;
     private readonly shortcuts: ShortcutWords;
     private language: string;
+    private lineNumbers: boolean;
+    private wrapLines: boolean;
 
     /** Whether the root wore the framework's read-only mark when last looked at; the mark is what the editor follows. */
     private readOnly: boolean;
@@ -64,6 +66,8 @@ export class CodeEditor {
     private constructor(root: HTMLElement, context: PluginEngineContext, parts: EditorParts) {
         this.root = root;
         this.language = LanguageRegistry.normalize(root.getAttribute(LanguageAttribute));
+        this.lineNumbers = root.hasAttribute(LineNumbersAttribute);
+        this.wrapLines = root.hasAttribute(WrapLinesAttribute);
         this.readOnlyClass = context.names.readOnlyClass;
         this.shortcuts = context.shortcuts;
         this.readOnly = root.classList.contains(this.readOnlyClass);
@@ -297,11 +301,19 @@ export class CodeEditor {
     /** The language or a switch may have been patched; anything else the observer reports is this editor's own writing. */
     public settingsChanged(): void {
         const language = LanguageRegistry.normalize(this.root.getAttribute(LanguageAttribute));
+        const lineNumbers = this.root.hasAttribute(LineNumbersAttribute);
+        const wrapLines = this.root.hasAttribute(WrapLinesAttribute);
 
         // The bar reads its selects again whatever the language did: the same attach carries a new tab size, encoding or ending.
         this.statusBar.syncPickers();
         this.carets.settingsChanged();
         this.completions.settingsChanged();
+
+        if (lineNumbers !== this.lineNumbers || wrapLines !== this.wrapLines) {
+            this.lineNumbers = lineNumbers;
+            this.wrapLines = wrapLines;
+            this.carets.queueRender();
+        }
 
         // Search switched off takes the open panel with it, and the keyboard in it back to the text.
         if (!this.searchEnabled && this.findReplace?.isOpen === true)

@@ -25,31 +25,28 @@ namespace NE.Standard.UI.CodeInput;
 /// </remarks>
 [UIComponentPropertyBlock(typeof(IBorderedComponent))]
 [UIComponentPropertyBlock(typeof(IFieldInputComponent))]
+[UIComponentPropertyBlock(typeof(IExpandableInputComponent))]
 [UIComponentPropertyBlock(typeof(IPlaceholderInputComponent))]
 [UIComponentPropertyBlock(typeof(IDebounceInputComponent))]
 [UIComponentPropertyBlock(typeof(IFileAcceptComponent))]
 [UIComponentPropertyBlock(typeof(ITextLengthComponent))]
 [UIComponentPropertyDefault(nameof(IFieldInputComponent.Appearance), nameof(DefaultAppearance))]
-public abstract partial class CodeInputComponent<T>(string? id = null) : InputComponentBase<T, string?>(id), IBorderedComponent, IFieldInputComponent, IPlaceholderInputComponent, IRegionContainerComponent, IDebounceInputComponent, IFileAcceptComponent, ITextLengthComponent, IFormSubmittingComponent, ICaretFieldComponent, IClientWriteCheckComponent
+public abstract partial class CodeInputComponent<T> : InputComponentBase<T, string?>, IBorderedComponent, IFieldInputComponent, IExpandableInputComponent, IPlaceholderInputComponent, IDebounceInputComponent, IFileAcceptComponent, ITextLengthComponent, IFormSubmittingComponent, ICaretFieldComponent, IClientWriteCheckComponent
     where T : CodeInputComponent<T>, IUIComponentDefinition
 {
     // An editor is read, not filled in: no box, focused or under the pointer (the stylesheet's part).
     private const UIInputAppearance DefaultAppearance = UIInputAppearance.Ghost;
 
-    private readonly Dictionary<string, IVisualComponent> _regions = CreateParts();
     private readonly List<UIMarkdownMarkStyle> _markStyles = [];
     private readonly List<UIMarkdownSpanStyle> _spanStyles = [];
     private readonly List<UICodeCompletion> _completionItems = [];
     private readonly List<string> _completionTriggers = [];
 
-    /// <summary>
-    /// Gets the framework's own components the field shows — the find panel's fields, buttons and switches, the status bar's pickers —
-    /// by the names <see cref="UICodeInputRegions"/> gives them.
-    /// </summary>
-    public IReadOnlyDictionary<string, IVisualComponent> Regions => _regions;
-
-    /// <inheritdoc/>
-    public bool HasRegions => true;
+    protected CodeInputComponent(string? id = null) : base(id)
+    {
+        foreach (KeyValuePair<string, IVisualComponent> part in CreateParts())
+            SetDefaultRegion(part.Key, part.Value);
+    }
 
     private static Dictionary<string, IVisualComponent> CreateParts()
     {
@@ -252,6 +249,34 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     [UIComponentProperty(DefaultValue = 12, GenerateSetter = false)]
     public int? Rows { get; set; }
 
+    /// <summary>Gets or sets whether line numbers are shown while expanded in the modal dialog; unset, keeps <see cref="LineNumbers"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedLineNumbers { get; set; }
+
+    /// <summary>Gets or sets whether long lines wrap while expanded in the modal dialog; unset, keeps <see cref="WrapLines"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedWrapLines { get; set; }
+
+    /// <summary>Gets or sets whether find and replace is offered while expanded in the modal dialog; unset, keeps <see cref="Search"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedSearch { get; set; }
+
+    /// <summary>Gets or sets whether multiple carets are enabled while expanded in the modal dialog; unset, keeps <see cref="MultiCaret"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedMultiCaret { get; set; }
+
+    /// <summary>Gets or sets whether completions are offered while expanded in the modal dialog; unset, keeps <see cref="Completions"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedCompletions { get; set; }
+
+    /// <summary>Gets or sets whether the status bar is shown while expanded in the modal dialog; unset, keeps <see cref="StatusBar"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedStatusBar { get; set; }
+
+    /// <summary>Gets or sets whether the Markdown format bar is offered while expanded in the modal dialog; unset, keeps <see cref="FormatBar"/>.</summary>
+    [UIComponentProperty(IsBindable = false, DefaultValue = null, GenerateSetter = false)]
+    public bool? ExpandedFormatBar { get; set; }
+
     /// <inheritdoc/>
     /// <remarks>
     /// What the status bar offers: a tab stop of one to <see cref="UICodeInputStrings.MaxTabSize"/> spaces, a listed encoding and
@@ -288,6 +313,28 @@ public abstract partial class CodeInputComponent<T>(string? id = null) : InputCo
     /// </summary>
     public T SetWrapLines()
         => SetWrapLines(true);
+
+    /// <summary>
+    /// Enables or disables opening the editor in a full-height modal dialog.
+    /// </summary>
+    public T SetExpandable(bool expandable)
+    {
+        Expandable = expandable;
+        return Self;
+    }
+
+    /// <summary>
+    /// Enables opening the editor in a full-height modal dialog and optionally configures its expanded settings independently of the inline field.
+    /// </summary>
+    public T SetExpandable(Action<UIExpandedCodeInputBuilder>? configure = null)
+    {
+        Expandable = true;
+
+        if (configure is not null)
+            configure(UIExpandedCodeInputBuilder.Create(this));
+
+        return Self;
+    }
 
     /// <summary>
     /// Draws one of Markdown's own runs — <c>**strong**</c>, <c>*emphasis*</c>, … — in a style; a mark styled again takes the new one.
@@ -421,6 +468,126 @@ public sealed class CodeInputComponent(string? id = null) : CodeInputComponent<C
 {
     /// <inheritdoc/>
     public static string ComponentTypeKey => "codeinput.input.code";
+}
+
+/// <summary>
+/// Configures how a <see cref="CodeInputComponent"/> presents itself when expanded into a full-height modal dialog.
+/// </summary>
+public sealed class UIExpandedCodeInputBuilder : IUIExpandedFieldBuilder<UIExpandedCodeInputBuilder>
+{
+    private readonly CodeInputTarget _target;
+
+    private UIExpandedCodeInputBuilder(
+        IExpandableInputComponent expandable,
+        Action<bool> setLineNumbers,
+        Action<bool> setWrapLines,
+        Action<bool> setSearch,
+        Action<bool> setMultiCaret,
+        Action<bool> setCompletions,
+        Action<bool> setStatusBar,
+        Action<bool> setFormatBar)
+    {
+        _target = new CodeInputTarget(expandable, setLineNumbers, setWrapLines, setSearch, setMultiCaret, setCompletions, setStatusBar, setFormatBar);
+    }
+
+    internal static UIExpandedCodeInputBuilder Create<T>(CodeInputComponent<T> target)
+        where T : CodeInputComponent<T>, IUIComponentDefinition
+        => new(
+            target,
+            value => target.ExpandedLineNumbers = value,
+            value => target.ExpandedWrapLines = value,
+            value => target.ExpandedSearch = value,
+            value => target.ExpandedMultiCaret = value,
+            value => target.ExpandedCompletions = value,
+            value => target.ExpandedStatusBar = value,
+            value => target.ExpandedFormatBar = value);
+
+    /// <inheritdoc/>
+    public UIExpandedCodeInputBuilder SetShowButton(bool showButton = true)
+    {
+        _target.Expandable.ShowExpandButton = showButton;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public UIExpandedCodeInputBuilder SetWidth(UILayoutLength width)
+    {
+        _target.Expandable.ExpandedWidth = width;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public UIExpandedCodeInputBuilder SetWidth(UIResponsive<UILayoutLength> width)
+    {
+        _target.Expandable.ExpandedWidth = width;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public UIExpandedCodeInputBuilder SetAppearance(UIInputAppearance appearance)
+    {
+        _target.Expandable.ExpandedAppearance = appearance;
+        return this;
+    }
+
+    /// <summary>Sets whether line numbers stand beside every line while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetLineNumbers(bool lineNumbers = true)
+    {
+        _target.SetLineNumbers(lineNumbers);
+        return this;
+    }
+
+    /// <summary>Sets whether long lines wrap at the field's edge while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetWrapLines(bool wrapLines = true)
+    {
+        _target.SetWrapLines(wrapLines);
+        return this;
+    }
+
+    /// <summary>Sets whether find and replace (Ctrl+F, Ctrl+H) is offered while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetSearch(bool search = true)
+    {
+        _target.SetSearch(search);
+        return this;
+    }
+
+    /// <summary>Sets whether multiple carets are enabled while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetMultiCaret(bool multiCaret = true)
+    {
+        _target.SetMultiCaret(multiCaret);
+        return this;
+    }
+
+    /// <summary>Sets whether completions are offered while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetCompletions(bool completions = true)
+    {
+        _target.SetCompletions(completions);
+        return this;
+    }
+
+    /// <summary>Sets whether the status bar is drawn while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetStatusBar(bool statusBar = true)
+    {
+        _target.SetStatusBar(statusBar);
+        return this;
+    }
+
+    /// <summary>Sets whether the Markdown format bar is offered while expanded.</summary>
+    public UIExpandedCodeInputBuilder SetFormatBar(bool formatBar = true)
+    {
+        _target.SetFormatBar(formatBar);
+        return this;
+    }
+
+    private sealed record CodeInputTarget(
+        IExpandableInputComponent Expandable,
+        Action<bool> SetLineNumbers,
+        Action<bool> SetWrapLines,
+        Action<bool> SetSearch,
+        Action<bool> SetMultiCaret,
+        Action<bool> SetCompletions,
+        Action<bool> SetStatusBar,
+        Action<bool> SetFormatBar);
 }
 
 /// <summary>The status bar's offer, which the page's writes to a code field's settings are held to.</summary>

@@ -11,6 +11,7 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
 
     // The editor and the rendering scroll together, line against line.
     private const string DocumentScroll = "document";
+    private const string DocumentEditorId = "markdown-document";
 
     // The editor's height when the rendering stands under it rather than beside it.
     private const double StackedEditorHeight = 420;
@@ -26,13 +27,28 @@ internal sealed class MarkdownView : CodeInputDemoView, IUIViewDefinition
     protected override DemoPage CreatePage()
         => Page(new ContainerComponent()
             .SetHeight(Filled(UILayoutLength.Auto()))
-            .AddChild(new CodeInputComponent()
+            .AddChild(new CodeInputComponent(DocumentEditorId)
                 .SetTitle("code-demo.markdown.document")
                 .SetHelp("code-demo.markdown.document.help")
                 .SetLanguage(UICodeLanguages.Markdown)
+                .SetLineNumbers(false)
+                .SetStatusBar(false)
                 .SetWrapLines()
                 .SetTabSize(2)
                 .SetAppearance(UIInputAppearance.Ghost)
+                .SetHeaderAction(new ButtonComponent()
+                    .SetVariant(UIButtonVariant.Ghost)
+                    .SetSize(UISize.Small)
+                    .SetIcon(MaterialIcons.Outlined(CopyIcon))
+                    .SetTooltip("code-demo.copy")
+                    .InteractOn(EventNames.Click, CopyToClipboardEffect.ValueOf(DocumentEditorId))
+                )
+                .SetExpandable(static expand => expand
+                    .SetLineNumbers(true)
+                    .SetStatusBar(true)
+                    .SetSearch(true)
+                    .SetAppearance(UIInputAppearance.Outline)
+                )
                 .BindValue<MarkdownController>(static c => c.Document, mode: UIBindingMode.TwoWay)
                 .SetDebounceMilliseconds(300)
                 // A picture pasted or dropped goes up, and the controller answers with where it keeps it.

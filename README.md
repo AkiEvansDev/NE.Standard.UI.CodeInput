@@ -56,11 +56,12 @@ new CodeInputComponent()
 | `DebounceMilliseconds` | Commit the value as the viewer types, this long after they pause; unset, on blur. |
 | `MaxFileSize`, `Accept` | The largest picture a paste or a drop takes, and its types — see *Pictures in Markdown*. |
 
-`Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon and badge, validation and
+`Value`, `IsReadOnly`, `Placeholder`, `Appearance`, the header's title, icon, badge and `SetHeaderAction`/`SetHeaderActions` (compact buttons on the `16 px` caption line that never lift the title or push the field down), validation and
 borders come from the framework's field, exactly as a text area's do — except that the editor starts as
 `Ghost` — nothing drawn around it, on focus as at rest, save the edge of an invalid or warned value, which stays while the
 field is focused — and never lifts under the pointer: it is read, not filled in. A code input that stands in a form among other
 fields (a prompt's text on a settings page) takes the form's appearance on purpose: `SetAppearance(UIInputAppearance.Filled)`.
+`SetExpandable(expand => expand.SetLineNumbers(true).SetStatusBar(true).SetSearch(true))` adds a compact `⤢` expand trigger on the caption line (or `SetShowButton(false)` to drive opening from an external control via `new ExpandFieldEffect(editor)`) that promotes the same live editor — keeping its caret, selection, undo stack and bindings — into a full-height modal dialog with its own `LineNumbers`, `WrapLines`, `StatusBar`, `FormatBar`, `Search`, `MultiCaret`, `Completions`, `Appearance` (defaulting to `Outline` when the inline field is `Ghost`) and dialog `Width`.
 
 Editing is the browser's own `<textarea>` — typing, selection, input methods and the clipboard behave as they
 do everywhere else — with the highlighted text drawn underneath it. Undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are the

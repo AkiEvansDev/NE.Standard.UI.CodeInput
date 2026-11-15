@@ -83,9 +83,34 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
 
         RenderInputAppearance(context, root);
         RenderEditorSettings(context, root);
-        RenderInputHeader(context, root);
+        Action<IHtmlElementBuilder>? expandButton = RenderExpandableInput(context, root, BuildExpandedAttributes(context));
+        RenderInputHeader(context, root, titleCanGoInside: false, labelForId: null, trailingHeaderAction: expandButton);
         RenderField(context, root);
         RenderValidationMessage(context, root);
+    }
+
+    private static Dictionary<string, bool>? BuildExpandedAttributes(WebRenderContext context)
+    {
+        Dictionary<string, bool>? expanded = null;
+
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedLineNumbersProperty, LineNumbersAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedWrapLinesProperty, WrapLinesAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedSearchProperty, SearchAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedMultiCaretProperty, MultiCaretAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedCompletionsProperty, CompletionsAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedStatusBarProperty, StatusBarAttribute, ref expanded);
+        AddExpandedAttribute(context, CodeInputComponent.ExpandedFormatBarProperty, FormatBarAttribute, ref expanded);
+
+        return expanded;
+    }
+
+    private static void AddExpandedAttribute(WebRenderContext context, UIProperty property, string attributeName, ref Dictionary<string, bool>? expanded)
+    {
+        if (ReadRenderValue<bool?>(context, property, null) is not bool flag)
+            return;
+
+        expanded ??= [];
+        expanded[attributeName] = flag;
     }
 
     /// <summary>
@@ -212,12 +237,14 @@ public sealed class CodeInputComponentRenderer : TextContentRendererBase
                 });
             });
 
-            // A part switched off for good is not drawn at all: the two carry fifteen framework components between them, most of a
-            // field's markup, and a read-only listing on a page of them paid for every one.
-            if (!IsSwitchedOff(context, CodeInputComponent.SearchProperty))
+            var expandable = ReadRenderValue<bool?>(context, IExpandableInputComponent.ExpandableProperty, false) == true;
+
+            // A part switched off for good is not drawn at all unless the expanded dialog turns it on: the two carry fifteen framework
+            // components between them, most of a field's markup, and a read-only listing on a page of them paid for every one.
+            if (!IsSwitchedOff(context, CodeInputComponent.SearchProperty) || (expandable && ReadRenderValue<bool?>(context, CodeInputComponent.ExpandedSearchProperty, null) == true))
                 RenderSearchPanel(context, field);
 
-            RenderStatusBar(context, root, field, !IsSwitchedOff(context, CodeInputComponent.StatusBarProperty));
+            RenderStatusBar(context, root, field, !IsSwitchedOff(context, CodeInputComponent.StatusBarProperty) || (expandable && ReadRenderValue<bool?>(context, CodeInputComponent.ExpandedStatusBarProperty, null) == true));
         });
     }
 
