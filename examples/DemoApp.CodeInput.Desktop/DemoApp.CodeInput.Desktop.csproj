@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\DemoApp.CodeInput.Web\CodeInputWebServices.cs" Link="CodeInputWebServices.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="..\DemoApp.CodeInput.Web\wwwroot\**\*">
       <Link>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

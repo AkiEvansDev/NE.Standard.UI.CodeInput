@@ -68,14 +68,12 @@ public static class CodeInputComponentExtensions
         return input.OnLiteral(CodeInputEvents.Save, command, arguments);
     }
 
-    /// <summary>
-    /// Takes pictures pasted or dropped into the field while it holds Markdown: each is uploaded through the framework's own upload
-    /// with a placeholder in the text meanwhile, and <paramref name="command"/> runs with its selection and file name (see
-    /// <see cref="CodeInputArguments"/>). The application keeps the file and answers with an <see cref="InsertImageEffect"/>
-    /// carrying its address, which takes the placeholder's place; a failed answer takes the placeholder out and says why on the
-    /// field's validation line.
-    /// </summary>
-    /// <remarks>Without it a paste is text alone; <c>Accept</c> and <c>MaxFileSize</c> say which pictures the field takes.</remarks>
+    /// <summary>Registers the command run when an image is pasted or dropped into a Markdown field.</summary>
+    /// <remarks>
+    /// Each picture uploads with a placeholder in the text while <paramref name="command"/> receives its selection and file name (see
+    /// <see cref="CodeInputArguments"/>) and answers with an <see cref="InsertImageEffect"/>; a failed answer removes the placeholder
+    /// and sets the validation message. Without it a paste is text alone; <c>Accept</c> and <c>MaxFileSize</c> bound accepted files.
+    /// </remarks>
     public static T OnImageUpload<T>(this T input, string command)
         where T : CodeInputComponent<T>, IUIComponentDefinition
     {

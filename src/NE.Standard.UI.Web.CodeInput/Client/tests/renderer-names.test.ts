@@ -29,10 +29,9 @@ const events = read("../../../NE.Standard.UI.CodeInput/CodeInputComponentExtensi
 const pictureEffect = read("../../../NE.Standard.UI.CodeInput/InsertImageEffect.cs");
 
 // The framework's own sources, for the names its plugin surface does not carry.
-const Core = "../../../../../../src/Platforms/Web/";
 const coreWords = read("../../../../../../src/Contracts/NE.Standard.UI.Shell/Localization/UIStrings.cs");
 const glyphs = read("../../../../../../src/Contracts/NE.Standard.UI.Primitives/Constants/UIGlyphs.cs");
-const contentEndpoint = read(`${Core}NE.Standard.UI.Web/Hosting/WebContentEndpoint.cs`);
+const contentEndpoint = read("../../../../../../src/Platforms/Server/NE.Standard.UI.Server/Hosting/WebContentEndpoint.cs");
 
 function assertWritten(file: string, fileName: string, name: string): void {
     assert.ok(file.includes(`"${name}"`), `${fileName} writes no "${name}", which the client looks for`);

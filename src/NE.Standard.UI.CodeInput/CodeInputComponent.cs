@@ -236,10 +236,8 @@ public abstract partial class CodeInputComponent<T> : InputComponentBase<T, stri
     [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = UICodeEncodings.Utf8)]
     public string? Encoding { get; set; }
 
-    /// <summary>
-    /// Gets or sets the line break the value is written with — <see cref="UICodeLineEndings"/>. Unset, the field keeps the value's
-    /// own line break; a choice converts the text on the next commit.
-    /// </summary>
+    /// <summary>Gets or sets the line break used for the value — one of <see cref="UICodeLineEndings"/>.</summary>
+    /// <remarks>Unset, the field preserves the text's own line breaks; choosing one in the status bar converts the text immediately.</remarks>
     [UIComponentProperty(BindingCapabilities = UIBindingCapabilities.SourceToTarget | UIBindingCapabilities.TargetToSource, DefaultBindingMode = UIBindingMode.TwoWay, DefaultValue = null)]
     public string? LineEnding { get; set; }
 
@@ -341,14 +339,7 @@ public abstract partial class CodeInputComponent<T> : InputComponentBase<T, stri
     /// </summary>
     public T SetMarkStyle(UIMarkdownMark mark, UIMarkdownTextStyle style)
     {
-        ArgumentNullException.ThrowIfNull(style);
-
-        if (!Enum.IsDefined(mark))
-            throw new ArgumentOutOfRangeException(nameof(mark), mark, "Not a run Markdown marks.");
-
-        style.Validate();
-        _ = _markStyles.RemoveAll(existing => existing.Mark == mark);
-        _markStyles.Add(new UIMarkdownMarkStyle { Mark = mark, Style = style });
+        MarkdownStyleList.SetMarkStyle(_markStyles, mark, style);
         return Self;
     }
 
@@ -365,24 +356,7 @@ public abstract partial class CodeInputComponent<T> : InputComponentBase<T, stri
     /// </summary>
     public T AddSpanStyle(UIMarkdownSpanStyle span)
     {
-        ArgumentNullException.ThrowIfNull(span);
-        ArgumentException.ThrowIfNullOrWhiteSpace(span.Open);
-        ArgumentNullException.ThrowIfNull(span.Close);
-
-        if (span.Close.Length > 0 && string.IsNullOrWhiteSpace(span.Close))
-            throw new ArgumentException("A closing mark cannot be whitespace.", nameof(span));
-
-        ArgumentNullException.ThrowIfNull(span.Style);
-
-        span.Style.Validate();
-
-        for (var i = 0; i < _spanStyles.Count; i++)
-        {
-            if (string.Equals(_spanStyles[i].Open, span.Open, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Code input '{Id}' already has a run opened by '{span.Open}'.");
-        }
-
-        _spanStyles.Add(span);
+        MarkdownStyleList.AddSpanStyle(_spanStyles, span, "Code input", Id);
         return Self;
     }
 

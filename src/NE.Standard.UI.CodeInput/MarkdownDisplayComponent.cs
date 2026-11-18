@@ -58,14 +58,7 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     /// </summary>
     public T SetMarkStyle(UIMarkdownMark mark, UIMarkdownTextStyle style)
     {
-        ArgumentNullException.ThrowIfNull(style);
-
-        if (!Enum.IsDefined(mark))
-            throw new ArgumentOutOfRangeException(nameof(mark), mark, "Not a run Markdown marks.");
-
-        style.Validate();
-        _ = _markStyles.RemoveAll(existing => existing.Mark == mark);
-        _markStyles.Add(new UIMarkdownMarkStyle { Mark = mark, Style = style });
+        MarkdownStyleList.SetMarkStyle(_markStyles, mark, style);
         return Self;
     }
 
@@ -82,24 +75,7 @@ public abstract partial class MarkdownDisplayComponent<T>(string? id = null) : V
     /// </summary>
     public T AddSpanStyle(UIMarkdownSpanStyle span)
     {
-        ArgumentNullException.ThrowIfNull(span);
-        ArgumentException.ThrowIfNullOrWhiteSpace(span.Open);
-        ArgumentNullException.ThrowIfNull(span.Close);
-
-        if (span.Close.Length > 0 && string.IsNullOrWhiteSpace(span.Close))
-            throw new ArgumentException("A closing mark cannot be whitespace.", nameof(span));
-
-        ArgumentNullException.ThrowIfNull(span.Style);
-
-        span.Style.Validate();
-
-        for (var i = 0; i < _spanStyles.Count; i++)
-        {
-            if (string.Equals(_spanStyles[i].Open, span.Open, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Markdown display '{Id}' already has a run opened by '{span.Open}'.");
-        }
-
-        _spanStyles.Add(span);
+        MarkdownStyleList.AddSpanStyle(_spanStyles, span, "Markdown display", Id);
         return Self;
     }
 

@@ -7,12 +7,12 @@ namespace NE.Standard.UI.CodeInput;
 /// </summary>
 public sealed record UICodeCompletion
 {
-    /// <summary>Initializes a new instance of the <see cref="UICodeCompletion"/> class.</summary>
+    /// <summary>Creates an empty completion entry configured via object initializer.</summary>
     public UICodeCompletion()
     {
     }
 
-    /// <summary>Initializes a new instance of the <see cref="UICodeCompletion"/> class.</summary>
+    /// <summary>Creates a completion entry with its label and optional insert text, detail note and kind tag.</summary>
     [SetsRequiredMembers]
     public UICodeCompletion(string label, string? insertText = null, string? detail = null, string? kind = null)
     {

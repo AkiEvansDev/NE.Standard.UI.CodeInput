@@ -43,7 +43,7 @@ new CodeInputComponent()
 | `TabSize` | How many spaces a tab stop is, one to eight, and what the Tab key inserts; two-way, the status bar's picker writes it back. A value past them is drawn as four. |
 | `StatusBar` | The line under the text: the caret's line and column, and pickers for the tab size, the encoding, the line ending and the language (on by default). |
 | `Encoding` | What the application writes the text out as (`UICodeEncodings`); the field holds text, the picker offers the choice, the controller receives it. |
-| `LineEnding` | The line break the value is sent with (`UICodeLineEndings`): unset keeps whatever the value came with, which is what the bar shows; a choice converts on the next commit. |
+| `LineEnding` | The line break the value is sent with (`UICodeLineEndings`): unset keeps whatever the value came with, which is what the bar shows; a choice converts the text immediately. |
 | `Rows` | The number of visible text rows the field starts at; `Height` or `Fill` overrides it. |
 | `Search` | Whether Ctrl+F and Ctrl+H open find and replace (on by default). |
 | `MultiCaret` | Whether the field takes more than one caret — see *Several carets* (on by default). |
@@ -81,7 +81,7 @@ Under the text runs a status bar, as an editor's: the caret's line and column, a
 encoding, the line ending and the language. A picker's choice is the property's value — bind `TabSize`, `Encoding`,
 `LineEnding` and `Language` two-way to read them. The line ending is the one thing the browser cannot keep for itself
 (a text field holds every break as LF), so the field notes the ending the value came with, shows it, and sends the
-value back with it; a choice converts the text on the next commit. The server takes from the page only what the bar
+value back with it; a choice converts the text immediately. The server takes from the page only what the bar
 offers — a tab size of one to eight, a listed encoding or language, LF, CRLF or none — and answers anything else with its own value. `SetStatusBar(false)` hides the bar, and
 `SetSearch(false)` the find panel; written as a value rather than bound, either leaves its controls out of the page
 altogether, which is what keeps a read-only listing light. While the field is read-only its pickers are too: each still

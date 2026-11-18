@@ -1,4 +1,5 @@
 using System;
+using DemoApp.CodeInput.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DemoApp.CodeInput.Desktop;
@@ -14,11 +15,5 @@ internal sealed class CodeInputDesktopStartup : DesktopStartupBase<CodeInputAppS
     }
 
     protected override void ConfigureServices(IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        _ = services.AddStandardRenderers();
-        _ = services.AddCodeInput();
-        _ = services.AddMaterialWebIcons(MaterialIconStyle.Outlined, [CodeInputDemoView.LightIcon, CodeInputDemoView.DarkIcon, CodeInputDemoView.CodeIcon, CodeInputDemoView.CopyIcon, .. CodeInputDemoView.PageIcons]);
-    }
+        => CodeInputWebServices.Register(services);
 }
