@@ -78,6 +78,7 @@ export class CodeEditorCompletions {
     private readonly inlineCompletions: CompletionsFile;
     private sourceUrl: string | null = null;
     private loadedFile: CompletionsFile | null = null;
+    private loadingFile: Promise<CompletionsFile> | null = null;
 
     public constructor(parts: CompletionsParts, context: PluginEngineContext, surface: CodeEditorSurface, editing: CodeEditorEditing, carets: CodeEditorCarets, getLanguage: () => string) {
         this.root = parts.root;
@@ -124,8 +125,12 @@ export class CodeEditorCompletions {
             return;
         }
 
-        if (!this.isOpen)
+        if (!this.isOpen) {
+            if (domEvent.key === "Escape" && this.loadingFile !== null)
+                this.requestId++;
+
             return;
+        }
 
         switch (domEvent.key) {
             case "ArrowDown":
@@ -175,16 +180,16 @@ export class CodeEditorCompletions {
         const ready = prefix.length > 0 || activeTrigger(text, position, this.triggers()) !== null;
 
         if (this.isOpen) {
-            if (!ready) {
+            if (!ready && this.loadingFile === null) {
                 this.close();
                 return;
             }
         }
-        else if (!isTyped(domEvent) || !ready || this.tokenBlocks(position) || !this.hasExtraSource(this.getLanguage()))
+        else if (!isTyped(domEvent) || (!ready && this.loadingFile === null) || this.tokenBlocks(position) || !this.hasExtraSource(this.getLanguage()))
             return;
 
         this.lastKnownCaret = position;
-        void this.gatherAndShow(prefix, position);
+        void this.gatherAndShow(position, true);
     }
 
     /** Ctrl+Space: opens at the primary caret whatever the prefix, as long as the field is not mid a comment or a string. */
@@ -197,7 +202,7 @@ export class CodeEditorCompletions {
             return;
 
         this.lastKnownCaret = position;
-        void this.gatherAndShow(prefixAt(this.textarea.value, position), position);
+        void this.gatherAndShow(position, false);
     }
 
     /** A comment or a string keeps the list from opening — the token just before the caret decides. */
@@ -233,32 +238,57 @@ export class CodeEditorCompletions {
 
     /** Reads `CompletionsSource` afresh and starts loading it when the URL has changed since the last look. */
     private ensureFileLoaded(): void {
-        const url = this.root.getAttribute(CompletionsSourceAttribute);
+        const url = typeof this.root.getAttribute === "function" ? this.root.getAttribute(CompletionsSourceAttribute) : null;
 
         if (url === this.sourceUrl)
             return;
 
         this.sourceUrl = url;
         this.loadedFile = null;
+        this.loadingFile = null;
 
         if (url === null || url.length === 0)
             return;
 
-        void loadCompletionsFile(url).then(file => {
-            if (this.root.getAttribute(CompletionsSourceAttribute) === url)
+        const pending = loadCompletionsFile(url).then(file => {
+            if (this.sourceUrl === url) {
                 this.loadedFile = file;
+                this.loadingFile = null;
+            }
+
+            return file;
         });
+
+        this.loadingFile = pending;
     }
 
-    private async gatherAndShow(prefix: string, position: number): Promise<void> {
+    private async gatherAndShow(position: number, requireReady: boolean): Promise<void> {
         const requestId = ++this.requestId;
+
+        if (this.loadingFile !== null) {
+            await this.loadingFile;
+
+            if (!this.canShowAt(requestId, position))
+                return;
+        }
+
+        const text = this.textarea.value;
+        const prefix = prefixAt(text, position);
+
+        if (requireReady && prefix.length === 0 && activeTrigger(text, position, this.triggers()) === null) {
+            if (this.isOpen)
+                this.close();
+
+            return;
+        }
+
         const languageId = this.getLanguage();
         const context = this.buildContext(prefix, position, languageId);
         const collected = await collectCompletions(this.sourcesFor(languageId), context);
 
-        // A provider may answer long after it was asked: after Escape, a blur, an accepted word or a caret moved elsewhere, the answer
-        // belongs to a list nobody is waiting for.
-        if (requestId !== this.requestId || !this.textarea.isConnected || document.activeElement !== this.textarea || this.textarea.selectionStart !== position)
+        // A provider or completions file may answer long after it was asked: after Escape, a blur, locking, an accepted word or a caret
+        // moved elsewhere, the answer belongs to a list nobody is waiting for.
+        if (!this.canShowAt(requestId, position))
             return;
 
         const trigger = activeTrigger(this.textarea.value, position, this.triggers());
@@ -273,6 +303,18 @@ export class CodeEditorCompletions {
         }
 
         this.show(ranked, position - filterPrefix.length);
+    }
+
+    private canShowAt(requestId: number, position: number): boolean {
+        return requestId === this.requestId
+            && this.enabled
+            && !this.textarea.readOnly
+            && !this.textarea.disabled
+            && this.textarea.isConnected
+            && document.activeElement === this.textarea
+            && this.textarea.selectionStart === position
+            && (this.textarea.selectionEnd === undefined || this.textarea.selectionEnd === position)
+            && !this.tokenBlocks(position);
     }
 
     private buildContext(prefix: string, position: number, languageId: string): CompletionContext {
@@ -481,8 +523,12 @@ export class CodeEditorCompletions {
 
     /** A `selectionchange` the field itself did not just cause — a click, an arrow key, Home or End — closes the list. */
     public selectionChanged(): void {
-        if (this.isOpen && this.textarea.selectionStart !== this.lastKnownCaret)
-            this.close();
+        if (this.textarea.selectionStart !== this.lastKnownCaret) {
+            if (this.isOpen)
+                this.close();
+            else
+                this.requestId++;
+        }
     }
 
     /**

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadCompletionsFile } from "../src/code-editor-completions.ts";
+import { CodeEditorCompletions, loadCompletionsFile } from "../src/code-editor-completions.ts";
+import { CompletionsAttribute, CompletionsSourceAttribute } from "../src/code-editor-dom.ts";
 import { CompletionsRegistry } from "../src/completions-registry.ts";
 import type { CompletionContext, CompletionItem } from "../src/completions.ts";
 import { activeTrigger, collectCompletions, completionKindClass, completionRange, documentWordsSource, parseCompletionsFile, prefixAt, prefixStart, rankCompletions } from "../src/completions.ts";
@@ -178,4 +179,292 @@ test("multi-character triggers match before or at the caret and replace the trig
     assert.deepEqual(completionRange("<%it%>", 4, "<%item%>", customTriggers), { from: 0, to: 6 });
     assert.deepEqual(completionRange("${na}", 4, "${name}", customTriggers), { from: 0, to: 5 });
     assert.deepEqual(completionRange("%%va%%", 4, "%%value%%", customTriggers), { from: 0, to: 6 });
+});
+
+class FakeDomElement {
+    public readonly tagName: string;
+    public id = "";
+    public className = "";
+    public hidden = false;
+    public textContent = "";
+    public readonly style: Record<string, string> = {};
+    public readonly children: FakeDomElement[] = [];
+    private readonly attributes = new Map<string, string>();
+    public readonly classList = {
+        toggle: (token: string, force?: boolean): boolean => {
+            const parts = new Set(this.className.split(/\s+/).filter(Boolean));
+            const next = force ?? !parts.has(token);
+
+            if (next)
+                parts.add(token);
+            else
+                parts.delete(token);
+
+            this.className = [...parts].join(" ");
+            return next;
+        }
+    };
+
+    public constructor(tagName: string) {
+        this.tagName = tagName.toUpperCase();
+    }
+
+    public setAttribute(name: string, value: string): void {
+        this.attributes.set(name, value);
+    }
+
+    public getAttribute(name: string): string | null {
+        return this.attributes.get(name) ?? null;
+    }
+
+    public hasAttribute(name: string): boolean {
+        return this.attributes.has(name);
+    }
+
+    public removeAttribute(name: string): void {
+        this.attributes.delete(name);
+    }
+
+    public append(...nodes: FakeDomElement[]): void {
+        this.children.push(...nodes);
+    }
+
+    public appendChild(node: FakeDomElement): FakeDomElement {
+        this.children.push(node);
+        return node;
+    }
+
+    public replaceChildren(...nodes: FakeDomElement[]): void {
+        this.children.length = 0;
+        this.children.push(...nodes);
+    }
+
+    public addEventListener(): void {}
+
+    public scrollIntoView(): void {}
+
+    public getBoundingClientRect(): { left: number; top: number; right: number; bottom: number } {
+        return { left: 0, top: 0, right: 0, bottom: 0 };
+    }
+}
+
+function createCompletionsStage(sourceUrl: string) {
+    const root = new FakeDomElement("div");
+
+    root.setAttribute(CompletionsAttribute, "");
+    root.setAttribute(CompletionsSourceAttribute, sourceUrl);
+
+    const content = new FakeDomElement("div");
+    const scroller = new FakeDomElement("div");
+    const state = {
+        value: "",
+        selectionStart: 0,
+        selectionEnd: 0,
+        readOnly: false,
+        disabled: false,
+        isConnected: true,
+        locked: false,
+        tokenKind: null as string | null,
+        openedCount: 0,
+        closedCount: 0,
+        renderedLabels: (): string[] => {
+            const list = root.children[0];
+
+            return list === undefined ? [] : list.children.map(row => row.children[0]?.textContent ?? "");
+        }
+    };
+
+    const textarea = {
+        get value(): string {
+            return state.value;
+        },
+        set value(next: string) {
+            state.value = next;
+        },
+        get selectionStart(): number {
+            return state.selectionStart;
+        },
+        set selectionStart(next: number) {
+            state.selectionStart = next;
+            state.selectionEnd = next;
+        },
+        get selectionEnd(): number {
+            return state.selectionEnd;
+        },
+        set selectionEnd(next: number) {
+            state.selectionEnd = next;
+        },
+        get readOnly(): boolean {
+            return state.readOnly;
+        },
+        get disabled(): boolean {
+            return state.disabled;
+        },
+        get isConnected(): boolean {
+            return state.isConnected;
+        },
+        setAttribute: () => undefined,
+        removeAttribute: () => undefined
+    } as unknown as HTMLTextAreaElement;
+
+    const pluginContext = {
+        dom: {
+            ensureId: (_el: unknown, prefix: string) => `${prefix}-1`
+        },
+        strings: {
+            text: (key: string) => key
+        },
+        shortcuts: {
+            isComposing: () => false,
+            matches: (event: { key?: string; ctrlKey?: boolean }, chord: string) => chord === "Ctrl+Space" && event.ctrlKey === true && event.key === " "
+        },
+        popups: {
+            open: () => {
+                state.openedCount++;
+                return {
+                    reposition: () => undefined,
+                    close: () => {
+                        state.closedCount++;
+                    }
+                };
+            }
+        }
+    };
+
+    const surface = {
+        get isLocked(): boolean {
+            return state.locked;
+        },
+        lines: {
+            lineAt: () => 0,
+            start: () => 0
+        },
+        tokenKindAt: () => state.tokenKind
+    };
+
+    const editing = {
+        acceptCompletion: () => undefined
+    };
+
+    const carets = {
+        contentCaretRect: () => ({ left: 8, top: 4, right: 8, bottom: 20 })
+    };
+
+    const completions = new CodeEditorCompletions(
+        {
+            root: root as unknown as HTMLElement,
+            textarea,
+            scroller: scroller as unknown as HTMLElement,
+            content: content as unknown as HTMLElement
+        },
+        pluginContext as never,
+        surface as never,
+        editing as never,
+        carets as never,
+        () => "plain-text"
+    );
+
+    return { completions, textarea, state };
+}
+
+test("typing an external trigger character or pressing Ctrl+Space while the completions file is still loading opens once resolved", async () => {
+    const globals = globalThis as {
+        Element?: unknown;
+        HTMLElement?: unknown;
+        InputEvent?: unknown;
+        document?: { activeElement: unknown; createElement: (tag: string) => unknown };
+    };
+    const prevElement = globals.Element;
+    const prevHtmlElement = globals.HTMLElement;
+    const prevInputEvent = globals.InputEvent;
+    const prevDocument = globals.document;
+    const realFetch = globalThis.fetch;
+
+    class FakeInputEvent {
+        public readonly type: string;
+        public readonly inputType: string;
+        public readonly isComposing = false;
+
+        public constructor(type: string, init?: { inputType?: string }) {
+            this.type = type;
+            this.inputType = init?.inputType ?? "";
+        }
+    }
+
+    const resolvers = new Map<string, (response: Response) => void>();
+
+    globals.Element = FakeDomElement;
+    globals.HTMLElement = FakeDomElement;
+    globals.InputEvent = FakeInputEvent;
+    globals.document = {
+        activeElement: null,
+        createElement: (tag: string) => new FakeDomElement(tag)
+    };
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => new Promise<Response>(resolve => {
+        resolvers.set(String(input), resolve);
+    });
+
+    try {
+        // 1. Trigger character typed before external completions JSON finishes loading.
+        const triggerStage = createCompletionsStage("/completions/pending-trigger.json");
+
+        globals.document.activeElement = triggerStage.textarea;
+        triggerStage.textarea.value = "Hi {{";
+        triggerStage.textarea.selectionStart = 5;
+        triggerStage.completions.textChanged(new FakeInputEvent("input", { inputType: "insertText" }) as unknown as Event);
+
+        assert.equal(triggerStage.completions.isOpen, false);
+        assert.equal(resolvers.has("/completions/pending-trigger.json"), true);
+
+        resolvers.get("/completions/pending-trigger.json")!(Response.json({
+            triggers: ["{{"],
+            items: [{ label: "{{userName}}" }, { label: "{{userEmail}}" }]
+        }));
+        await loadCompletionsFile("/completions/pending-trigger.json");
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.equal(triggerStage.completions.isOpen, true);
+        assert.deepEqual(triggerStage.state.renderedLabels(), ["{{userName}}", "{{userEmail}}"]);
+
+        // 2. Ctrl+Space pressed before external completions JSON finishes loading.
+        const explicitStage = createCompletionsStage("/completions/pending-explicit.json");
+
+        globals.document.activeElement = explicitStage.textarea;
+        explicitStage.completions.key({ key: " ", ctrlKey: true, defaultPrevented: false, preventDefault: () => undefined } as unknown as KeyboardEvent);
+
+        assert.equal(explicitStage.completions.isOpen, false);
+        resolvers.get("/completions/pending-explicit.json")!(Response.json({
+            items: [{ label: "alpha" }, { label: "beta" }]
+        }));
+        await loadCompletionsFile("/completions/pending-explicit.json");
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.equal(explicitStage.completions.isOpen, true);
+        assert.deepEqual(explicitStage.state.renderedLabels(), ["alpha", "beta"]);
+
+        // 3. Stale guard: blurring or locking before the external JSON resolves keeps the popup closed.
+        const blurredStage = createCompletionsStage("/completions/pending-blurred.json");
+
+        globals.document.activeElement = blurredStage.textarea;
+        blurredStage.textarea.value = ".";
+        blurredStage.textarea.selectionStart = 1;
+        blurredStage.completions.textChanged(new FakeInputEvent("input", { inputType: "insertText" }) as unknown as Event);
+        globals.document.activeElement = null;
+
+        resolvers.get("/completions/pending-blurred.json")!(Response.json({
+            triggers: ["."],
+            items: [{ label: ".trim" }]
+        }));
+        await loadCompletionsFile("/completions/pending-blurred.json");
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.equal(blurredStage.completions.isOpen, false);
+    }
+    finally {
+        globalThis.fetch = realFetch;
+        globals.Element = prevElement;
+        globals.HTMLElement = prevHtmlElement;
+        globals.InputEvent = prevInputEvent;
+        globals.document = prevDocument;
+    }
 });

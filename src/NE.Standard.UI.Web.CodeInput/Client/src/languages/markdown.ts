@@ -59,7 +59,7 @@ const Autolink = /<(?:[A-Za-z][A-Za-z\d+.-]{1,31}:[^<>\s]*|[\w.+-]+@[\w-]+(?:\.[
 // One blank after the name, not a run: the attributes take any blank that follows, and a run both can take is split every way over
 // before a tag with no end is let go.
 const HtmlTag = /<\/?[A-Za-z][\w-]*(?:\s[^<>]*)?\/?>/y;
-const BareUrl = /(?:https?:\/\/|www\.)[^\s<]*[^\s<?!.,:*_~)]/y;
+const BareUrl = /(?:https?:\/\/|www\.)[^\s<>"]+/iy;
 
 /** A tokenizer for Markdown whose fenced blocks are read by whatever `resolve` finds for their language. */
 export function markdownTokenizer(resolve: (id: string) => Tokenizer | null, spans: readonly MarkdownSpanRule[] = []): Tokenizer {
@@ -204,7 +204,7 @@ function blockLine(line: string, state: MarkdownState, emit: EmitToken, resolve:
         }
     }
 
-    return { ...InitialState, comment: containerLine(line, from, emit, spans) };
+    return { ...InitialState, comment: from === 0 ? containerLine(line, 0, emit, spans) : inlineSpans(line, from, null, emit, spans) };
 }
 
 /** The quote and list markers a line opens with, then a heading or the line's inline spans; true when a comment is left open. */
@@ -358,11 +358,11 @@ function inlineSpans(line: string, from: number, base: TokenKind | null, emit: E
             }
         }
 
-        if ((character === "h" || character === "w") && (i === 0 || /[\s(]/.test(line.charAt(i - 1)))) {
-            BareUrl.lastIndex = i;
+        if ((character === "h" || character === "H" || character === "w" || character === "W") && (i === 0 || /[\s(*_~]/.test(line.charAt(i - 1)))) {
+            const end = readBareUrl(line, i);
 
-            if (BareUrl.test(line)) {
-                span(i, BareUrl.lastIndex, "link");
+            if (end > i) {
+                span(i, end, "link");
                 continue;
             }
         }
@@ -458,16 +458,20 @@ function lineScopes(line: string, searches: LineSearches): Int32Array | null {
     if (searches.scopes !== undefined)
         return searches.scopes;
 
-    if (searches.spans.length === 0) {
-        searches.scopes = null;
+    const masked = maskInlineCodeAndEscapes(line, searches);
+    const ranges = searches.spans.length > 0 ? findSpanRanges(masked, searches.spans, searches.from, line.length) : [];
+    let hasMasked = ranges.length > 0;
 
-        return null;
+    if (!hasMasked) {
+        for (let k = searches.from; k < line.length; k++) {
+            if (masked.charCodeAt(k) === 0 && line.charCodeAt(k) !== 0) {
+                hasMasked = true;
+                break;
+            }
+        }
     }
 
-    const masked = maskInlineCodeAndEscapes(line, searches.from);
-    const ranges = findSpanRanges(masked, searches.spans, searches.from, line.length);
-
-    if (ranges.length === 0) {
+    if (!hasMasked) {
         searches.scopes = null;
 
         return null;
@@ -481,21 +485,39 @@ function lineScopes(line: string, searches: LineSearches): Int32Array | null {
         scopes.fill(range.id, range.openEnd, range.closeStart);
     }
 
+    for (let k = searches.from; k < line.length; k++) {
+        if (masked.charCodeAt(k) === 0 && line.charCodeAt(k) !== 0)
+            scopes[k] = -1;
+    }
+
     searches.scopes = scopes;
 
     return scopes;
 }
 
-function maskInlineCodeAndEscapes(line: string, from: number): string {
-    let masked = from > 0 ? "\0".repeat(from) : "";
+function maskInlineCodeAndEscapes(line: string, searches: LineSearches): string {
+    const from = searches.from;
+    let masked = "";
+    let plain = from;
     let i = from;
+
+    const maskRange = (start: number, end: number): void => {
+        if (masked.length === 0 && from > 0)
+            masked = "\0".repeat(from);
+
+        if (start > plain)
+            masked += line.slice(plain, start);
+
+        masked += "\0".repeat(end - start);
+        plain = end;
+        i = end;
+    };
 
     while (i < line.length) {
         const character = line.charAt(i);
 
         if (character === "\\" && Escapable.test(line.charAt(i + 1))) {
-            masked += "\0\0";
-            i += 2;
+            maskRange(i, i + 2);
             continue;
         }
 
@@ -504,19 +526,113 @@ function maskInlineCodeAndEscapes(line: string, from: number): string {
             const close = findRun(line, i + run, "`", run);
 
             if (close >= 0) {
-                const end = close + run;
+                maskRange(i, close + run);
+                continue;
+            }
 
-                masked += "\0".repeat(end - i);
-                i = end;
+            i += run;
+            continue;
+        }
+
+        if (character === "<") {
+            if (line.startsWith("<!--", i)) {
+                const end = line.indexOf("-->", i + 4);
+
+                maskRange(i, end < 0 ? line.length : end + 3);
+                continue;
+            }
+
+            Autolink.lastIndex = i;
+
+            if (Autolink.test(line)) {
+                maskRange(i, Autolink.lastIndex);
                 continue;
             }
         }
 
-        masked += character;
+        if (character === "]" && line.charAt(i + 1) === "(") {
+            const end = matching(line, i + 1, "(", ")", searches);
+
+            if (end >= 0) {
+                maskRange(i + 1, end + 1);
+                continue;
+            }
+        }
+
+        if ((character === "h" || character === "H") && (i === 0 || !/[A-Za-z\d]/.test(line.charAt(i - 1)))
+            || (character === "w" || character === "W") && (i === 0 || /[\s(*_~(["'=<>]/.test(line.charAt(i - 1)))) {
+            const end = readBareUrl(line, i);
+
+            if (end > i) {
+                maskRange(i, end);
+                continue;
+            }
+        }
+
         i++;
     }
 
-    return masked;
+    if (masked.length === 0)
+        return from === 0 ? line : "\0".repeat(from) + line.slice(from);
+
+    return plain < line.length ? masked + line.slice(plain) : masked;
+}
+
+function readBareUrl(line: string, at: number): number {
+    BareUrl.lastIndex = at;
+
+    const match = BareUrl.exec(line);
+
+    if (match === null)
+        return -1;
+
+    const raw = match[0];
+    let openedParens = 0;
+    let closedParens = 0;
+    let openedBrackets = 0;
+    let closedBrackets = 0;
+
+    for (let k = 0; k < raw.length; k++) {
+        const ch = raw.charAt(k);
+
+        if (ch === "(")
+            openedParens++;
+        else if (ch === ")")
+            closedParens++;
+        else if (ch === "[")
+            openedBrackets++;
+        else if (ch === "]")
+            closedBrackets++;
+    }
+
+    let end = raw.length;
+
+    while (end > 0) {
+        const ch = raw.charAt(end - 1);
+
+        if (/[?!.,:*_~'"]/.test(ch)) {
+            end--;
+            continue;
+        }
+
+        if (ch === ")" && closedParens > openedParens) {
+            closedParens--;
+            end--;
+            continue;
+        }
+
+        if (ch === "]" && closedBrackets > openedBrackets) {
+            closedBrackets--;
+            end--;
+            continue;
+        }
+
+        break;
+    }
+
+    const address = end === raw.length ? raw : raw.slice(0, end);
+
+    return /^(?:https?:\/\/|www\.)[^./]/i.test(address) ? at + address.length : -1;
 }
 
 /**

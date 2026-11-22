@@ -417,3 +417,33 @@ test("markdown single tilde stays plain while double tilde is strikethrough, and
         assert.deepEqual(tokens, [{ text: "*action*", kind: "emphasis" }]);
     }
 });
+
+test("markdown masks bare URLs, inline link destinations and HTML comments before scanning emphasis, heading and custom span markers", () => {
+    const md = languages.get("markdown")!;
+
+    const bareUrls = tokensOf(md, "See https://example.com/a_b_c, (https://example.com/a_(b)_c), \"https://example.com/_a_/b\" and _open https://example.com/a_/b");
+
+    assert.equal(kindOf(bareUrls, "https://example.com/a_b_c"), "link");
+    assert.equal(kindOf(bareUrls, "https://example.com/a_(b)_c"), "link");
+    assert.equal(bareUrls.some(token => token.kind === "emphasis" || token.kind === "strong"), false);
+
+    const comments = tokensOf(md, "<!-- _not_italic_ --> _open <!-- close_ -->\n<!-- multi\nend --> # Not a heading");
+
+    assert.equal(kindOf(comments, "<!-- _not_italic_ -->"), "comment");
+    assert.equal(kindOf(comments, "<!-- close_ -->"), "comment");
+    assert.equal(comments.some(token => token.kind === "emphasis" || token.kind === "heading"), false);
+
+    const links = tokensOf(md, "[docs](https://example.com/a_b_c) _open [more](https://example.com/close_)\nwrapped label](assets/_a_/b.png)");
+
+    assert.equal(kindOf(links, "[docs]"), "link");
+    assert.equal(kindOf(links, "(https://example.com/a_b_c)"), "string");
+    assert.equal(kindOf(links, "[more]"), "link");
+    assert.equal(kindOf(links, "(https://example.com/close_)"), "string");
+    assert.equal(links.some(token => token.kind === "emphasis"), false);
+
+    const scoped = markdownTokenizer(id => languages.get(id), [{ open: "{{", close: "}}" }]);
+    const scopedTokens = tokensOf(scoped, "{{ *a <!-- }} --> [x](https://example.com/}}) https://example.com/a_b}} }} *b*");
+
+    assert.equal(kindOf(scopedTokens, "*b*"), "emphasis");
+    assert.equal(scopedTokens.filter(token => token.kind === "emphasis").length, 1);
+});
