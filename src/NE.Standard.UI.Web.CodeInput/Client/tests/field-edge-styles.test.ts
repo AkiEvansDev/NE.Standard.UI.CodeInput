@@ -36,8 +36,8 @@ test("the field box clips its inner layers at its border while its active edge d
 
 test("status-bar pickers lift under keyboard focus as under pointer hover and suppress the browser outline", () => {
     assert.doesNotMatch(css, /--ui-field-hover/);
-    const focused = declaration(css, ".ui-code-input__status-picker > .ui-select:not(.ui-disabled):not(.ui-readonly) > .ui-select__trigger:is([aria-expanded=\"true\"], :focus-visible:not([data-ui-pointer-focus]))", "background");
-    const outline = declaration(css, ".ui-code-input__status-picker > .ui-select:not(.ui-disabled):not(.ui-readonly) > .ui-select__trigger:focus-visible:not([data-ui-pointer-focus])", "outline");
+    const focused = declaration(css, ".ui-code-input__status-picker > .ui-select:not(.ui-disabled):not(.ui-readonly):not([data-ui-select-locked]) > .ui-select__trigger:is([aria-expanded=\"true\"], :focus-visible:not([data-ui-pointer-focus]))", "background");
+    const outline = declaration(css, ".ui-code-input__status-picker > .ui-select:not(.ui-disabled):not(.ui-readonly):not([data-ui-select-locked]) > .ui-select__trigger:focus-visible:not([data-ui-pointer-focus])", "outline");
 
     assert.equal(focused, "var(--ui-wash-hover)");
     assert.equal(outline, "none");
