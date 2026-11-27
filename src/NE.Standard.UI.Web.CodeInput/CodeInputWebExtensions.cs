@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NE.Standard.UI.CodeInput;
 using NE.Standard.UI.Shell.Localization;
 using NE.Standard.UI.Web.Abstractions.Rendering;
 using NE.Standard.UI.Web.Renderers.Foundation;
@@ -26,6 +27,6 @@ public static class CodeInputWebExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebComponentRenderer, MarkdownDisplayComponentRenderer>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IUIStringsSource, CodeInputStrings>());
 
-        return services.AddPackageClient(AssemblyName, "ui-code-input");
+        return services.AddPackageClient(AssemblyName, "ui-code-input", CodeInputComponent.ComponentTypeKey, MarkdownDisplayComponent.ComponentTypeKey);
     }
 }
